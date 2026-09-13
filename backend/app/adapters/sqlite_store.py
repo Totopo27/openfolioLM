@@ -2,7 +2,7 @@ import sqlite3
 import json
 from datetime import datetime, timezone
 from typing import Optional
-from app.core.models import SourceDocument, DocumentChunk
+from app.core.models import SourceDocument, DocumentChunk, ChatMessageRecord, Citation
 from app.ports.store import DocumentStorePort
 
 
@@ -12,19 +12,34 @@ class SQLiteDocumentStore(DocumentStorePort):
     def __init__(self, db_path: str = "openfolio.db"):
         self.db_path = db_path
         self._memory_conn: Optional[sqlite3.Connection] = None
+        self._conn: Optional[sqlite3.Connection] = None
         if db_path == ":memory:":
             self._memory_conn = sqlite3.connect(":memory:", check_same_thread=False)
             self._memory_conn.row_factory = sqlite3.Row
             self._memory_conn.execute("PRAGMA foreign_keys = ON")
+        else:
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA foreign_keys = ON")
         self._init_schema()
 
     def _get_connection(self) -> sqlite3.Connection:
         if self._memory_conn is not None:
             return self._memory_conn
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
+        if self._conn is not None:
+            return self._conn
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA foreign_keys = ON")
+        return self._conn
+
+    def close(self) -> None:
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+        if self._memory_conn is not None:
+            self._memory_conn.close()
+            self._memory_conn = None
 
     def _init_schema(self) -> None:
         with self._get_connection() as conn:
@@ -55,6 +70,17 @@ class SQLiteDocumentStore(DocumentStorePort):
                     source_id UNINDEXED,
                     content,
                     tokenize = 'porter unicode61'
+                );
+
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    conversation_id TEXT NOT NULL DEFAULT 'default',
+                    sender TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    citations_json TEXT NOT NULL DEFAULT '[]',
+                    evidence_found INTEGER,
+                    active_sources_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL
                 );
             """)
 
@@ -210,3 +236,62 @@ class SQLiteDocumentStore(DocumentStorePort):
                     )
                 )
             return results
+
+    def save_message(self, message: ChatMessageRecord) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO messages
+                (id, conversation_id, sender, text, citations_json, evidence_found, active_sources_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    message.id,
+                    message.conversation_id,
+                    message.sender,
+                    message.text,
+                    json.dumps([c.model_dump() for c in message.citations]),
+                    1 if message.evidence_found else (0 if message.evidence_found is False else None),
+                    json.dumps(message.active_sources_consulted),
+                    message.created_at.isoformat()
+                )
+            )
+
+    def get_messages(self, conversation_id: str = "default") -> list[ChatMessageRecord]:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
+                (conversation_id,)
+            )
+            messages = []
+            for row in cursor.fetchall():
+                citations_raw = json.loads(row["citations_json"])
+                citations = [Citation(**c) for c in citations_raw]
+                ev_found = bool(row["evidence_found"]) if row["evidence_found"] is not None else None
+                messages.append(
+                    ChatMessageRecord(
+                        id=row["id"],
+                        conversation_id=row["conversation_id"],
+                        sender=row["sender"],
+                        text=row["text"],
+                        citations=citations,
+                        evidence_found=ev_found,
+                        active_sources_consulted=json.loads(row["active_sources_json"]),
+                        created_at=datetime.fromisoformat(row["created_at"])
+                    )
+                )
+            return messages
+
+    def clear_messages(self, conversation_id: str = "default") -> None:
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+
+    def count_messages(self) -> int:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM messages")
+            return cursor.fetchone()[0]
+
+    def count_documents(self) -> int:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM documents")
+            return cursor.fetchone()[0]

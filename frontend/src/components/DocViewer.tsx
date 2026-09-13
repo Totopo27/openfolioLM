@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { FileText, ExternalLink, Bookmark } from 'lucide-react';
+import { FileText, Bookmark } from 'lucide-react';
 import { SourceDocument, HighlightTarget } from '../types';
 
 interface DocViewerProps {

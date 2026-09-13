@@ -1,0 +1,76 @@
+import io
+import shutil
+import tempfile
+import pytest
+from fastapi.testclient import TestClient
+from app.main import create_app
+from app.adapters.project_manager import ProjectManager
+from app.adapters.grounded_synthesizer import GroundedSynthesizer
+
+
+class MockLLM:
+    def generate(self, system_prompt: str, user_prompt: str) -> str:
+        if "autor" in user_prompt.lower():
+            return "El autor es Rafael Herra [^1]."
+        return "The provided active documents do not contain information to answer this query."
+
+
+@pytest.fixture
+def client_and_manager():
+    temp_dir = tempfile.mkdtemp()
+    mgr = ProjectManager(projects_root=temp_dir, legacy_db_path=None)
+    synthesizer = GroundedSynthesizer(llm_client=MockLLM())
+    app = create_app(project_manager=mgr, synthesizer=synthesizer)
+    client = TestClient(app)
+    yield client, mgr
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_project_crud_and_isolated_chat(client_and_manager):
+    client, mgr = client_and_manager
+
+    # 1. Create Project
+    create_res = client.post("/api/projects", json={"name": "Novela Edipo", "description": "Estudio"})
+    assert create_res.status_code == 200
+    proj = create_res.json()
+    proj_id = proj["id"]
+    assert proj["name"] == "Novela Edipo"
+
+    # 2. Upload file into Project
+    file_content = b"# Novela\n\nEl autor de la obra es Rafael Herra."
+    upload_res = client.post(
+        f"/api/projects/{proj_id}/sources/upload",
+        files={"file": ("novela.md", io.BytesIO(file_content), "text/markdown")}
+    )
+    assert upload_res.status_code == 200
+    source_id = upload_res.json()["id"]
+
+    # 3. Chat within Project
+    chat_res = client.post(
+        f"/api/projects/{proj_id}/chat",
+        json={"query": "¿Quién es el autor?", "active_source_ids": [source_id]}
+    )
+    assert chat_res.status_code == 200
+    ans = chat_res.json()
+    assert ans["evidence_found"] is True
+    assert "[^1]" in ans["answer"]
+
+    # 4. Verify Persistent Messages were saved
+    msg_res = client.get(f"/api/projects/{proj_id}/messages")
+    assert msg_res.status_code == 200
+    messages = msg_res.json()
+    assert len(messages) == 2  # 1 user + 1 assistant
+    assert messages[0]["sender"] == "user"
+    assert messages[1]["sender"] == "assistant"
+    assert len(messages[1]["citations"]) == 1
+
+    # 5. Clear messages
+    del_msg_res = client.delete(f"/api/projects/{proj_id}/messages")
+    assert del_msg_res.status_code == 200
+    assert len(client.get(f"/api/projects/{proj_id}/messages").json()) == 0
+
+    # 6. Delete Project
+    del_proj_res = client.delete(f"/api/projects/{proj_id}")
+    assert del_proj_res.status_code == 200
+    remaining_ids = [p["id"] for p in client.get("/api/projects").json()]
+    assert proj_id not in remaining_ids

@@ -1,24 +1,48 @@
-import { SourceDocument, GroundedResponse } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage } from '../types';
 
 const API_BASE = '/api';
 
-export async function fetchSources(): Promise<SourceDocument[]> {
-  const res = await fetch(`${API_BASE}/sources`);
-  if (!res.ok) throw new Error('Failed to fetch sources');
+// ================= Project APIs =================
+
+export async function fetchProjects(): Promise<Project[]> {
+  const res = await fetch(`${API_BASE}/projects`);
+  if (!res.ok) throw new Error('Failed to fetch projects');
   return res.json();
 }
 
-export async function fetchSourceById(id: string): Promise<SourceDocument> {
-  const res = await fetch(`${API_BASE}/sources/${id}`);
-  if (!res.ok) throw new Error(`Failed to fetch source: ${id}`);
+export async function createProject(name: string, description: string = ''): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create project' }));
+    throw new Error(err.detail || 'Failed to create project');
+  }
   return res.json();
 }
 
-export async function uploadSource(file: File): Promise<SourceDocument> {
+export async function deleteProject(projectId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete project: ${projectId}`);
+}
+
+// ================= Project-Scoped Source APIs =================
+
+export async function fetchProjectSources(projectId: string): Promise<SourceDocument[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources`);
+  if (!res.ok) throw new Error('Failed to fetch project sources');
+  return res.json();
+}
+
+export async function uploadProjectSource(projectId: string, file: File): Promise<SourceDocument> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/sources/upload`, {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/upload`, {
     method: 'POST',
     body: formData,
   });
@@ -31,19 +55,46 @@ export async function uploadSource(file: File): Promise<SourceDocument> {
   return res.json();
 }
 
-export async function deleteSource(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/sources/${id}`, {
+export async function deleteProjectSource(projectId: string, sourceId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/${sourceId}`, {
     method: 'DELETE',
   });
-  if (!res.ok) throw new Error(`Failed to delete source: ${id}`);
+  if (!res.ok) throw new Error(`Failed to delete source: ${sourceId}`);
 }
 
-export async function sendGroundedChat(
+// ================= Project-Scoped Chat & Persistence APIs =================
+
+export async function fetchProjectMessages(projectId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/messages`);
+  if (!res.ok) throw new Error('Failed to fetch project messages');
+  const records = await res.json();
+  return records.map((r: any) => ({
+    id: r.id,
+    sender: r.sender,
+    text: r.text,
+    citations: r.citations,
+    evidence_found: r.evidence_found,
+    active_sources_consulted: r.active_sources_consulted,
+    timestamp: r.created_at
+      ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '',
+  }));
+}
+
+export async function clearProjectMessages(projectId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/messages`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to clear messages');
+}
+
+export async function sendProjectGroundedChat(
+  projectId: string,
   query: string,
   activeSourceIds: string[],
   provider?: string
 ): Promise<GroundedResponse> {
-  const res = await fetch(`${API_BASE}/chat`, {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

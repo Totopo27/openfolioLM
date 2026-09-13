@@ -12,8 +12,10 @@ from app.adapters.positional_chunker import PositionalChunker
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.grounded_synthesizer import GroundedSynthesizer
 from app.adapters.llm_client import OpenAICompatibleLLMClient
+from app.adapters.project_manager import ProjectManager
 from app.api.routes_sources import create_sources_router
 from app.api.routes_chat import create_chat_router
+from app.api.routes_projects import create_projects_router
 
 
 def create_app(
@@ -21,6 +23,7 @@ def create_app(
     synthesizer: Optional[SynthesizerPort] = None,
     ingester: Optional[IngestionPort] = None,
     chunker: Optional[ChunkerPort] = None,
+    project_manager: Optional[ProjectManager] = None,
 ) -> FastAPI:
     app = FastAPI(
         title="OpenFolioLM API",
@@ -38,10 +41,14 @@ def create_app(
     )
 
     # Initialize dependencies if not supplied
-    if not os.path.exists(settings.data_dir):
-        os.makedirs(settings.data_dir, exist_ok=True)
+    projects_dir = os.path.join(settings.data_dir, "projects")
+    active_pm = project_manager or ProjectManager(
+        projects_root=projects_dir,
+        legacy_db_path=settings.db_path
+    )
+    default_proj = active_pm.ensure_default_project()
 
-    active_store = store or SQLiteDocumentStore(db_path=settings.db_path)
+    active_store = store or active_pm.get_store(default_proj.id)
     active_ingester = ingester or MarkItDownAdapter()
     active_chunker = chunker or PositionalChunker()
 
@@ -67,6 +74,7 @@ def create_app(
         active_synthesizer = synthesizer
 
     # Register routers
+    app.include_router(create_projects_router(active_pm, active_ingester, active_chunker, active_synthesizer))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
     app.include_router(create_chat_router(active_store, active_synthesizer))
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Trash2, CheckSquare, Square, Eye, FileUp, Loader2 } from 'lucide-react';
+import { Upload, Trash2, CheckSquare, Square, Eye, Loader2 } from 'lucide-react';
 import { SourceDocument } from '../types';
 
 interface SourceManagerProps {

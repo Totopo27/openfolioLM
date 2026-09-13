@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2 } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2, Trash2 } from 'lucide-react';
 import { ChatMessage, Citation } from '../types';
 
 interface ChatPanelProps {
@@ -8,6 +8,7 @@ interface ChatPanelProps {
   activeSourceCount: number;
   onSendMessage: (text: string) => void;
   onCitationClick: (citation: Citation) => void;
+  onClearChat?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -16,6 +17,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   activeSourceCount,
   onSendMessage,
   onCitationClick,
+  onClearChat,
 }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -126,6 +128,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden">
+      {/* Optional Chat Header Bar */}
+      {messages.length > 0 && onClearChat && (
+        <div className="flex items-center justify-between px-6 py-2 border-b border-slate-900 bg-slate-900/40 text-xs text-slate-400 shrink-0">
+          <span className="font-mono text-[11px] text-slate-500">
+            Historial del proyecto ({messages.length} mensajes)
+          </span>
+          <button
+            type="button"
+            onClick={onClearChat}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer text-[11px] px-2 py-0.5 rounded hover:bg-slate-800"
+            title="Borrar historial de chat"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Borrar historial</span>
+          </button>
+        </div>
+      )}
+
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 ? (

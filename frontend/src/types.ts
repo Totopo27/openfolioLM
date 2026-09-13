@@ -1,3 +1,12 @@
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  doc_count: number;
+  message_count: number;
+}
+
 export interface SourceDocument {
   id: string;
   filename: string;

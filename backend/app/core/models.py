@@ -81,3 +81,30 @@ class GroundedResponse(BaseModel):
         default=True,
         description="Whether sufficient grounding evidence was located in active sources"
     )
+
+
+class ChatMessageRecord(BaseModel):
+    """Persistent chat message in a project workspace."""
+    id: str = Field(..., description="Unique message ID")
+    conversation_id: str = Field(default="default", description="Conversation thread identifier")
+    sender: str = Field(..., description="'user' or 'assistant'")
+    text: str = Field(..., description="Message text")
+    citations: list[Citation] = Field(default_factory=list, description="Attributed citations")
+    evidence_found: Optional[bool] = Field(default=None, description="Grounding status")
+    active_sources_consulted: list[str] = Field(default_factory=list, description="Sources consulted")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Project(BaseModel):
+    """Isolated research workspace directory."""
+    id: str = Field(..., description="Unique project slug identifier")
+    name: str = Field(..., description="Project display title")
+    description: str = Field(default="", description="Optional project description")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    doc_count: int = Field(default=0, description="Total documents in project")
+    message_count: int = Field(default=0, description="Total chat messages in project")
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(default="")
