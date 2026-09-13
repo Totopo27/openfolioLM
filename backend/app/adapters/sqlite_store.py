@@ -150,6 +150,17 @@ class SQLiteDocumentStore(DocumentStorePort):
             conn.execute("DELETE FROM chunks_fts WHERE source_id = ?", (source_id,))
             return cursor.rowcount > 0
 
+    STOPWORDS = {
+        "de", "la", "que", "el", "en", "y", "a", "los", "del", "se", "las", "por", "un", "para", "con", "no", "una",
+        "su", "al", "lo", "como", "mas", "más", "pero", "sus", "le", "ya", "o", "este", "sí", "porque", "esta",
+        "entre", "cuando", "muy", "sin", "sobre", "también", "tambien", "me", "hasta", "hay", "donde", "quien",
+        "desde", "todo", "nos", "durante", "todos", "uno", "les", "ni", "contra", "otros", "ese", "eso", "ante",
+        "ellos", "e", "esto", "mí", "mi", "antes", "algunos", "qué", "que", "unos", "yo", "otro", "otras", "otra",
+        "él", "tanto", "esa", "estos", "mucho", "quienes", "nada", "muchos", "cual", "cuál", "cuales", "cuáles",
+        "es", "son", "fue", "era", "libro", "trata", "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+        "for", "of", "with", "by", "from", "is", "are", "was", "were", "what", "which", "who", "whom", "where", "how"
+    }
+
     def search_chunks(
         self,
         query: str,
@@ -159,12 +170,17 @@ class SQLiteDocumentStore(DocumentStorePort):
         if not active_source_ids or not query.strip():
             return []
 
-        # Sanitize query for FTS5: extract alphanumeric tokens
-        tokens = [t for t in query.replace('"', " ").replace("'", " ").split() if t.isalnum()]
-        if not tokens:
+        # Extract alphanumeric words
+        import re
+        all_tokens = [t for t in re.findall(r"\w+", query, flags=re.UNICODE) if len(t) > 1]
+        if not all_tokens:
             return []
 
-        fts_query = " OR ".join(f'"{t}"*' for t in tokens)
+        # Filter out common stopwords so rare topical terms are prioritized
+        meaningful_tokens = [t for t in all_tokens if t.lower() not in self.STOPWORDS]
+        tokens_to_search = meaningful_tokens if meaningful_tokens else all_tokens
+
+        fts_query = " OR ".join(f'"{t}"*' for t in tokens_to_search)
         placeholders = ",".join("?" for _ in active_source_ids)
 
         sql = f"""

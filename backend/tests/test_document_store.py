@@ -63,3 +63,28 @@ def test_search_strictly_respects_active_source_ids(store):
     # When active_source_ids is empty -> MUST RETURN EMPTY
     results_empty = store.search_chunks(query="token", active_source_ids=[], top_k=5)
     assert len(results_empty) == 0
+
+
+def test_search_filters_stopwords_in_natural_language_query(store):
+    doc = SourceDocument(id="doc_story", filename="story.md", raw_markdown="Text")
+    chunk_noise = DocumentChunk(
+        id="doc_story#c1",
+        source_id="doc_story",
+        start_char=0,
+        end_char=50,
+        content="Esta es una cosa y que es muy común en todas partes."
+    )
+    chunk_target = DocumentChunk(
+        id="doc_story#c2",
+        source_id="doc_story",
+        start_char=51,
+        end_char=100,
+        content="Daduic es una ciudad mágica e invertida en los mapas."
+    )
+    store.add_document(doc, [chunk_noise, chunk_target])
+
+    # Query with stopwords: "¿qué es Daduic?"
+    results = store.search_chunks("¿qué es Daduic?", ["doc_story"], top_k=1)
+    assert len(results) == 1
+    assert results[0].id == "doc_story#c2"
+    assert "Daduic" in results[0].content
