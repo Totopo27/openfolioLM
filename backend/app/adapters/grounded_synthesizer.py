@@ -33,8 +33,24 @@ class GroundedSynthesizer(SynthesizerPort):
         "5. Never invent or hallucinate citation numbers that are not in the context."
     )
 
-    def __init__(self, llm_client: Optional[LLMClientProtocol] = None):
+    def __init__(
+        self,
+        llm_client: Optional[LLMClientProtocol] = None,
+        providers: Optional[dict[str, LLMClientProtocol]] = None,
+        default_provider: str = "gemini"
+    ):
         self._llm_client = llm_client
+        self._providers = providers or {}
+        self._default_provider = default_provider
+
+    def _get_client(self, requested_provider: Optional[str]) -> Optional[LLMClientProtocol]:
+        if requested_provider and requested_provider in self._providers:
+            return self._providers[requested_provider]
+        if self._llm_client:
+            return self._llm_client
+        if self._default_provider in self._providers:
+            return self._providers[self._default_provider]
+        return None
 
     def synthesize(
         self,
@@ -65,8 +81,9 @@ class GroundedSynthesizer(SynthesizerPort):
         user_prompt = f"<context>\n{context_block}\n</context>\n\nQuestion: {query.query}"
 
         # If an LLM client is configured, call it; otherwise construct a default fallback
-        if self._llm_client:
-            raw_answer = self._llm_client.generate(self.SYSTEM_PROMPT, user_prompt)
+        client = self._get_client(query.provider)
+        if client:
+            raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
         else:
             raw_answer = "The provided active documents do not contain information to answer this query."
 

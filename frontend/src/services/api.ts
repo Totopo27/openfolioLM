@@ -40,7 +40,8 @@ export async function deleteSource(id: string): Promise<void> {
 
 export async function sendGroundedChat(
   query: string,
-  activeSourceIds: string[]
+  activeSourceIds: string[],
+  provider?: string
 ): Promise<GroundedResponse> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
@@ -50,6 +51,7 @@ export async function sendGroundedChat(
       active_source_ids: activeSourceIds,
       top_k: 5,
       strict_grounding: true,
+      provider: provider || undefined,
     }),
   });
 

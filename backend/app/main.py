@@ -46,12 +46,22 @@ def create_app(
     active_chunker = chunker or PositionalChunker()
 
     if synthesizer is None:
-        llm_client = OpenAICompatibleLLMClient(
-            base_url=settings.effective_llm_base_url,
-            api_key=settings.effective_llm_api_key,
-            model=settings.effective_llm_model
+        providers = {}
+        if settings.gemini_api_key:
+            providers["gemini"] = OpenAICompatibleLLMClient(
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+                api_key=settings.gemini_api_key,
+                model=settings.gemini_model
+            )
+        providers["ollama"] = OpenAICompatibleLLMClient(
+            base_url=settings.ollama_base_url,
+            api_key=settings.ollama_api_key,
+            model=settings.ollama_model
         )
-        active_synthesizer = GroundedSynthesizer(llm_client=llm_client)
+        active_synthesizer = GroundedSynthesizer(
+            providers=providers,
+            default_provider=settings.llm_provider
+        )
     else:
         active_synthesizer = synthesizer
 

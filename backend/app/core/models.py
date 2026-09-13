@@ -63,6 +63,10 @@ class GroundedQuery(BaseModel):
         default=True,
         description="If True, refuse to answer if evidence is missing from active sources"
     )
+    provider: Optional[str] = Field(
+        default=None,
+        description="Optional provider override: 'gemini' or 'ollama'"
+    )
 
 
 class GroundedResponse(BaseModel):

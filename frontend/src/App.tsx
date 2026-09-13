@@ -13,6 +13,7 @@ export const App: React.FC = () => {
   const [highlightTarget, setHighlightTarget] = useState<HighlightTarget | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [provider, setProvider] = useState<'gemini' | 'ollama'>('gemini');
 
   // Initial load
   useEffect(() => {
@@ -94,7 +95,7 @@ export const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const res = await sendGroundedChat(query, activeSourceIds);
+      const res = await sendGroundedChat(query, activeSourceIds, provider);
 
       const assistantMsg: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
@@ -140,13 +141,21 @@ export const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
-          <span className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80">
+            <span className="text-[11px] text-slate-400 font-mono">Engine:</span>
+            <select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value as 'gemini' | 'ollama')}
+              className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="gemini" className="bg-slate-900 text-slate-200">⚡ Gemini 3.6 Flash (API Cloud)</option>
+              <option value="ollama" className="bg-slate-900 text-slate-200">🔒 Qwen 2.5:3b (Ollama Local)</option>
+            </select>
+          </div>
+
+          <span className="hidden sm:flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-indigo-400" />
-            Hexagonal Architecture
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            MarkItDown Ingestion
+            Hexagonal Core
           </span>
         </div>
       </header>
