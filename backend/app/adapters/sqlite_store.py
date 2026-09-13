@@ -219,6 +219,14 @@ class SQLiteDocumentStore(DocumentStorePort):
             LIMIT ?
         """
 
+        # Document-level queries target metadata (author, title, summary) typically on page 1 / chunk 0
+        document_level_terms = {
+            "autor", "autores", "escritor", "titulo", "título", "libro", "documento",
+            "resumen", "trata", "quien", "quién", "author", "title", "summary", "about",
+            "tema", "publicado", "editorial", "año", "ano"
+        }
+        is_document_level_query = any(w in document_level_terms for w in [t.lower() for t in all_tokens])
+
         with self._get_connection() as conn:
             params = [fts_query] + list(active_source_ids) + [top_k]
             cursor = conn.execute(sql, params)
@@ -235,6 +243,32 @@ class SQLiteDocumentStore(DocumentStorePort):
                         token_estimate=row["token_estimate"]
                     )
                 )
+
+            # If document-level query (asking for author, title, summary), guarantee opening chunks are present
+            if is_document_level_query:
+                opening_chunks = []
+                existing_ids = {r.id for r in results}
+                for s_id in active_source_ids:
+                    row = conn.execute(
+                        "SELECT * FROM chunks WHERE source_id = ? ORDER BY start_char ASC LIMIT 1",
+                        (s_id,)
+                    ).fetchone()
+                    if row and row["id"] not in existing_ids:
+                        opening_chunks.append(
+                            DocumentChunk(
+                                id=row["id"],
+                                source_id=row["source_id"],
+                                heading_hierarchy=json.loads(row["heading_hierarchy_json"]),
+                                start_char=row["start_char"],
+                                end_char=row["end_char"],
+                                content=row["content"],
+                                token_estimate=row["token_estimate"]
+                            )
+                        )
+                # Prepend opening chunks so title/author context takes top priority
+                results = opening_chunks + [r for r in results if r.id not in {o.id for o in opening_chunks}]
+                results = results[:top_k]
+
             return results
 
     def save_message(self, message: ChatMessageRecord) -> None:

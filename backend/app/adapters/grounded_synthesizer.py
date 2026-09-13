@@ -27,7 +27,8 @@ class GroundedSynthesizer(SynthesizerPort):
         "STRICT GROUNDING RULES:\n"
         "1. Answer ONLY using the facts explicitly stated in the context chunks.\n"
         "2. Do NOT extrapolate, speculate, or introduce external knowledge.\n"
-        "3. Every factual assertion must be attributed to its source chunk using inline markers like [^1], [^2].\n"
+        "3. Every factual assertion must be attributed to its source chunk using inline markers like [^1], [^2] (or [1], [2]). "
+        "Example: 'Federico Schumacher es el autor [^1].'\n"
         "4. If the provided context does not contain the answer, you MUST state: "
         "'The provided active documents do not contain information to answer this query.'\n"
         "5. Never invent or hallucinate citation numbers that are not in the context."
@@ -86,6 +87,10 @@ class GroundedSynthesizer(SynthesizerPort):
             raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
         else:
             raw_answer = "The provided active documents do not contain information to answer this query."
+
+        # Normalize bracket citations [Chunk 1], [1] into standard Markdown footnote citations [^1]
+        raw_answer = re.sub(r'\[(?:Chunk\s*)(\d+)\]', r'[^\1]', raw_answer, flags=re.IGNORECASE)
+        raw_answer = re.sub(r'\[(?!\^)(\d+)\]', r'[^\1]', raw_answer)
 
         # Extract citation numbers [^1], [^2], etc.
         citation_indices = sorted(list({int(m) for m in self.CITATION_REGEX.findall(raw_answer)}))

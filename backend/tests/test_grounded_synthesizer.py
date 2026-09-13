@@ -63,3 +63,36 @@ def test_synthesizer_extracts_citations_and_maps_coordinates():
     assert citation.start_char == 18
     assert citation.end_char == 80
     assert "900 seconds" in citation.quote_snippet
+
+
+def test_synthesizer_normalizes_standard_bracket_citations():
+    doc = SourceDocument(
+        id="doc_ami",
+        filename="ami.pdf",
+        raw_markdown="Schumacher, Federico. AMI: herramienta."
+    )
+    chunk = DocumentChunk(
+        id="doc_ami#c0",
+        source_id="doc_ami",
+        start_char=0,
+        end_char=39,
+        content="Schumacher, Federico. AMI: herramienta."
+    )
+
+    # Local LLMs like Qwen 2.5:3b often output standard academic brackets [1] instead of [^1]
+    llm_output = "El autor del libro es Federico Schumacher [1]."
+    mock_llm = MockLLMClient(llm_output)
+    synthesizer = GroundedSynthesizer(llm_client=mock_llm)
+
+    query = GroundedQuery(query="¿Quién es el autor?", active_source_ids=["doc_ami"])
+    response = synthesizer.synthesize(
+        query=query,
+        chunks=[chunk],
+        sources_map={"doc_ami": doc}
+    )
+
+    assert response.evidence_found is True
+    assert "[^1]" in response.answer
+    assert "[1]" not in response.answer
+    assert len(response.citations) == 1
+    assert response.citations[0].index == 1

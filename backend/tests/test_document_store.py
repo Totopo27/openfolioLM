@@ -88,3 +88,33 @@ def test_search_filters_stopwords_in_natural_language_query(store):
     assert len(results) == 1
     assert results[0].id == "doc_story#c2"
     assert "Daduic" in results[0].content
+
+
+def test_search_includes_opening_chunk_for_document_level_queries(store):
+    doc = SourceDocument(
+        id="doc_book",
+        filename="novela.pdf",
+        raw_markdown="Schumacher, Federico\nAMI y música.\n\nCapítulo 1\nMuchos autores dijeron cosas."
+    )
+    # Chunk 0 has the author name 'Schumacher, Federico' but NOT the word 'autor'
+    chunk_0 = DocumentChunk(
+        id="doc_book#c0",
+        source_id="doc_book",
+        start_char=0,
+        end_char=40,
+        content="Schumacher, Federico\nAMI y música."
+    )
+    # Chunk 1 has the word 'autores' from the body
+    chunk_1 = DocumentChunk(
+        id="doc_book#c1",
+        source_id="doc_book",
+        start_char=41,
+        end_char=100,
+        content="Capítulo 1\nMuchos autores dijeron cosas."
+    )
+    store.add_document(doc, [chunk_0, chunk_1])
+
+    # Query: "¿Quién es el autor de este libro?"
+    results = store.search_chunks("¿Quién es el autor de este libro?", ["doc_book"], top_k=2)
+    assert any(c.id == "doc_book#c0" for c in results)
+    assert results[0].id == "doc_book#c0"
