@@ -51,7 +51,8 @@ def create_app(
             providers["gemini"] = OpenAICompatibleLLMClient(
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai",
                 api_key=settings.gemini_api_key,
-                model=settings.gemini_model
+                model=settings.gemini_model,
+                fallback_models=["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"]
             )
         providers["ollama"] = OpenAICompatibleLLMClient(
             base_url=settings.ollama_base_url,
