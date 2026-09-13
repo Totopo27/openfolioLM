@@ -1,4 +1,4 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine } from '../types';
 
 const API_BASE = '/api';
 
@@ -50,6 +50,25 @@ export async function uploadProjectSource(projectId: string, file: File): Promis
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
     throw new Error(err.detail || 'Upload failed');
+  }
+
+  return res.json();
+}
+
+export async function ingestProjectUrl(
+  projectId: string,
+  url: string,
+  title?: string
+): Promise<SourceDocument> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, title: title || undefined }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Web ingestion failed' }));
+    throw new Error(err.detail || 'Web ingestion failed');
   }
 
   return res.json();
@@ -113,3 +132,13 @@ export async function sendProjectGroundedChat(
 
   return res.json();
 }
+
+// ================= Model Discovery APIs =================
+
+export async function fetchAvailableModels(): Promise<ModelEngine[]> {
+  const res = await fetch(`${API_BASE}/models`);
+  if (!res.ok) throw new Error('Failed to fetch models');
+  const data = await res.json();
+  return data.models || [];
+}
+

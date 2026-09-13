@@ -1,8 +1,11 @@
 import os
+import re
 from typing import Optional
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.models import ModelsListResponse, ModelEngine
 from app.ports.store import DocumentStorePort
 from app.ports.synthesizer import SynthesizerPort
 from app.ports.ingester import IngestionPort
@@ -81,6 +84,84 @@ def create_app(
     @app.get("/api/health")
     async def health():
         return {"status": "ok", "app": "OpenFolioLM"}
+
+    @app.get("/api/models", response_model=ModelsListResponse)
+    async def get_available_models():
+        engines: list[ModelEngine] = []
+
+        # 1. Cloud / Gemini Engines
+        if settings.gemini_api_key:
+            gemini_catalog = [
+                ("gemini-3.5-flash", "Gemini 3.5 Flash (Google Cloud)"),
+                ("gemini-3.7-flash", "Gemini 3.7 Flash (Google Cloud)"),
+                ("gemini-3.8-flash", "Gemini 3.8 Flash (Google Cloud)"),
+            ]
+            custom_model = settings.gemini_model
+            known_names = [m[0] for m in gemini_catalog]
+            if custom_model and custom_model not in known_names:
+                gemini_catalog.insert(0, (custom_model, f"Gemini {custom_model} (Google Cloud)"))
+
+            for m_id, m_name in gemini_catalog:
+                engines.append(
+                    ModelEngine(
+                        id=f"gemini:{m_id}",
+                        provider="gemini",
+                        model=m_id,
+                        name=m_name,
+                        is_available=True
+                    )
+                )
+
+        # 2. Local Ollama Engines
+        ollama_root = re.sub(r"/v1/?$", "", settings.ollama_base_url)
+        # Windows IPv6 resolution fix: ensure 127.0.0.1 is used instead of localhost
+        ollama_root = ollama_root.replace("localhost", "127.0.0.1")
+        tags_url = f"{ollama_root}/api/tags"
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(tags_url)
+                resp.raise_for_status()
+                ollama_data = resp.json()
+            raw_models = ollama_data.get("models", [])
+            if not raw_models:
+                engines.append(
+                    ModelEngine(
+                        id=f"ollama:{settings.ollama_model}",
+                        provider="ollama",
+                        model=settings.ollama_model,
+                        name=f"Ollama: {settings.ollama_model}",
+                        is_available=True
+                    )
+                )
+            else:
+                for m in raw_models:
+                    model_name = m.get("name") or m.get("model") or "unknown"
+                    details = m.get("details", {})
+                    param_size = details.get("parameter_size", "")
+                    display = f"Ollama: {model_name}"
+                    if param_size:
+                        display += f" ({param_size})"
+                    engines.append(
+                        ModelEngine(
+                            id=f"ollama:{model_name}",
+                            provider="ollama",
+                            model=model_name,
+                            name=display,
+                            is_available=True
+                        )
+                    )
+        except Exception:
+            engines.append(
+                ModelEngine(
+                    id=f"ollama:{settings.ollama_model}",
+                    provider="ollama",
+                    model=settings.ollama_model,
+                    name=f"Ollama: {settings.ollama_model} (Offline)",
+                    is_available=False
+                )
+            )
+
+        return ModelsListResponse(models=engines)
 
     return app
 

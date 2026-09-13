@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Trash2, CheckSquare, Square, Eye, Loader2 } from 'lucide-react';
+import { Upload, Trash2, CheckSquare, Square, Eye, Loader2, Globe, Link2, X } from 'lucide-react';
 import { SourceDocument } from '../types';
 
 interface SourceManagerProps {
@@ -10,6 +10,7 @@ interface SourceManagerProps {
   onToggleAll: () => void;
   onSelectDoc: (doc: SourceDocument) => void;
   onUpload: (file: File) => Promise<void>;
+  onIngestUrl?: (url: string, title?: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -21,13 +22,42 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onToggleAll,
   onSelectDoc,
   onUpload,
+  onIngestUrl,
   onDelete,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [titleInput, setTitleInput] = useState('');
+  const [isIngestingUrl, setIsIngestingUrl] = useState(false);
+  const [urlError, setUrlError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+
+  const handleUrlSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!urlInput.trim() || !onIngestUrl) return;
+
+    let targetUrl = urlInput.trim();
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    try {
+      setIsIngestingUrl(true);
+      setUrlError('');
+      await onIngestUrl(targetUrl, titleInput.trim() || undefined);
+      setUrlInput('');
+      setTitleInput('');
+      setIsUrlModalOpen(false);
+    } catch (err: any) {
+      setUrlError(err.message || 'Error al procesar el enlace web');
+    } finally {
+      setIsIngestingUrl(false);
+    }
+  };
 
   const processFiles = async (files: File[]) => {
     if (!files.length) return;
@@ -150,9 +180,24 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
             accept=".pdf,.docx,.pptx,.xlsx,.txt,.md"
           />
 
+          {onIngestUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                setUrlError('');
+                setIsUrlModalOpen(true);
+              }}
+              disabled={isUploading || isIngestingUrl}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              title="Añadir página web o artículo online por URL"
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-400" /> Enlace Web
+            </button>
+          )}
+
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+            disabled={isUploading || isIngestingUrl}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
           >
             {isUploading ? (
@@ -225,6 +270,10 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   )}
                 </button>
 
+                {doc.metadata?.source_url || doc.mime_type === 'text/html' ? (
+                  <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                ) : null}
+
                 <span
                   onClick={() => onSelectDoc(doc)}
                   className="cursor-pointer max-w-[140px] truncate font-medium hover:text-indigo-300"
@@ -253,6 +302,94 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Add Web URL Modal */}
+      {isUrlModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                <Globe className="w-4 h-4 text-indigo-400" />
+                <span>Agregar Fuente desde Enlace Web</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isIngestingUrl && setIsUrlModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUrlSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  URL de la Página Web <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <Link2 className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="https://es.wikipedia.org/wiki/... o https://noticias..."
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    disabled={isIngestingUrl}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Título personalizado (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Dejar vacío para detectar el título automáticamente"
+                  value={titleInput}
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  disabled={isIngestingUrl}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50"
+                />
+              </div>
+
+              {urlError && (
+                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
+                  {urlError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsUrlModalOpen(false)}
+                  disabled={isIngestingUrl}
+                  className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!urlInput.trim() || isIngestingUrl}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-900/30 disabled:opacity-50 cursor-pointer"
+                >
+                  {isIngestingUrl ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Descargando y Extrayendo...
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="w-3.5 h-3.5" /> Extraer e Indexar
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

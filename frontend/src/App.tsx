@@ -15,6 +15,7 @@ import {
   HighlightTarget,
   Citation,
   Project,
+  ModelEngine,
 } from './types';
 import {
   fetchProjects,
@@ -22,10 +23,12 @@ import {
   deleteProject,
   fetchProjectSources,
   uploadProjectSource,
+  ingestProjectUrl,
   deleteProjectSource,
   fetchProjectMessages,
   clearProjectMessages,
   sendProjectGroundedChat,
+  fetchAvailableModels,
 } from './services/api';
 import { DocViewer } from './components/DocViewer';
 import { SourceManager } from './components/SourceManager';
@@ -48,7 +51,8 @@ export const App: React.FC = () => {
   const [highlightTarget, setHighlightTarget] = useState<HighlightTarget | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [provider, setProvider] = useState<'gemini' | 'ollama'>('gemini');
+  const [models, setModels] = useState<ModelEngine[]>([]);
+  const [selectedEngine, setSelectedEngine] = useState<string>('gemini:gemini-3.5-flash');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -63,10 +67,30 @@ export const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Initial Load: Fetch projects and restore previous project from localStorage
+  // Initial Load: Fetch projects and models
   useEffect(() => {
     initProjects();
+    initModels();
   }, []);
+
+  const initModels = async () => {
+    try {
+      const modelList = await fetchAvailableModels();
+      setModels(modelList);
+      if (modelList.length > 0) {
+        const savedEngine = localStorage.getItem('openfolio_selected_engine');
+        const matched = modelList.find((m) => m.id === savedEngine && m.is_available);
+        if (matched) {
+          setSelectedEngine(matched.id);
+        } else {
+          const firstAvailable = modelList.find((m) => m.is_available) || modelList[0];
+          setSelectedEngine(firstAvailable.id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load available models:', err);
+    }
+  };
 
   const initProjects = async () => {
     try {
@@ -171,6 +195,19 @@ export const App: React.FC = () => {
     );
   };
 
+  const handleIngestUrl = async (url: string, title?: string) => {
+    if (!activeProject) return;
+    const newDoc = await ingestProjectUrl(activeProject.id, url, title);
+    setSources((prev) => [newDoc, ...prev]);
+    setActiveSourceIds((prev) => [...prev, newDoc.id]);
+    setSelectedDoc(newDoc);
+
+    // Refresh project metadata count
+    setProjects((prev) =>
+      prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: p.doc_count + 1 } : p))
+    );
+  };
+
   const handleDeleteSource = async (id: string) => {
     if (!activeProject) return;
     if (!confirm('¿Estás seguro de que quieres eliminar esta fuente?')) return;
@@ -233,7 +270,7 @@ export const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const res = await sendProjectGroundedChat(activeProject.id, query, activeSourceIds, provider);
+      const res = await sendProjectGroundedChat(activeProject.id, query, activeSourceIds, selectedEngine);
 
       const assistantMsg: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
@@ -390,21 +427,35 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Engine Switcher */}
+        {/* Dynamic Engine Switcher */}
         <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
           <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80">
             <span className="text-[11px] text-slate-400 font-mono">Engine:</span>
             <select
-              value={provider}
-              onChange={(e) => setProvider(e.target.value as 'gemini' | 'ollama')}
-              className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer"
+              value={selectedEngine}
+              onChange={(e) => {
+                setSelectedEngine(e.target.value);
+                localStorage.setItem('openfolio_selected_engine', e.target.value);
+              }}
+              className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer max-w-[220px] truncate"
             >
-              <option value="gemini" className="bg-slate-900 text-slate-200">
-                ⚡ Gemini 3.5 Flash (API Cloud)
-              </option>
-              <option value="ollama" className="bg-slate-900 text-slate-200">
-                🔒 Qwen 2.5:3b (Ollama Local)
-              </option>
+              {models.length === 0 ? (
+                <option value="gemini:gemini-3.5-flash" className="bg-slate-900 text-slate-200">
+                  Cargando modelos...
+                </option>
+              ) : (
+                models.map((m) => (
+                  <option
+                    key={m.id}
+                    value={m.id}
+                    disabled={!m.is_available}
+                    className="bg-slate-900 text-slate-200"
+                  >
+                    {m.provider === 'gemini' ? '⚡ ' : '🔒 '}
+                    {m.name} {!m.is_available ? '(Offline)' : ''}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -439,6 +490,7 @@ export const App: React.FC = () => {
               setHighlightTarget(null);
             }}
             onUpload={handleUpload}
+            onIngestUrl={handleIngestUrl}
             onDelete={handleDeleteSource}
           />
           <ChatPanel

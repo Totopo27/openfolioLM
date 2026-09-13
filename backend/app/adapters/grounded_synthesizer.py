@@ -53,6 +53,17 @@ class GroundedSynthesizer(SynthesizerPort):
             return self._providers[self._default_provider]
         return None
 
+    def _parse_provider_and_model(self, requested_provider: Optional[str]) -> tuple[Optional[LLMClientProtocol], Optional[str]]:
+        if not requested_provider:
+            return self._get_client(None), None
+
+        if ":" in requested_provider:
+            prov_name, model_name = requested_provider.split(":", 1)
+            client = self._providers.get(prov_name) or self._llm_client or self._providers.get(self._default_provider)
+            return client, model_name
+
+        return self._get_client(requested_provider), None
+
     def synthesize(
         self,
         query: GroundedQuery,
@@ -82,9 +93,16 @@ class GroundedSynthesizer(SynthesizerPort):
         user_prompt = f"<context>\n{context_block}\n</context>\n\nQuestion: {query.query}"
 
         # If an LLM client is configured, call it; otherwise construct a default fallback
-        client = self._get_client(query.provider)
+        client, model_override = self._parse_provider_and_model(query.provider)
         if client:
-            raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
+            try:
+                # Pass model_override if client supports it
+                if hasattr(client, "generate") and "model_override" in client.generate.__code__.co_varnames:
+                    raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt, model_override=model_override)
+                else:
+                    raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
+            except TypeError:
+                raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
         else:
             raw_answer = "The provided active documents do not contain information to answer this query."
 

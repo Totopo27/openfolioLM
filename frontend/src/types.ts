@@ -51,3 +51,12 @@ export interface HighlightTarget {
   end_char: number;
   quote_snippet: string;
 }
+
+export interface ModelEngine {
+  id: string;
+  provider: 'gemini' | 'ollama' | string;
+  model: string;
+  name: string;
+  is_available: boolean;
+}
+

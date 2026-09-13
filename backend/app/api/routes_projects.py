@@ -9,6 +9,7 @@ from app.core.models import (
     GroundedQuery,
     GroundedResponse,
     ChatMessageRecord,
+    URLIngestRequest,
 )
 from app.adapters.project_manager import ProjectManager
 from app.ports.ingester import IngestionPort
@@ -75,6 +76,21 @@ def create_projects_router(
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post("/{project_id}/sources/url", response_model=SourceDocument)
+    async def ingest_project_url(project_id: str, data: URLIngestRequest):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        try:
+            store = project_manager.get_store(project_id)
+            doc = ingester.ingest_url(url=data.url, title_override=data.title)
+            chunks = chunker.chunk(doc)
+            store.add_document(doc, chunks)
+            return doc
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @router.get("/{project_id}/sources/{source_id}", response_model=SourceDocument)
     async def get_project_source(project_id: str, source_id: str):

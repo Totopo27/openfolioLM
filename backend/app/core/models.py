@@ -108,3 +108,20 @@ class Project(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="")
+
+
+class URLIngestRequest(BaseModel):
+    url: str = Field(..., min_length=4, description="Web URL to ingest (http:// or https://)")
+    title: Optional[str] = Field(default=None, description="Optional custom title override for the page")
+
+
+class ModelEngine(BaseModel):
+    id: str = Field(..., description="Unique engine identifier, e.g. 'gemini:gemini-3.5-flash' or 'ollama:qwen2.5:3b'")
+    provider: str = Field(..., description="'gemini' or 'ollama'")
+    model: str = Field(..., description="Underlying model name")
+    name: str = Field(..., description="Human-friendly display name")
+    is_available: bool = Field(default=True, description="Whether endpoint responded successfully")
+
+
+class ModelsListResponse(BaseModel):
+    models: list[ModelEngine] = Field(default_factory=list)

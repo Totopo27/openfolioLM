@@ -19,8 +19,9 @@ class OpenAICompatibleLLMClient:
         self.timeout = timeout
         self.fallback_models = fallback_models or []
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
-        models_to_try = [self.model] + [m for m in self.fallback_models if m != self.model]
+    def generate(self, system_prompt: str, user_prompt: str, model_override: Optional[str] = None) -> str:
+        active_model = model_override or self.model
+        models_to_try = [active_model] + [m for m in self.fallback_models if m != active_model]
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
