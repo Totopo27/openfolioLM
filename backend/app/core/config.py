@@ -10,10 +10,46 @@ class Settings(BaseSettings):
     db_path: str = "data/openfolio.db"
     upload_dir: str = "data/uploads"
     
-    # LLM Settings (OpenAI-compatible: works with Ollama, DeepSeek, OpenAI, vLLM)
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
-    llm_api_key: str = os.getenv("LLM_API_KEY", "ollama")
-    llm_model: str = os.getenv("LLM_MODEL", "deepseek-r1:latest")
+    # Active provider: "gemini" or "ollama"
+    llm_provider: str = os.getenv("LLM_PROVIDER", "gemini")
+
+    # Gemini settings
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+
+    # Ollama settings
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    ollama_api_key: str = os.getenv("OLLAMA_API_KEY", "ollama")
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+    # Generic overrides
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "")
+    llm_api_key: str = os.getenv("LLM_API_KEY", "")
+    llm_model: str = os.getenv("LLM_MODEL", "")
+
+    @property
+    def effective_llm_base_url(self) -> str:
+        if self.llm_base_url:
+            return self.llm_base_url
+        if self.llm_provider == "gemini" and self.gemini_api_key:
+            return "https://generativelanguage.googleapis.com/v1beta/openai"
+        return self.ollama_base_url
+
+    @property
+    def effective_llm_api_key(self) -> str:
+        if self.llm_api_key:
+            return self.llm_api_key
+        if self.llm_provider == "gemini" and self.gemini_api_key:
+            return self.gemini_api_key
+        return self.ollama_api_key
+
+    @property
+    def effective_llm_model(self) -> str:
+        if self.llm_model:
+            return self.llm_model
+        if self.llm_provider == "gemini" and self.gemini_api_key:
+            return self.gemini_model
+        return self.ollama_model
 
 
 settings = Settings()

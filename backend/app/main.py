@@ -47,9 +47,9 @@ def create_app(
 
     if synthesizer is None:
         llm_client = OpenAICompatibleLLMClient(
-            base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key,
-            model=settings.llm_model
+            base_url=settings.effective_llm_base_url,
+            api_key=settings.effective_llm_api_key,
+            model=settings.effective_llm_model
         )
         active_synthesizer = GroundedSynthesizer(llm_client=llm_client)
     else:
