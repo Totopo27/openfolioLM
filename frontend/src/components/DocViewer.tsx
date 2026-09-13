@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { FileText, Bookmark } from 'lucide-react';
 import { SourceDocument, HighlightTarget } from '../types';
+import { CodeViewer } from './CodeViewer';
 
 interface DocViewerProps {
   document: SourceDocument | null;
@@ -36,6 +37,16 @@ export const DocViewer: React.FC<DocViewerProps> = ({
           Select a document from the source manager on the right or click a citation to inspect its grounding context.
         </p>
       </div>
+    );
+  }
+
+  if (document.metadata?.is_code || document.metadata?.is_repo) {
+    return (
+      <CodeViewer
+        document={document}
+        highlightTarget={highlightTarget}
+        onClearHighlight={onClearHighlight}
+      />
     );
   }
 

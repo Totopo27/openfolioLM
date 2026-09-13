@@ -74,3 +74,44 @@ def test_project_crud_and_isolated_chat(client_and_manager):
     assert del_proj_res.status_code == 200
     remaining_ids = [p["id"] for p in client.get("/api/projects").json()]
     assert proj_id not in remaining_ids
+
+
+def test_upload_code_repository_and_chat(client_and_manager):
+    import zipfile
+    client, mgr = client_and_manager
+
+    # 1. Create Project
+    create_res = client.post("/api/projects", json={"name": "Software Repo", "description": "Backend API"})
+    assert create_res.status_code == 200
+    proj_id = create_res.json()["id"]
+
+    # 2. Build in-memory zip
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w") as zf:
+        zf.writestr("app/auth.py", "def verify_signature(token: str):\n    # Author: Rafael Herra\n    return token != ''\n")
+        zf.writestr("README.md", "# Auth Service\nAuthentication documentation.")
+    zip_bytes = zip_buf.getvalue()
+
+    # 3. Upload zip to project
+    upload_res = client.post(
+        f"/api/projects/{proj_id}/sources/upload",
+        files={"file": ("auth_service.zip", io.BytesIO(zip_bytes), "application/zip")}
+    )
+    assert upload_res.status_code == 200
+    doc = upload_res.json()
+    assert doc["metadata"]["is_repo"] is True
+    assert doc["metadata"]["file_count"] == 2
+    assert "app/auth.py" in doc["metadata"]["files"]
+
+    # 4. Search and chat with the repository
+    chat_res = client.post(
+        f"/api/projects/{proj_id}/chat",
+        json={"query": "¿Quién es el autor?", "active_source_ids": [doc["id"]]}
+    )
+    assert chat_res.status_code == 200
+    ans = chat_res.json()
+    assert ans["evidence_found"] is True
+    assert "[^1]" in ans["answer"]
+    assert len(ans["citations"]) >= 1
+    assert "auth_service.zip" in ans["citations"][0]["source_filename"]
+

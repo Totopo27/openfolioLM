@@ -1,5 +1,17 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Trash2, CheckSquare, Square, Eye, Loader2, Globe, Link2, X } from 'lucide-react';
+import {
+  Upload,
+  Trash2,
+  CheckSquare,
+  Square,
+  Eye,
+  Loader2,
+  Globe,
+  Link2,
+  X,
+  Package,
+  Code2,
+} from 'lucide-react';
 import { SourceDocument } from '../types';
 
 interface SourceManagerProps {
@@ -138,7 +150,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
           <p className="text-xs font-semibold text-indigo-200">
             Soltá los archivos para subirlos a este proyecto
           </p>
-          <p className="text-[10px] text-indigo-400">PDF, Word, PPTX, Excel, Markdown o TXT</p>
+          <p className="text-[10px] text-indigo-400">PDF, Word, PPTX, Excel, Markdown, TXT o Código (.zip, .py, .ts...)</p>
         </div>
       )}
 
@@ -177,7 +189,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
             ref={fileInputRef}
             onChange={handleFileChange}
             className="hidden"
-            accept=".pdf,.docx,.pptx,.xlsx,.txt,.md"
+            accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml"
           />
 
           {onIngestUrl && (
@@ -239,7 +251,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
               : 'Arrastrá y soltá tus archivos aquí'}
           </p>
           <p className="text-[11px] text-slate-500 max-w-sm">
-            o hacé clic para explorar desde tu equipo &bull; Soporta PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), TXT o Markdown (.md)
+            o hacé clic para explorar desde tu equipo &bull; Soporta Documentos (PDF, Word, PPTX, Excel, Markdown, TXT) y Código (.zip, repositorios, .py, .ts, .go, .rs...)
           </p>
         </div>
       ) : (
@@ -270,8 +282,18 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   )}
                 </button>
 
-                {doc.metadata?.source_url || doc.mime_type === 'text/html' ? (
-                  <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                {doc.metadata?.is_repo ? (
+                  <span title="Repositorio de Código" className="flex items-center shrink-0">
+                    <Package className="w-3.5 h-3.5 text-cyan-400" />
+                  </span>
+                ) : doc.metadata?.is_code ? (
+                  <span title="Archivo de Código" className="flex items-center shrink-0">
+                    <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+                  </span>
+                ) : doc.metadata?.source_url || doc.mime_type === 'text/html' ? (
+                  <span title="Enlace Web" className="flex items-center shrink-0">
+                    <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                  </span>
                 ) : null}
 
                 <span

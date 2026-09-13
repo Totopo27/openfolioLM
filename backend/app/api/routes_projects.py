@@ -1,6 +1,7 @@
 import os
 import shutil
 import uuid
+from typing import Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.core.models import (
     Project,
@@ -12,6 +13,8 @@ from app.core.models import (
     URLIngestRequest,
 )
 from app.adapters.project_manager import ProjectManager
+from app.adapters.repository_ingester import RepositoryIngester
+from app.adapters.code_chunker import SemanticCodeChunker
 from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
 from app.ports.synthesizer import SynthesizerPort
@@ -21,8 +24,12 @@ def create_projects_router(
     project_manager: ProjectManager,
     ingester: IngestionPort,
     chunker: ChunkerPort,
-    synthesizer: SynthesizerPort
+    synthesizer: SynthesizerPort,
+    repo_ingester: Optional[RepositoryIngester] = None,
+    code_chunker: Optional[ChunkerPort] = None
 ) -> APIRouter:
+    active_repo_ingester = repo_ingester or RepositoryIngester()
+    active_code_chunker = code_chunker or SemanticCodeChunker()
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -61,15 +68,29 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail="Project not found")
 
         uploads_dir = project_manager.get_uploads_dir(project_id)
-        file_path = os.path.join(uploads_dir, file.filename or f"doc_{uuid.uuid4().hex[:8]}.bin")
+        filename = file.filename or f"doc_{uuid.uuid4().hex[:8]}.bin"
+        file_path = os.path.join(uploads_dir, filename)
 
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
         try:
             store = project_manager.get_store(project_id)
-            doc = ingester.convert(file_path=file_path, filename=file.filename or "uploaded_file")
-            chunks = chunker.chunk(doc)
+
+            if active_repo_ingester.is_code_or_repo(filename):
+                with open(file_path, "rb") as f_in:
+                    file_bytes = f_in.read()
+
+                if filename.lower().endswith(".zip"):
+                    doc = active_repo_ingester.ingest_zip(file_bytes, filename=filename)
+                else:
+                    doc = active_repo_ingester.ingest_code_file(file_bytes, filename=filename)
+
+                chunks = active_code_chunker.chunk(doc)
+            else:
+                doc = ingester.convert(file_path=file_path, filename=filename)
+                chunks = chunker.chunk(doc)
+
             store.add_document(doc, chunks)
             return doc
         except Exception as e:
