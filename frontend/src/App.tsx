@@ -285,7 +285,7 @@ export const App: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-slate-950 text-slate-100">
       {/* Top Navbar */}
-      <header className="h-14 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur px-6 flex items-center justify-between shrink-0">
+      <header className="relative z-40 h-14 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
@@ -316,14 +316,14 @@ export const App: React.FC = () => {
               </span>
               {activeProject && (
                 <span className="text-[10px] text-slate-400 font-mono bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-700/50">
-                  {sources.length} docs
+                  {sources.length} {sources.length === 1 ? 'doc' : 'docs'}
                 </span>
               )}
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
             </button>
 
             {isProjectDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-72 bg-slate-900 border border-slate-700/90 rounded-xl shadow-2xl py-2 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute left-0 mt-2 w-80 bg-slate-900 border border-slate-700/90 rounded-xl shadow-2xl py-2 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                   <span>Proyectos ({projects.length})</span>
                   <button
@@ -350,21 +350,23 @@ export const App: React.FC = () => {
                         }`}
                       >
                         <div className="min-w-0 pr-2">
-                          <p className={`text-xs font-medium truncate ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
+                          <p className={`text-xs font-medium truncate ${isSelected ? 'text-indigo-300 font-semibold' : 'text-slate-200'}`}>
                             {proj.name}
                           </p>
                           <p className="text-[10px] text-slate-400 truncate">
-                            {proj.doc_count} fuentes · {proj.message_count} mensajes
+                            {proj.doc_count} {proj.doc_count === 1 ? 'fuente' : 'fuentes'} · {proj.message_count} {proj.message_count === 1 ? 'mensaje' : 'mensajes'}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteProject(e, proj.id)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 rounded transition-opacity"
-                          title="Eliminar proyecto"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {projects.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteProject(e, proj.id)}
+                            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 rounded transition-opacity"
+                            title="Eliminar proyecto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
