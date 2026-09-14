@@ -48,3 +48,14 @@ class AcademicResolverPort(ABC):
     def build_academic_markdown(self, paper: AcademicPaper) -> str:
         """Synthesizes a rich, structured Markdown document from paper metadata."""
         pass
+
+    @abstractmethod
+    def search_literature(
+        self,
+        query: str,
+        limit: int = 15,
+        min_year: Optional[int] = None,
+        min_citations: int = 0
+    ) -> list[AcademicPaper]:
+        """Searches open scholarly literature (e.g. OpenAlex) for matching works."""
+        pass

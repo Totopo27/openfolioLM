@@ -1,4 +1,4 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote } from '../types';
 
 const API_BASE = '/api';
 
@@ -174,4 +174,79 @@ export async function generateProjectSourceDossier(
 
   return res.json();
 }
+
+// ================= Studio Notebook & Export APIs =================
+
+export async function fetchProjectNotes(projectId: string): Promise<ProjectNote[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/notes`);
+  if (!res.ok) throw new Error('Failed to fetch project notes');
+  return res.json();
+}
+
+export async function createProjectNote(
+  projectId: string,
+  note: { title: string; content: string; source_citation_ids?: string[]; tags?: string[] }
+): Promise<ProjectNote> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: note.title,
+      content: note.content,
+      source_citation_ids: note.source_citation_ids || [],
+      tags: note.tags || [],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create note' }));
+    throw new Error(err.detail || 'Failed to create note');
+  }
+  return res.json();
+}
+
+export async function updateProjectNote(
+  projectId: string,
+  noteId: string,
+  note: { title?: string; content?: string; source_citation_ids?: string[]; tags?: string[] }
+): Promise<ProjectNote> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/notes/${noteId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(note),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update note' }));
+    throw new Error(err.detail || 'Failed to update note');
+  }
+  return res.json();
+}
+
+export async function deleteProjectNote(projectId: string, noteId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/notes/${noteId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete note');
+}
+
+export async function downloadProjectExport(
+  projectId: string,
+  projectName: string,
+  format: 'markdown' | 'bibtex'
+): Promise<void> {
+  const url = `${API_BASE}/projects/${projectId}/export?format=${format}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to export project as ${format}`);
+
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  const cleanName = projectName.toLowerCase().replace(/\s+/g, '_');
+  a.download = format === 'bibtex' ? `${cleanName}_references.bib` : `${cleanName}_dossier.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
 

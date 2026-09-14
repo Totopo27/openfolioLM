@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2, Trash2, ShieldCheck } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2, Trash2, ShieldCheck, BookOpen } from 'lucide-react';
 import { ChatMessage, Citation } from '../types';
 
 interface ChatPanelProps {
@@ -9,6 +9,7 @@ interface ChatPanelProps {
   onSendMessage: (text: string) => void;
   onCitationClick: (citation: Citation) => void;
   onClearChat?: () => void;
+  onSaveToNotebook?: (text: string, title?: string, citationIds?: string[]) => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -18,6 +19,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSendMessage,
   onCitationClick,
   onClearChat,
+  onSaveToNotebook,
 }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -194,6 +196,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 }`}
               >
                 {renderMessageWithCitations(m)}
+                {m.sender === 'assistant' && onSaveToNotebook && (
+                  <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const firstLine = m.text.replace(/\[\^\d+\]/g, '').trim().split('\n')[0];
+                        const cleanTitle = firstLine.slice(0, 50).trim() + (firstLine.length > 50 ? '...' : '');
+                        const cIds = m.citations?.map((c) => c.chunk_id) || [];
+                        onSaveToNotebook(m.text, cleanTitle || 'Hallazgo de Investigación', cIds);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer"
+                      title="Guardar esta respuesta en el Cuaderno de Síntesis"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Guardar en Cuaderno</span>
+                    </button>
+                  </div>
+                )}
               </div>
               <span className="text-[10px] text-slate-500 mt-1 px-1">{m.timestamp}</span>
             </div>

@@ -1,8 +1,8 @@
 import sqlite3
 import json
 from datetime import datetime, timezone
-from typing import Optional
-from app.core.models import SourceDocument, DocumentChunk, ChatMessageRecord, Citation, DocumentDossier
+from typing import Optional, Any
+from app.core.models import SourceDocument, DocumentChunk, ChatMessageRecord, Citation, DocumentDossier, ProjectNote
 from app.ports.store import DocumentStorePort
 
 
@@ -90,6 +90,17 @@ class SQLiteDocumentStore(DocumentStorePort):
                     dossier_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (source_id) REFERENCES documents(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS notes (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    source_citation_ids_json TEXT NOT NULL DEFAULT '[]',
+                    tags_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 );
             """)
 
@@ -313,12 +324,14 @@ class SQLiteDocumentStore(DocumentStorePort):
                 )
             )
 
-    def get_messages(self, conversation_id: str = "default") -> list[ChatMessageRecord]:
+    def get_messages(self, conversation_id: str = "default", limit: Optional[int] = None) -> list[ChatMessageRecord]:
         with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
-                (conversation_id,)
-            )
+            query = "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC"
+            params: list[Any] = [conversation_id]
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
+            cursor = conn.execute(query, params)
             messages = []
             for row in cursor.fetchall():
                 citations_raw = json.loads(row["citations_json"])
@@ -413,3 +426,80 @@ class SQLiteDocumentStore(DocumentStorePort):
             if not row:
                 return None
             return DocumentDossier.model_validate_json(row["dossier_json"])
+
+    def get_all_dossiers(self) -> dict[str, DocumentDossier]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT source_id, dossier_json FROM dossiers")
+            dossiers: dict[str, DocumentDossier] = {}
+            for row in cursor.fetchall():
+                try:
+                    dossiers[row["source_id"]] = DocumentDossier.model_validate_json(row["dossier_json"])
+                except Exception:
+                    pass
+            return dossiers
+
+    def save_note(self, note: ProjectNote) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO notes (
+                    id, project_id, title, content,
+                    source_citation_ids_json, tags_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    note.id,
+                    note.project_id,
+                    note.title,
+                    note.content,
+                    json.dumps(note.source_citation_ids),
+                    json.dumps(note.tags),
+                    note.created_at.isoformat(),
+                    note.updated_at.isoformat(),
+                )
+            )
+
+    def get_note(self, note_id: str) -> Optional[ProjectNote]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM notes WHERE id = ?", (note_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return ProjectNote(
+                id=row["id"],
+                project_id=row["project_id"],
+                title=row["title"],
+                content=row["content"],
+                source_citation_ids=json.loads(row["source_citation_ids_json"]),
+                tags=json.loads(row["tags_json"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+            )
+
+    def list_notes(self, project_id: Optional[str] = None) -> list[ProjectNote]:
+        with self._get_connection() as conn:
+            if project_id:
+                cursor = conn.execute("SELECT * FROM notes WHERE project_id = ? ORDER BY updated_at DESC", (project_id,))
+            else:
+                cursor = conn.execute("SELECT * FROM notes ORDER BY updated_at DESC")
+            notes: list[ProjectNote] = []
+            for row in cursor.fetchall():
+                notes.append(
+                    ProjectNote(
+                        id=row["id"],
+                        project_id=row["project_id"],
+                        title=row["title"],
+                        content=row["content"],
+                        source_citation_ids=json.loads(row["source_citation_ids_json"]),
+                        tags=json.loads(row["tags_json"]),
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+            return notes
+
+    def delete_note(self, note_id: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+            return cursor.rowcount > 0
+

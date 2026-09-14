@@ -269,3 +269,90 @@ def test_api_project_doi_ingestion():
         assert len(docs_after) == 1
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_search_literature_mocked():
+    mock_client = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": [
+            {
+                "id": "https://openalex.org/W123456",
+                "doi": "https://doi.org/10.1038/s41586-020-2649-2",
+                "title": "Quantum Supremacy using a Programmable Superconducting Processor",
+                "publication_year": 2019,
+                "cited_by_count": 2500,
+                "authorships": [{"author": {"display_name": "John Martinis"}}],
+                "abstract_inverted_index": {"Quantum": [0], "computational": [1], "advantage": [2]},
+                "open_access": {"is_oa": True, "oa_url": "https://example.com/quantum.pdf"},
+                "best_oa_location": {"pdf_url": "https://example.com/quantum.pdf"}
+            }
+        ]
+    }
+    mock_client.get.return_value = mock_resp
+
+    resolver = CompositeAcademicResolver(http_client=mock_client)
+    papers = resolver.search_literature(query="quantum supremacy", limit=5)
+
+    assert len(papers) == 1
+    assert papers[0].doi == "10.1038/s41586-020-2649-2"
+    assert papers[0].title == "Quantum Supremacy using a Programmable Superconducting Processor"
+    assert papers[0].citations_count == 2500
+    assert papers[0].is_open_access is True
+    assert papers[0].abstract == "Quantum computational advantage"
+
+
+def test_api_discovery_search_and_batch_ingest():
+    temp_dir = tempfile.mkdtemp()
+    mgr = ProjectManager(projects_root=temp_dir, legacy_db_path=None)
+
+    mock_resolver = MagicMock()
+    paper = AcademicPaper(
+        doi="10.1038/s41586-020-2649-2",
+        title="Quantum Supremacy Nature",
+        authors=["John Martinis"],
+        abstract="Demonstrating quantum computational advantage.",
+        publication_year=2019,
+        venue="Nature",
+        is_open_access=False,
+        landing_page_url="https://doi.org/10.1038/s41586-020-2649-2",
+        citations_count=2500,
+        bibtex="@article{martinis2019}"
+    )
+    mock_resolver.search_literature.return_value = [paper]
+    mock_resolver.is_doi.return_value = True
+    mock_resolver.resolve.return_value = paper
+    mock_resolver.build_academic_markdown.return_value = "# Quantum Supremacy Nature\n\nFull abstract here."
+
+    ingester = HybridDocumentIngester(academic_resolver=mock_resolver)
+    app = create_app(project_manager=mgr, ingester=ingester, academic_resolver=mock_resolver)
+    client = TestClient(app)
+
+    try:
+        create_res = client.post("/api/projects", json={"name": "Quantum Research"})
+        proj_id = create_res.json()["id"]
+
+        # Search discovery
+        search_res = client.get(f"/api/projects/{proj_id}/discovery/search?query=quantum+supremacy")
+        assert search_res.status_code == 200
+        papers_data = search_res.json()
+        assert len(papers_data) == 1
+        assert papers_data[0]["doi"] == "10.1038/s41586-020-2649-2"
+
+        # Ingest selected papers
+        ingest_res = client.post(
+            f"/api/projects/{proj_id}/discovery/ingest",
+            json={"dois": ["10.1038/s41586-020-2649-2"]}
+        )
+        assert ingest_res.status_code == 200
+        docs_data = ingest_res.json()
+        assert len(docs_data) == 1
+        assert docs_data[0]["filename"] == "Quantum Supremacy Nature"
+
+        # Verify in store
+        store = mgr.get_store(proj_id)
+        assert store.count_documents() == 1
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+

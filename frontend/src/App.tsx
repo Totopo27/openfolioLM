@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Plus,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import {
   SourceDocument,
@@ -33,6 +34,7 @@ import {
 import { DocViewer } from './components/DocViewer';
 import { SourceManager } from './components/SourceManager';
 import { ChatPanel } from './components/ChatPanel';
+import { StudioNotebook } from './components/StudioNotebook';
 
 export const App: React.FC = () => {
   // Project State
@@ -53,6 +55,16 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<ModelEngine[]>([]);
   const [selectedEngine, setSelectedEngine] = useState<string>('gemini:gemini-3.5-flash');
+
+  // Studio & Tab State
+  const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier'>('reading');
+  const [rightPaneMode, setRightPaneMode] = useState<'chat' | 'notebook'>('chat');
+  const [notesCount, setNotesCount] = useState<number>(0);
+  const [draftNote, setDraftNote] = useState<{
+    title: string;
+    content: string;
+    source_citation_ids?: string[];
+  } | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -113,6 +125,8 @@ export const App: React.FC = () => {
     localStorage.setItem('openfolio_active_project_id', project.id);
     setIsProjectDropdownOpen(false);
     setHighlightTarget(null);
+    setDocViewerTab('reading');
+    setDraftNote(null);
 
     // Fetch sources for this project
     try {
@@ -247,6 +261,8 @@ export const App: React.FC = () => {
     if (targetDoc) {
       setSelectedDoc(targetDoc);
     }
+    setDocViewerTab('reading');
+    setRightPaneMode('chat');
 
     setHighlightTarget({
       source_id: citation.source_id,
@@ -468,7 +484,7 @@ export const App: React.FC = () => {
 
       {/* Main Dual-Pane Split Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Pane: Synchronized Document Viewer */}
+        {/* Left Pane: Synchronized Document Viewer & Dossier */}
         <div className="w-1/2 h-full">
           <DocViewer
             document={selectedDoc}
@@ -476,33 +492,108 @@ export const App: React.FC = () => {
             onClearHighlight={() => setHighlightTarget(null)}
             projectId={activeProject?.id}
             selectedEngine={selectedEngine}
+            activeTab={docViewerTab}
+            onTabChange={setDocViewerTab}
           />
         </div>
 
-        {/* Right Pane: Sources Checklist & Grounded Chat */}
-        <div className="w-1/2 h-full flex flex-col">
-          <SourceManager
-            sources={sources}
-            activeSourceIds={activeSourceIds}
-            selectedDocId={selectedDoc?.id || null}
-            onToggleActive={handleToggleActive}
-            onToggleAll={handleToggleAll}
-            onSelectDoc={(doc) => {
-              setSelectedDoc(doc);
-              setHighlightTarget(null);
-            }}
-            onUpload={handleUpload}
-            onIngestUrl={handleIngestUrl}
-            onDelete={handleDeleteSource}
-          />
-          <ChatPanel
-            messages={messages}
-            isLoading={isLoading}
-            activeSourceCount={activeSourceIds.length}
-            onSendMessage={handleSendMessage}
-            onCitationClick={handleCitationClick}
-            onClearChat={handleClearChat}
-          />
+        {/* Right Pane: Multi-lane Studio (Chat & Grounding vs Cuaderno de Síntesis) */}
+        <div className="w-1/2 h-full flex flex-col bg-slate-950 overflow-hidden">
+          {/* Lane Switcher Navigation */}
+          <div className="flex items-center justify-between px-4 py-2 bg-slate-900/60 border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setRightPaneMode('chat')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                  rightPaneMode === 'chat'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Chat de Evidencia</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightPaneMode('notebook')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                  rightPaneMode === 'notebook'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-300" />
+                <span>Cuaderno de Síntesis</span>
+                {notesCount > 0 && (
+                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-indigo-900 text-indigo-300 font-mono">
+                    {notesCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {rightPaneMode === 'chat' ? (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <SourceManager
+                projectId={activeProject?.id}
+                sources={sources}
+                activeSourceIds={activeSourceIds}
+                selectedDocId={selectedDoc?.id || null}
+                onToggleActive={handleToggleActive}
+                onToggleAll={handleToggleAll}
+                onSelectDoc={(doc) => {
+                  setSelectedDoc(doc);
+                  setHighlightTarget(null);
+                  setDocViewerTab('reading');
+                }}
+                onOpenDossier={(doc) => {
+                  setSelectedDoc(doc);
+                  setDocViewerTab('dossier');
+                }}
+                onUpload={handleUpload}
+                onIngestUrl={handleIngestUrl}
+                onSourcesAdded={(newDocs) => {
+                  setSources((prev) => [...newDocs, ...prev]);
+                  setActiveSourceIds((prev) => [...prev, ...newDocs.map((d) => d.id)]);
+                  if (newDocs.length > 0) setSelectedDoc(newDocs[0]);
+                  if (activeProject) {
+                    setProjects((prev) =>
+                      prev.map((p) =>
+                        p.id === activeProject.id ? { ...p, doc_count: p.doc_count + newDocs.length } : p
+                      )
+                    );
+                  }
+                }}
+                onDelete={handleDeleteSource}
+              />
+              <ChatPanel
+                messages={messages}
+                isLoading={isLoading}
+                activeSourceCount={activeSourceIds.length}
+                onSendMessage={handleSendMessage}
+                onCitationClick={handleCitationClick}
+                onClearChat={handleClearChat}
+                onSaveToNotebook={(text, noteTitle, cIds) => {
+                  setDraftNote({
+                    title: noteTitle || 'Hallazgo de Investigación',
+                    content: text,
+                    source_citation_ids: cIds,
+                  });
+                  setRightPaneMode('notebook');
+                }}
+              />
+            </div>
+          ) : (
+            <StudioNotebook
+              projectId={activeProject?.id || 'default'}
+              projectName={activeProject?.name || 'Investigación'}
+              onNotesCountChange={setNotesCount}
+              initialNewNote={draftNote}
+              onClearInitialNote={() => setDraftNote(null)}
+            />
+          )}
         </div>
       </div>
 

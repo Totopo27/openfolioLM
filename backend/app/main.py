@@ -112,6 +112,7 @@ def create_app(
         reranker=active_reranker,
         analyzer=active_analyzer,
         fact_checker=active_fact_checker,
+        academic_resolver=active_resolver,
     ))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
     app.include_router(create_chat_router(

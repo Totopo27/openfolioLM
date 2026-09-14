@@ -12,10 +12,14 @@ import {
   Package,
   Code2,
   BookOpen,
+  Compass,
+  FileText,
 } from 'lucide-react';
 import { SourceDocument } from '../types';
+import { LiteratureDiscoveryModal } from './LiteratureDiscoveryModal';
 
 interface SourceManagerProps {
+  projectId?: string;
   sources: SourceDocument[];
   activeSourceIds: string[];
   selectedDocId: string | null;
@@ -24,10 +28,13 @@ interface SourceManagerProps {
   onSelectDoc: (doc: SourceDocument) => void;
   onUpload: (file: File) => Promise<void>;
   onIngestUrl?: (url: string, title?: string) => Promise<void>;
+  onSourcesAdded?: (newDocs: SourceDocument[]) => void;
+  onOpenDossier?: (doc: SourceDocument) => void;
   onDelete: (id: string) => Promise<void>;
 }
 
 export const SourceManager: React.FC<SourceManagerProps> = ({
+  projectId,
   sources,
   activeSourceIds,
   selectedDocId,
@@ -36,12 +43,15 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onSelectDoc,
   onUpload,
   onIngestUrl,
+  onSourcesAdded,
+  onOpenDossier,
   onDelete,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [titleInput, setTitleInput] = useState('');
   const [isIngestingUrl, setIsIngestingUrl] = useState(false);
@@ -54,7 +64,8 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
     if (!urlInput.trim() || !onIngestUrl) return;
 
     let targetUrl = urlInput.trim();
-    if (!/^https?:\/\//i.test(targetUrl)) {
+    // Do not prepend https:// if it is a bare DOI (e.g. 10.1353/...)
+    if (!/^https?:\/\//i.test(targetUrl) && !/^10\.\d{4,9}\//i.test(targetUrl)) {
       targetUrl = 'https://' + targetUrl;
     }
 
@@ -202,9 +213,21 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
               }}
               disabled={isUploading || isIngestingUrl}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-              title="Añadir página web o artículo online por URL"
+              title="Añadir página web o artículo online por URL o DOI"
             >
-              <Globe className="w-3.5 h-3.5 text-indigo-400" /> Enlace Web
+              <Globe className="w-3.5 h-3.5 text-indigo-400" /> Enlace Web / DOI
+            </button>
+          )}
+
+          {projectId && onSourcesAdded && (
+            <button
+              type="button"
+              onClick={() => setIsDiscoveryOpen(true)}
+              disabled={isUploading || isIngestingUrl}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              title="Buscar literatura científica en OpenAlex e indexar a un clic"
+            >
+              <Compass className="w-3.5 h-3.5 text-emerald-400" /> Explorar Literatura
             </button>
           )}
 
@@ -317,6 +340,17 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                 >
                   <Eye className="w-3.5 h-3.5" />
                 </button>
+
+                {onOpenDossier && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDossier(doc)}
+                    className="p-1 hover:text-amber-400 text-slate-400 transition-colors cursor-pointer"
+                    title="Dossier Científico (CeNAT / PASE)"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -454,6 +488,16 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
           </div>
         );
       })()}
+
+      {/* Literature Discovery Modal */}
+      {projectId && onSourcesAdded && (
+        <LiteratureDiscoveryModal
+          projectId={projectId}
+          isOpen={isDiscoveryOpen}
+          onClose={() => setIsDiscoveryOpen(false)}
+          onSourcesAdded={onSourcesAdded}
+        />
+      )}
     </div>
   );
 };

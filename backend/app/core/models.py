@@ -184,3 +184,29 @@ class DocumentDossier(BaseModel):
     verdict: str = Field(..., description="Overall critical judgment, feasibility assessment or conclusion")
     confidence_score: float = Field(default=0.9, ge=0.0, le=1.0, description="Confidence in extracted evidence")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ProjectNote(BaseModel):
+    """User-created analytical synthesis or pinned finding in a project notebook."""
+    id: str = Field(..., description="Unique note ID")
+    project_id: str = Field(..., description="Project workspace identifier")
+    title: str = Field(..., description="Note title or synthesized thesis")
+    content: str = Field(..., description="Markdown body with synthesis, reflections or pinned answers")
+    source_citation_ids: list[str] = Field(default_factory=list, description="Source or chunk IDs linked to this note")
+    tags: list[str] = Field(default_factory=list, description="Categorization tags")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ProjectNoteCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field(..., min_length=1)
+    source_citation_ids: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class ProjectNoteUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=200)
+    content: Optional[str] = None
+    source_citation_ids: Optional[list[str]] = None
+    tags: Optional[list[str]] = None

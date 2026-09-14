@@ -102,3 +102,33 @@ export interface DocumentDossier {
   created_at: string;
 }
 
+export interface AcademicPaper {
+  doi: string;
+  title: string;
+  authors: string[];
+  abstract?: string | null;
+  publication_year?: number | null;
+  venue?: string | null;
+  volume?: string | null;
+  issue?: string | null;
+  pages?: string | null;
+  publisher?: string | null;
+  is_open_access: boolean;
+  pdf_url?: string | null;
+  landing_page_url?: string | null;
+  citations_count?: number | null;
+  source_database: string;
+  bibtex?: string | null;
+}
+
+export interface ProjectNote {
+  id: string;
+  project_id: string;
+  title: string;
+  content: string;
+  source_citation_ids: string[];
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+

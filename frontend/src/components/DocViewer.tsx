@@ -10,6 +10,8 @@ interface DocViewerProps {
   onClearHighlight?: () => void;
   projectId?: string;
   selectedEngine?: string;
+  activeTab?: 'reading' | 'dossier';
+  onTabChange?: (tab: 'reading' | 'dossier') => void;
 }
 
 export const DocViewer: React.FC<DocViewerProps> = ({
@@ -18,14 +20,22 @@ export const DocViewer: React.FC<DocViewerProps> = ({
   onClearHighlight,
   projectId,
   selectedEngine,
+  activeTab: controlledActiveTab,
+  onTabChange,
 }) => {
   const highlightRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'reading' | 'dossier'>('reading');
+  const [internalActiveTab, setInternalActiveTab] = useState<'reading' | 'dossier'>('reading');
+  const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
+
+  const handleTabSelect = (tab: 'reading' | 'dossier') => {
+    setInternalActiveTab(tab);
+    onTabChange?.(tab);
+  };
 
   // When a citation highlight target is set, automatically switch to reading tab
   useEffect(() => {
     if (highlightTarget && document && highlightTarget.source_id === document.id) {
-      setActiveTab('reading');
+      handleTabSelect('reading');
       const timer = setTimeout(() => {
         highlightRef.current?.scrollIntoView({
           behavior: 'smooth',
@@ -89,7 +99,7 @@ export const DocViewer: React.FC<DocViewerProps> = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-lg border border-slate-700/60 shrink-0">
             <button
-              onClick={() => setActiveTab('reading')}
+              onClick={() => handleTabSelect('reading')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                 activeTab === 'reading'
                   ? 'bg-indigo-600 text-white shadow-sm'
@@ -100,7 +110,7 @@ export const DocViewer: React.FC<DocViewerProps> = ({
               <span>Lectura</span>
             </button>
             <button
-              onClick={() => setActiveTab('dossier')}
+              onClick={() => handleTabSelect('dossier')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                 activeTab === 'dossier'
                   ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-sm'

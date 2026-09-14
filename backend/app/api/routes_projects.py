@@ -1,8 +1,11 @@
 import os
 import shutil
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile, Query
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.models import (
     Project,
@@ -13,7 +16,11 @@ from app.core.models import (
     ChatMessageRecord,
     URLIngestRequest,
     DocumentDossier,
+    ProjectNote,
+    ProjectNoteCreate,
+    ProjectNoteUpdate,
 )
+from app.core.exporter import export_project_bibtex, export_project_markdown
 from app.adapters.project_manager import ProjectManager
 from app.adapters.repository_ingester import RepositoryIngester
 from app.adapters.code_chunker import SemanticCodeChunker
@@ -23,9 +30,15 @@ from app.ports.synthesizer import SynthesizerPort
 from app.ports.reranker import RerankerPort
 from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.ports.fact_checker import FactCheckerPort
+from app.ports.academic_resolver import AcademicPaper, AcademicResolverPort
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
+from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.core.fusion import reciprocal_rank_fusion
+
+
+class BatchIngestRequest(BaseModel):
+    dois: list[str] = Field(default_factory=list)
 
 
 def create_projects_router(
@@ -38,12 +51,14 @@ def create_projects_router(
     reranker: Optional[RerankerPort] = None,
     analyzer: Optional[DocumentAnalyzerPort] = None,
     fact_checker: Optional[FactCheckerPort] = None,
+    academic_resolver: Optional[AcademicResolverPort] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
     active_reranker = reranker or CrossEncoderReranker()
     active_analyzer = analyzer or StructuredDocumentAnalyzer()
     active_fact_checker = fact_checker
+    active_academic_resolver = academic_resolver or CompositeAcademicResolver()
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -302,5 +317,181 @@ def create_projects_router(
             "reindexed_chunks": reindexed_count,
             "embedding_model": settings.embedding_model,
         }
+
+    # --- Literature Discovery Endpoints ---
+
+    @router.get("/{project_id}/discovery/search", response_model=list[AcademicPaper])
+    async def search_academic_literature(
+        project_id: str,
+        query: str,
+        limit: int = 15,
+        min_year: Optional[int] = None,
+        min_citations: int = 0
+    ):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        papers = active_academic_resolver.search_literature(
+            query=query,
+            limit=limit,
+            min_year=min_year,
+            min_citations=min_citations
+        )
+        return papers
+
+    @router.post("/{project_id}/discovery/ingest", response_model=list[SourceDocument])
+    async def batch_ingest_discovery_papers(project_id: str, payload: BatchIngestRequest):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        vector_store = project_manager.get_vector_store(project_id)
+        ingested_docs = []
+
+        for doi in payload.dois:
+            try:
+                doc = ingester.ingest_url(url=doi)
+
+                # Deduplication check
+                existing_doc = project_manager.find_duplicate_document(
+                    project_id=project_id,
+                    doi=doc.metadata.get("doi") if doc.metadata else None,
+                    title=doc.filename
+                )
+                if existing_doc and existing_doc.id != doc.id:
+                    if existing_doc.char_count >= doc.char_count:
+                        ingested_docs.append(existing_doc)
+                        continue
+                    store.delete_document(existing_doc.id)
+                    vector_store.delete_document_chunks(existing_doc.id)
+
+                chunks = chunker.chunk(doc)
+                store.add_document(doc, chunks)
+                vector_store.delete_document_chunks(doc.id)
+                vector_store.add_chunks(chunks)
+                ingested_docs.append(doc)
+            except Exception as e:
+                # Continue ingesting other papers even if one fails
+                pass
+
+        return ingested_docs
+
+    # --- Studio Notebook Endpoints ---
+
+    @router.get("/{project_id}/notes", response_model=list[ProjectNote])
+    async def list_project_notes(project_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        return store.list_notes(project_id=project_id)
+
+    @router.post("/{project_id}/notes", response_model=ProjectNote)
+    async def create_project_note(project_id: str, note_in: ProjectNoteCreate):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        note_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        note = ProjectNote(
+            id=note_id,
+            project_id=project_id,
+            title=note_in.title,
+            content=note_in.content,
+            source_citation_ids=note_in.source_citation_ids,
+            tags=note_in.tags,
+            created_at=now,
+            updated_at=now,
+        )
+        store.save_note(note)
+        return note
+
+    @router.get("/{project_id}/notes/{note_id}", response_model=ProjectNote)
+    async def get_project_note(project_id: str, note_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        note = store.get_note(note_id)
+        if not note or note.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Note not found")
+        return note
+
+    @router.put("/{project_id}/notes/{note_id}", response_model=ProjectNote)
+    async def update_project_note(project_id: str, note_id: str, note_in: ProjectNoteUpdate):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        existing = store.get_note(note_id)
+        if not existing or existing.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        updated_note = ProjectNote(
+            id=existing.id,
+            project_id=existing.project_id,
+            title=note_in.title if note_in.title is not None else existing.title,
+            content=note_in.content if note_in.content is not None else existing.content,
+            source_citation_ids=note_in.source_citation_ids if note_in.source_citation_ids is not None else existing.source_citation_ids,
+            tags=note_in.tags if note_in.tags is not None else existing.tags,
+            created_at=existing.created_at,
+            updated_at=datetime.now(timezone.utc),
+        )
+        store.save_note(updated_note)
+        return updated_note
+
+    @router.delete("/{project_id}/notes/{note_id}")
+    async def delete_project_note(project_id: str, note_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        existing = store.get_note(note_id)
+        if not existing or existing.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Note not found")
+        store.delete_note(note_id)
+        return {"status": "deleted", "id": note_id}
+
+    # --- Consolidated Exporter Endpoint ---
+
+    @router.get("/{project_id}/export")
+    async def export_project_dossier(
+        project_id: str,
+        format: str = Query("markdown", pattern="^(markdown|bibtex)$")
+    ):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        sources = store.list_documents()
+
+        if format == "bibtex":
+            content = export_project_bibtex(sources)
+            filename = f"{project.name.replace(' ', '_').lower()}_references.bib"
+            return PlainTextResponse(
+                content=content,
+                media_type="text/plain; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            )
+        else:
+            notes = store.list_notes(project_id=project_id)
+            dossiers = store.get_all_dossiers()
+            messages = store.get_messages(limit=100)
+            content = export_project_markdown(
+                project=project,
+                sources=sources,
+                notes=notes,
+                dossiers=dossiers,
+                messages=messages
+            )
+            filename = f"{project.name.replace(' ', '_').lower()}_dossier.md"
+            return PlainTextResponse(
+                content=content,
+                media_type="text/markdown; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            )
 
     return router

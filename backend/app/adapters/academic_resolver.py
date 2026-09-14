@@ -5,6 +5,7 @@ Adapted from patterns in sdd-sota (litreview) into OpenFolioLM's hexagonal archi
 
 import logging
 import re
+import uuid
 from typing import Any, Optional
 import httpx
 
@@ -359,3 +360,115 @@ class CompositeAcademicResolver(AcademicResolverPort):
         ])
 
         return "\n".join(lines)
+
+    def search_literature(
+        self,
+        query: str,
+        limit: int = 15,
+        min_year: Optional[int] = None,
+        min_citations: int = 0
+    ) -> list[AcademicPaper]:
+        """Searches OpenAlex scholarly works dataset for a natural language query."""
+        if not query or not query.strip():
+            return []
+
+        client_owner = self._client is None
+        client = self._get_client()
+
+        papers: list[AcademicPaper] = []
+        try:
+            filters = ["has_abstract:true"]
+            if min_year:
+                filters.append(f"from_publication_date:{min_year}-01-01")
+            if min_citations > 0:
+                filters.append(f"cited_by_count:>{min_citations - 1}")
+
+            params: dict[str, Any] = {
+                "search": query.strip(),
+                "per-page": min(max(limit, 5), 50),
+                "mailto": self.mailto,
+            }
+            if filters:
+                params["filter"] = ",".join(filters)
+
+            resp = client.get(self.OPENALEX_API_URL, params=params)
+            if resp.status_code != 200:
+                logger.warning(f"OpenAlex search error {resp.status_code}: {resp.text[:150]}")
+                return []
+
+            data = resp.json()
+            results = data.get("results", [])
+
+            for work in results:
+                raw_doi = work.get("doi") or ""
+                doi = self.normalize_doi(raw_doi) or (raw_doi.replace("https://doi.org/", "").strip() if raw_doi else "")
+                if not doi:
+                    work_id = work.get("id", "").split("/")[-1]
+                    doi = f"openalex/{work_id}" if work_id else f"oa_{uuid.uuid4().hex[:8]}"
+
+                title = (work.get("title") or "").strip()
+                if not title:
+                    continue
+
+                abstract = reconstruct_abstract(work.get("abstract_inverted_index"))
+
+                authors = []
+                for authorship in work.get("authorships", []):
+                    name = authorship.get("author", {}).get("display_name")
+                    if name:
+                        authors.append(name)
+
+                primary_loc = work.get("primary_location") or {}
+                venue = (primary_loc.get("source") or {}).get("display_name")
+                landing_page = primary_loc.get("landing_page_url") or (f"https://doi.org/{doi}" if "10." in doi else "")
+
+                open_access = work.get("open_access") or {}
+                is_oa = open_access.get("is_oa", False)
+                best_oa = work.get("best_oa_location") or {}
+                pdf_url = best_oa.get("pdf_url") or open_access.get("oa_url")
+
+                year = work.get("publication_year")
+                citations = work.get("cited_by_count", 0)
+
+                first_author = authors[0].split()[-1].lower() if authors else "paper"
+                pub_year = str(year) if year else "nd"
+                doi_slug = re.sub(r"[^a-zA-Z0-9]", "", doi)[-8:]
+                cite_key = f"{first_author}_{pub_year}_{doi_slug}"
+
+                bibtex_authors = " and ".join(authors) if authors else "Unknown"
+                bibtex = (
+                    f"@article{{{cite_key},\n"
+                    f"  title = {{{title}}},\n"
+                    f"  author = {{{bibtex_authors}}},\n"
+                    f"  journal = {{{venue or 'Scholarly Publication'}}},\n"
+                    f"  year = {{{year or ''}}},\n"
+                    f"  doi = {{{doi}}},\n"
+                    f"  url = {{{landing_page}}}\n"
+                    f"}}"
+                )
+
+                paper = AcademicPaper(
+                    doi=doi,
+                    title=title,
+                    authors=authors,
+                    abstract=abstract,
+                    publication_year=year,
+                    venue=venue,
+                    is_open_access=is_oa,
+                    pdf_url=pdf_url,
+                    landing_page_url=landing_page,
+                    citations_count=citations,
+                    source_database="openalex",
+                    bibtex=bibtex,
+                )
+                papers.append(paper)
+                if len(papers) >= limit:
+                    break
+
+        except Exception as e:
+            logger.error(f"Error in search_literature: {e}")
+        finally:
+            if client_owner:
+                client.close()
+
+        return papers
