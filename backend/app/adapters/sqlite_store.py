@@ -80,7 +80,9 @@ class SQLiteDocumentStore(DocumentStorePort):
                     citations_json TEXT NOT NULL DEFAULT '[]',
                     evidence_found INTEGER,
                     active_sources_json TEXT NOT NULL DEFAULT '[]',
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    factual_score REAL,
+                    hallucination_risk TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS dossiers (
@@ -90,6 +92,16 @@ class SQLiteDocumentStore(DocumentStorePort):
                     FOREIGN KEY (source_id) REFERENCES documents(id) ON DELETE CASCADE
                 );
             """)
+
+            # Dynamic migrations for existing databases
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN factual_score REAL")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN hallucination_risk TEXT")
+            except Exception:
+                pass
 
     def add_document(self, document: SourceDocument, chunks: list[DocumentChunk]) -> None:
         with self._get_connection() as conn:
@@ -284,8 +296,8 @@ class SQLiteDocumentStore(DocumentStorePort):
             conn.execute(
                 """
                 INSERT OR REPLACE INTO messages
-                (id, conversation_id, sender, text, citations_json, evidence_found, active_sources_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, conversation_id, sender, text, citations_json, evidence_found, active_sources_json, created_at, factual_score, hallucination_risk)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     message.id,
@@ -295,7 +307,9 @@ class SQLiteDocumentStore(DocumentStorePort):
                     json.dumps([c.model_dump() for c in message.citations]),
                     1 if message.evidence_found else (0 if message.evidence_found is False else None),
                     json.dumps(message.active_sources_consulted),
-                    message.created_at.isoformat()
+                    message.created_at.isoformat(),
+                    message.factual_score,
+                    message.hallucination_risk
                 )
             )
 
@@ -310,6 +324,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                 citations_raw = json.loads(row["citations_json"])
                 citations = [Citation(**c) for c in citations_raw]
                 ev_found = bool(row["evidence_found"]) if row["evidence_found"] is not None else None
+                f_score = row["factual_score"] if "factual_score" in row.keys() and row["factual_score"] is not None else None
+                h_risk = row["hallucination_risk"] if "hallucination_risk" in row.keys() and row["hallucination_risk"] is not None else None
                 messages.append(
                     ChatMessageRecord(
                         id=row["id"],
@@ -319,6 +335,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                         citations=citations,
                         evidence_found=ev_found,
                         active_sources_consulted=json.loads(row["active_sources_json"]),
+                        factual_score=f_score,
+                        hallucination_risk=h_risk,
                         created_at=datetime.fromisoformat(row["created_at"])
                     )
                 )

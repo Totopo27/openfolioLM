@@ -147,6 +147,54 @@ def test_project_chat_with_custom_reranker():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_project_chat_with_fact_checker():
+    from unittest.mock import MagicMock
+    from app.ports.fact_checker import FactAuditResult
+    temp_dir = tempfile.mkdtemp()
+    try:
+        mgr = ProjectManager(projects_root=temp_dir, legacy_db_path=None)
+        synthesizer = GroundedSynthesizer(llm_client=MockLLM())
+        mock_checker = MagicMock()
+        mock_checker.audit.return_value = FactAuditResult(
+            factual_score=0.95,
+            hallucination_risk="low",
+            entailment_prob=0.92,
+            contradiction_prob=0.01,
+            neutral_prob=0.07,
+            claims_audited=2
+        )
+
+        app = create_app(project_manager=mgr, synthesizer=synthesizer, fact_checker=mock_checker)
+        client = TestClient(app)
+
+        proj = client.post("/api/projects", json={"name": "Fact Check Test"}).json()
+        doc = client.post(
+            f"/api/projects/{proj['id']}/sources/upload",
+            files={"file": ("doc.txt", io.BytesIO(b"El autor es Rafael Herra."), "text/plain")}
+        ).json()
+
+        chat_res = client.post(
+            f"/api/projects/{proj['id']}/chat",
+            json={"query": "autor", "active_source_ids": [doc["id"]]}
+        )
+        assert chat_res.status_code == 200
+        ans = chat_res.json()
+        assert ans["factual_score"] == 0.95
+        assert ans["hallucination_risk"] == "low"
+        assert mock_checker.audit.called
+
+        # Verify persisted message in SQLite
+        store = mgr.get_store(proj["id"])
+        msgs = store.get_messages()
+        assistant_msgs = [m for m in msgs if m.sender == "assistant"]
+        assert len(assistant_msgs) == 1
+        assert assistant_msgs[0].factual_score == 0.95
+        assert assistant_msgs[0].hallucination_risk == "low"
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+
 def test_project_reindex_endpoint():
     temp_dir = tempfile.mkdtemp()
     try:

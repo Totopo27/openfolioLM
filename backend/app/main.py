@@ -12,12 +12,14 @@ from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
 from app.ports.reranker import RerankerPort
 from app.ports.document_analyzer import DocumentAnalyzerPort
+from app.ports.fact_checker import FactCheckerPort
 from app.adapters.markitdown_adapter import MarkItDownAdapter
 from app.adapters.positional_chunker import PositionalChunker
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.grounded_synthesizer import GroundedSynthesizer
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
+from app.adapters.nli_fact_checker import NLIFactChecker
 from app.adapters.llm_client import OpenAICompatibleLLMClient
 from app.adapters.project_manager import ProjectManager
 from app.api.routes_sources import create_sources_router
@@ -33,6 +35,7 @@ def create_app(
     project_manager: Optional[ProjectManager] = None,
     reranker: Optional[RerankerPort] = None,
     analyzer: Optional[DocumentAnalyzerPort] = None,
+    fact_checker: Optional[FactCheckerPort] = None,
 ) -> FastAPI:
     app = FastAPI(
         title="OpenFolioLM API",
@@ -61,6 +64,9 @@ def create_app(
     active_ingester = ingester or MarkItDownAdapter()
     active_chunker = chunker or PositionalChunker()
     active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
+    active_fact_checker = fact_checker or (
+        NLIFactChecker(model_name=settings.nli_model) if settings.enable_fact_checker else None
+    )
 
     providers = {}
     if settings.gemini_api_key:
@@ -100,9 +106,14 @@ def create_app(
         active_synthesizer,
         reranker=active_reranker,
         analyzer=active_analyzer,
+        fact_checker=active_fact_checker,
     ))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
-    app.include_router(create_chat_router(active_store, active_synthesizer))
+    app.include_router(create_chat_router(
+        active_store,
+        active_synthesizer,
+        fact_checker=active_fact_checker,
+    ))
 
     @app.get("/api/health")
     async def health():
@@ -111,6 +122,7 @@ def create_app(
             "app": "OpenFolioLM",
             "embedding_model": settings.embedding_model,
             "reranker_model": settings.reranker_model,
+            "nli_model": settings.nli_model if settings.enable_fact_checker else None,
         }
 
     @app.get("/api/models", response_model=ModelsListResponse)

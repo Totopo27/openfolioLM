@@ -33,6 +33,8 @@ export interface GroundedResponse {
   citations: Citation[];
   active_sources_consulted: string[];
   evidence_found: boolean;
+  factual_score?: number;
+  hallucination_risk?: 'low' | 'medium' | 'high';
 }
 
 export interface ChatMessage {
@@ -42,6 +44,8 @@ export interface ChatMessage {
   citations?: Citation[];
   evidence_found?: boolean;
   active_sources_consulted?: string[];
+  factual_score?: number;
+  hallucination_risk?: 'low' | 'medium' | 'high';
   timestamp: string;
 }
 

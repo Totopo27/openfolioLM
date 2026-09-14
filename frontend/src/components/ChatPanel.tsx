@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2, Trash2 } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2, Trash2, ShieldCheck } from 'lucide-react';
 import { ChatMessage, Citation } from '../types';
 
 interface ChatPanelProps {
@@ -106,22 +106,46 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         )}
 
-        {/* Evidence Status Pill */}
-        {message.evidence_found !== undefined && (
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-            {message.evidence_found ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400 font-medium">Strictly Grounded</span>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-amber-400 font-medium">Missing Evidence in Selected Sources</span>
-              </>
-            )}
-          </div>
-        )}
+        {/* Evidence Status & Factual Verification Badge */}
+        <div className="flex items-center flex-wrap gap-2 pt-1">
+          {message.evidence_found !== undefined && (
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              {message.evidence_found ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400 font-medium">Strictly Grounded</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-amber-400 font-medium">Missing Evidence in Selected Sources</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {message.factual_score !== undefined && message.factual_score !== null && (
+            <div
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                message.hallucination_risk === 'low'
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : message.hallucination_risk === 'medium'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+              }`}
+              title={`Consistencia fáctica calculada por NLI multilingüe: ${Math.round(message.factual_score * 100)}%`}
+            >
+              <ShieldCheck className="w-3 h-3" />
+              <span>
+                {message.hallucination_risk === 'low'
+                  ? `Factualidad: ${Math.round(message.factual_score * 100)}% (Verificado)`
+                  : message.hallucination_risk === 'medium'
+                  ? `Verificación Parcial: ${Math.round(message.factual_score * 100)}%`
+                  : `Riesgo de Alucinación: ${Math.round(message.factual_score * 100)}%`}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     );
   };

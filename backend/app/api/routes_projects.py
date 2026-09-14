@@ -22,6 +22,7 @@ from app.ports.chunker import ChunkerPort
 from app.ports.synthesizer import SynthesizerPort
 from app.ports.reranker import RerankerPort
 from app.ports.document_analyzer import DocumentAnalyzerPort
+from app.ports.fact_checker import FactCheckerPort
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.core.fusion import reciprocal_rank_fusion
@@ -36,11 +37,13 @@ def create_projects_router(
     code_chunker: Optional[ChunkerPort] = None,
     reranker: Optional[RerankerPort] = None,
     analyzer: Optional[DocumentAnalyzerPort] = None,
+    fact_checker: Optional[FactCheckerPort] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
     active_reranker = reranker or CrossEncoderReranker()
     active_analyzer = analyzer or StructuredDocumentAnalyzer()
+    active_fact_checker = fact_checker
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -251,7 +254,13 @@ def create_projects_router(
             sources_map=sources_map
         )
 
-        # 4. Save assistant response with verifiable citations to persistent SQLite
+        # 4. Factual Audit & Hallucination Guardrail
+        if active_fact_checker and chunks and response.evidence_found and response.answer:
+            audit = active_fact_checker.audit(premise_chunks=chunks, hypothesis_text=response.answer)
+            response.factual_score = audit.factual_score
+            response.hallucination_risk = audit.hallucination_risk
+
+        # 5. Save assistant response with verifiable citations and factual audit to persistent SQLite
         assistant_msg = ChatMessageRecord(
             id=f"msg_{uuid.uuid4().hex[:12]}",
             conversation_id="default",
@@ -259,7 +268,9 @@ def create_projects_router(
             text=response.answer,
             citations=response.citations,
             evidence_found=response.evidence_found,
-            active_sources_consulted=response.active_sources_consulted
+            active_sources_consulted=response.active_sources_consulted,
+            factual_score=response.factual_score,
+            hallucination_risk=response.hallucination_risk,
         )
         store.save_message(assistant_msg)
 

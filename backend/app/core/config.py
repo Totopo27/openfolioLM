@@ -35,6 +35,12 @@ class Settings(BaseSettings):
         "RERANKER_MODEL", "BAAI/bge-reranker-base"
     )
 
+    # NLI Fact-Checking & Hallucination Guardrail settings
+    nli_model: str = os.getenv(
+        "NLI_MODEL", "Xenova/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+    )
+    enable_fact_checker: bool = os.getenv("ENABLE_FACT_CHECKER", "true").lower() in ("true", "1", "yes")
+
     @property
     def effective_llm_base_url(self) -> str:
         if self.llm_base_url:

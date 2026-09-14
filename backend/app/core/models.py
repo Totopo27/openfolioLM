@@ -82,6 +82,14 @@ class GroundedResponse(BaseModel):
         default=True,
         description="Whether sufficient grounding evidence was located in active sources"
     )
+    factual_score: Optional[float] = Field(
+        default=None,
+        description="Factual consistency score (0.0 to 1.0) computed by NLI cross-encoder"
+    )
+    hallucination_risk: Optional[str] = Field(
+        default=None,
+        description="Risk level: 'low' | 'medium' | 'high'"
+    )
 
 
 class ChatMessageRecord(BaseModel):
@@ -93,6 +101,14 @@ class ChatMessageRecord(BaseModel):
     citations: list[Citation] = Field(default_factory=list, description="Attributed citations")
     evidence_found: Optional[bool] = Field(default=None, description="Grounding status")
     active_sources_consulted: list[str] = Field(default_factory=list, description="Sources consulted")
+    factual_score: Optional[float] = Field(
+        default=None,
+        description="Factual consistency score (0.0 to 1.0)"
+    )
+    hallucination_risk: Optional[str] = Field(
+        default=None,
+        description="Risk level: 'low' | 'medium' | 'high'"
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

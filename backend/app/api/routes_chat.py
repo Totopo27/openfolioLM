@@ -1,12 +1,15 @@
+from typing import Optional
 from fastapi import APIRouter
 from app.core.models import GroundedQuery, GroundedResponse
 from app.ports.store import DocumentStorePort
 from app.ports.synthesizer import SynthesizerPort
+from app.ports.fact_checker import FactCheckerPort
 
 
 def create_chat_router(
     store: DocumentStorePort,
-    synthesizer: SynthesizerPort
+    synthesizer: SynthesizerPort,
+    fact_checker: Optional[FactCheckerPort] = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -33,6 +36,12 @@ def create_chat_router(
             chunks=chunks,
             sources_map=sources_map
         )
+
+        # 4. Factual Audit & Hallucination Guardrail
+        if fact_checker and chunks and response.evidence_found and response.answer:
+            audit = fact_checker.audit(premise_chunks=chunks, hypothesis_text=response.answer)
+            response.factual_score = audit.factual_score
+            response.hallucination_risk = audit.hallucination_risk
 
         return response
 

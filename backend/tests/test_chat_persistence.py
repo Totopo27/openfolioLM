@@ -34,7 +34,9 @@ def test_save_and_retrieve_chat_messages(store):
         text="El autor es Rafael Ángel Herra [^1].",
         citations=[citation],
         evidence_found=True,
-        active_sources_consulted=["doc_1"]
+        active_sources_consulted=["doc_1"],
+        factual_score=0.92,
+        hallucination_risk="low"
     )
     store.save_message(assistant_msg)
 
@@ -48,6 +50,8 @@ def test_save_and_retrieve_chat_messages(store):
     assert messages[1].citations[0].chunk_id == "doc_1#c0"
     assert messages[1].citations[0].start_char == 10
     assert messages[1].evidence_found is True
+    assert messages[1].factual_score == 0.92
+    assert messages[1].hallucination_risk == "low"
 
 
 def test_clear_chat_messages(store):
