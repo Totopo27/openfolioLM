@@ -11,11 +11,13 @@ from app.ports.synthesizer import SynthesizerPort
 from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
 from app.ports.reranker import RerankerPort
+from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.adapters.markitdown_adapter import MarkItDownAdapter
 from app.adapters.positional_chunker import PositionalChunker
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.grounded_synthesizer import GroundedSynthesizer
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
+from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.llm_client import OpenAICompatibleLLMClient
 from app.adapters.project_manager import ProjectManager
 from app.api.routes_sources import create_sources_router
@@ -30,6 +32,7 @@ def create_app(
     chunker: Optional[ChunkerPort] = None,
     project_manager: Optional[ProjectManager] = None,
     reranker: Optional[RerankerPort] = None,
+    analyzer: Optional[DocumentAnalyzerPort] = None,
 ) -> FastAPI:
     app = FastAPI(
         title="OpenFolioLM API",
@@ -59,20 +62,21 @@ def create_app(
     active_chunker = chunker or PositionalChunker()
     active_reranker = reranker or CrossEncoderReranker()
 
-    if synthesizer is None:
-        providers = {}
-        if settings.gemini_api_key:
-            providers["gemini"] = OpenAICompatibleLLMClient(
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-                api_key=settings.gemini_api_key,
-                model=settings.gemini_model,
-                fallback_models=["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"]
-            )
-        providers["ollama"] = OpenAICompatibleLLMClient(
-            base_url=settings.ollama_base_url,
-            api_key=settings.ollama_api_key,
-            model=settings.ollama_model
+    providers = {}
+    if settings.gemini_api_key:
+        providers["gemini"] = OpenAICompatibleLLMClient(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_model,
+            fallback_models=["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"]
         )
+    providers["ollama"] = OpenAICompatibleLLMClient(
+        base_url=settings.ollama_base_url,
+        api_key=settings.ollama_api_key,
+        model=settings.ollama_model
+    )
+
+    if synthesizer is None:
         active_synthesizer = GroundedSynthesizer(
             providers=providers,
             default_provider=settings.llm_provider
@@ -80,13 +84,22 @@ def create_app(
     else:
         active_synthesizer = synthesizer
 
+    if analyzer is None:
+        active_analyzer = StructuredDocumentAnalyzer(
+            providers=providers,
+            default_provider=settings.llm_provider
+        )
+    else:
+        active_analyzer = analyzer
+
     # Register routers
     app.include_router(create_projects_router(
         active_pm,
         active_ingester,
         active_chunker,
         active_synthesizer,
-        reranker=active_reranker
+        reranker=active_reranker,
+        analyzer=active_analyzer,
     ))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
     app.include_router(create_chat_router(active_store, active_synthesizer))

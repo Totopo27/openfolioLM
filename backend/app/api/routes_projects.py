@@ -11,6 +11,7 @@ from app.core.models import (
     GroundedResponse,
     ChatMessageRecord,
     URLIngestRequest,
+    DocumentDossier,
 )
 from app.adapters.project_manager import ProjectManager
 from app.adapters.repository_ingester import RepositoryIngester
@@ -19,7 +20,9 @@ from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
 from app.ports.synthesizer import SynthesizerPort
 from app.ports.reranker import RerankerPort
+from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
+from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.core.fusion import reciprocal_rank_fusion
 
 
@@ -31,10 +34,12 @@ def create_projects_router(
     repo_ingester: Optional[RepositoryIngester] = None,
     code_chunker: Optional[ChunkerPort] = None,
     reranker: Optional[RerankerPort] = None,
+    analyzer: Optional[DocumentAnalyzerPort] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
     active_reranker = reranker or CrossEncoderReranker()
+    active_analyzer = analyzer or StructuredDocumentAnalyzer()
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -141,6 +146,36 @@ def create_projects_router(
         if not success:
             raise HTTPException(status_code=404, detail="Source not found in project")
         return {"status": "deleted", "id": source_id}
+
+    # --- Structured Document Analysis & Dossiers ---
+
+    @router.post("/{project_id}/sources/{source_id}/analyze", response_model=DocumentDossier)
+    async def analyze_project_source(project_id: str, source_id: str, provider: Optional[str] = None):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        doc = store.get_document(source_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Source document not found in project")
+
+        chunks = store.get_document_chunks(source_id)
+        dossier = active_analyzer.analyze_document(doc, chunks, provider=provider)
+        store.save_dossier(dossier)
+        return dossier
+
+    @router.get("/{project_id}/sources/{source_id}/dossier", response_model=DocumentDossier)
+    async def get_project_source_dossier(project_id: str, source_id: str):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        dossier = store.get_dossier(source_id)
+        if not dossier:
+            raise HTTPException(status_code=404, detail="Dossier not found for this source. Run /analyze first.")
+        return dossier
 
     # --- Project Persistent Chat Messages ---
 

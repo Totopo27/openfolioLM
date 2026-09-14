@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 
@@ -125,3 +126,45 @@ class ModelEngine(BaseModel):
 
 class ModelsListResponse(BaseModel):
     models: list[ModelEngine] = Field(default_factory=list)
+
+
+class DocumentTypeEnum(str, Enum):
+    RESEARCH_PAPER = "research_paper"
+    POLICY_PLAN = "policy_plan"
+    TECHNICAL_REPORT = "technical_report"
+    LEGAL_REGULATORY = "legal_regulatory"
+    GENERAL = "general"
+
+
+class AreaAnalysis(BaseModel):
+    """Evaluation of a specific thematic dimension (Social, Economic, Technical, etc.)."""
+    area: str = Field(..., description="Thematic dimension name, e.g. 'Social / Inclusión', 'Viabilidad Económica'")
+    summary: str = Field(..., description="Concise assessment of this dimension")
+    strengths: list[str] = Field(default_factory=list, description="Identified strengths or positive aspects")
+    weaknesses: list[str] = Field(default_factory=list, description="Identified weaknesses or omissions")
+    risks: list[str] = Field(default_factory=list, description="Associated operational, financial or social risks")
+
+
+class FODAMatrix(BaseModel):
+    """SWOT / FODA analytical matrix."""
+    strengths: list[str] = Field(default_factory=list, description="Fortalezas (internal positives)")
+    weaknesses: list[str] = Field(default_factory=list, description="Debilidades (internal negatives)")
+    opportunities: list[str] = Field(default_factory=list, description="Oportunidades (external positives)")
+    threats: list[str] = Field(default_factory=list, description="Amenazas / Riesgos (external negatives)")
+
+
+class DocumentDossier(BaseModel):
+    """Structured analytical dossier synthesizing CeNAT extraction + PASE multidimensional matrix."""
+    source_id: str = Field(..., description="Referenced SourceDocument.id")
+    title: str = Field(..., description="Extracted or verified document title")
+    doc_type: DocumentTypeEnum = Field(default=DocumentTypeEnum.GENERAL, description="Categorized document typology")
+    executive_summary: str = Field(..., description="High-level executive overview (<250 words)")
+    authors_or_entities: list[str] = Field(default_factory=list, description="Authors, organizations or publishing entities")
+    key_claims: list[str] = Field(default_factory=list, description="Core theses, proposals or findings")
+    methodology_or_approach: Optional[str] = Field(default=None, description="Research methodology, legal framework, or implementation approach")
+    multidimensional_analysis: list[AreaAnalysis] = Field(default_factory=list, description="Thematic area evaluations")
+    foda: FODAMatrix = Field(default_factory=FODAMatrix, description="Structured FODA / SWOT matrix")
+    limitations: list[str] = Field(default_factory=list, description="Documented or observed limitations and gaps")
+    verdict: str = Field(..., description="Overall critical judgment, feasibility assessment or conclusion")
+    confidence_score: float = Field(default=0.9, ge=0.0, le=1.0, description="Confidence in extracted evidence")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

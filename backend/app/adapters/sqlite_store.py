@@ -2,7 +2,7 @@ import sqlite3
 import json
 from datetime import datetime, timezone
 from typing import Optional
-from app.core.models import SourceDocument, DocumentChunk, ChatMessageRecord, Citation
+from app.core.models import SourceDocument, DocumentChunk, ChatMessageRecord, Citation, DocumentDossier
 from app.ports.store import DocumentStorePort
 
 
@@ -81,6 +81,13 @@ class SQLiteDocumentStore(DocumentStorePort):
                     evidence_found INTEGER,
                     active_sources_json TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS dossiers (
+                    source_id TEXT PRIMARY KEY,
+                    dossier_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (source_id) REFERENCES documents(id) ON DELETE CASCADE
                 );
             """)
 
@@ -174,6 +181,7 @@ class SQLiteDocumentStore(DocumentStorePort):
             cursor = conn.execute("DELETE FROM documents WHERE id = ?", (source_id,))
             conn.execute("DELETE FROM chunks WHERE source_id = ?", (source_id,))
             conn.execute("DELETE FROM chunks_fts WHERE source_id = ?", (source_id,))
+            conn.execute("DELETE FROM dossiers WHERE source_id = ?", (source_id,))
             return cursor.rowcount > 0
 
     STOPWORDS = {
@@ -347,3 +355,43 @@ class SQLiteDocumentStore(DocumentStorePort):
                     )
                 )
             return chunks
+
+    def get_document_chunks(self, source_id: str) -> list[DocumentChunk]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM chunks WHERE source_id = ? ORDER BY start_char ASC", (source_id,))
+            chunks = []
+            for row in cursor.fetchall():
+                chunks.append(
+                    DocumentChunk(
+                        id=row["id"],
+                        source_id=row["source_id"],
+                        heading_hierarchy=json.loads(row["heading_hierarchy_json"]),
+                        start_char=row["start_char"],
+                        end_char=row["end_char"],
+                        content=row["content"],
+                        token_estimate=row["token_estimate"]
+                    )
+                )
+            return chunks
+
+    def save_dossier(self, dossier: DocumentDossier) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO dossiers (source_id, dossier_json, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    dossier.source_id,
+                    dossier.model_dump_json(),
+                    dossier.created_at.isoformat()
+                )
+            )
+
+    def get_dossier(self, source_id: str) -> Optional[DocumentDossier]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT dossier_json FROM dossiers WHERE source_id = ?", (source_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return DocumentDossier.model_validate_json(row["dossier_json"])
