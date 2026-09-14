@@ -13,6 +13,7 @@ from app.ports.chunker import ChunkerPort
 from app.ports.reranker import RerankerPort
 from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.ports.fact_checker import FactCheckerPort
+from app.ports.academic_resolver import AcademicResolverPort
 from app.adapters.markitdown_adapter import MarkItDownAdapter
 from app.adapters.hybrid_ingester import HybridDocumentIngester
 from app.adapters.positional_chunker import PositionalChunker
@@ -21,6 +22,7 @@ from app.adapters.grounded_synthesizer import GroundedSynthesizer
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.nli_fact_checker import NLIFactChecker
+from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.llm_client import OpenAICompatibleLLMClient
 from app.adapters.project_manager import ProjectManager
 from app.api.routes_sources import create_sources_router
@@ -37,6 +39,7 @@ def create_app(
     reranker: Optional[RerankerPort] = None,
     analyzer: Optional[DocumentAnalyzerPort] = None,
     fact_checker: Optional[FactCheckerPort] = None,
+    academic_resolver: Optional[AcademicResolverPort] = None,
 ) -> FastAPI:
     app = FastAPI(
         title="OpenFolioLM API",
@@ -62,7 +65,8 @@ def create_app(
     default_proj = active_pm.ensure_default_project()
 
     active_store = store or active_pm.get_store(default_proj.id)
-    active_ingester = ingester or HybridDocumentIngester()
+    active_resolver = academic_resolver or CompositeAcademicResolver()
+    active_ingester = ingester or HybridDocumentIngester(academic_resolver=active_resolver)
     active_chunker = chunker or PositionalChunker()
     active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
     active_fact_checker = fact_checker or (

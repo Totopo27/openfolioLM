@@ -125,6 +125,19 @@ def create_projects_router(
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
             doc = ingester.ingest_url(url=data.url, title_override=data.title)
+
+            # Deduplication: check if document already exists in this project
+            existing_doc = project_manager.find_duplicate_document(
+                project_id=project_id,
+                doi=doc.metadata.get("doi") if doc.metadata else None,
+                title=doc.filename
+            )
+            if existing_doc and existing_doc.id != doc.id:
+                if existing_doc.char_count >= doc.char_count:
+                    return existing_doc
+                store.delete_document(existing_doc.id)
+                vector_store.delete_document_chunks(existing_doc.id)
+
             chunks = chunker.chunk(doc)
             store.add_document(doc, chunks)
             vector_store.delete_document_chunks(doc.id)

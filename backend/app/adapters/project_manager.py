@@ -5,9 +5,38 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Any
-from app.core.models import Project
+from app.core.models import Project, SourceDocument
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.lancedb_store import LanceDBVectorStore
+from app.adapters.academic_resolver import normalize_doi
+
+STOPWORDS = {
+    "a", "an", "the", "and", "or", "of", "in", "on", "at", "to", "for",
+    "with", "by", "from", "as", "is", "that", "this", "it", "using", "based",
+    "un", "una", "los", "las", "el", "la", "de", "en", "para", "por", "con"
+}
+
+
+def normalize_title(title: Optional[str]) -> str:
+    if not title or not isinstance(title, str):
+        return ""
+    cleaned = re.sub(r"[^\w\s]", " ", title.lower())
+    tokens = [w for w in cleaned.split() if w not in STOPWORDS and len(w) > 1]
+    return " ".join(tokens)
+
+
+def title_token_similarity(t1: str, t2: str) -> float:
+    n1 = normalize_title(t1)
+    n2 = normalize_title(t2)
+    if not n1 or not n2:
+        return 0.0
+    if n1 == n2:
+        return 1.0
+    tokens1 = set(n1.split())
+    tokens2 = set(n2.split())
+    intersection = len(tokens1 & tokens2)
+    union = len(tokens1 | tokens2)
+    return intersection / union if union > 0 else 0.0
 
 
 class ProjectManager:
@@ -196,3 +225,28 @@ class ProjectManager:
             json.dump(meta, f, indent=2)
 
         return self.get_project(default_id)
+
+    def find_duplicate_document(
+        self,
+        project_id: str,
+        doi: Optional[str] = None,
+        title: Optional[str] = None,
+        similarity_threshold: float = 0.85
+    ) -> Optional[SourceDocument]:
+        """Detects whether a paper or document already exists in the project using DOI or title overlap."""
+        store = self.get_store(project_id)
+        existing_docs = store.list_documents()
+
+        target_doi = normalize_doi(doi) if doi else None
+
+        for doc in existing_docs:
+            doc_doi = normalize_doi(doc.metadata.get("doi")) if doc.metadata else None
+            if target_doi and doc_doi and target_doi == doc_doi:
+                return doc
+
+            if title:
+                sim = title_token_similarity(title, doc.filename)
+                if sim >= similarity_threshold:
+                    return doc
+
+        return None

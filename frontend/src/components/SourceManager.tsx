@@ -11,6 +11,7 @@ import {
   X,
   Package,
   Code2,
+  BookOpen,
 } from 'lucide-react';
 import { SourceDocument } from '../types';
 
@@ -282,7 +283,11 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   )}
                 </button>
 
-                {doc.metadata?.is_repo ? (
+                {doc.metadata?.doi ? (
+                  <span title={`Artículo Científico (DOI: ${doc.metadata.doi})`} className="flex items-center shrink-0">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                  </span>
+                ) : doc.metadata?.is_repo ? (
                   <span title="Repositorio de Código" className="flex items-center shrink-0">
                     <Package className="w-3.5 h-3.5 text-cyan-400" />
                   </span>
@@ -327,93 +332,128 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         </div>
       )}
 
-      {/* Add Web URL Modal */}
-      {isUrlModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                <Globe className="w-4 h-4 text-indigo-400" />
-                <span>Agregar Fuente desde Enlace Web</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => !isIngestingUrl && setIsUrlModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUrlSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  URL de la Página Web <span className="text-rose-400">*</span>
-                </label>
-                <div className="relative">
-                  <Link2 className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    placeholder="https://es.wikipedia.org/wiki/... o https://noticias..."
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    disabled={isIngestingUrl}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50"
-                  />
+      {/* Add Web URL / Academic DOI Modal */}
+      {isUrlModalOpen && (() => {
+        const isDoi = /10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+/i.test(urlInput);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                  {isDoi ? (
+                    <BookOpen className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Globe className="w-4 h-4 text-indigo-400" />
+                  )}
+                  <span>{isDoi ? 'Resolver e Indexar Artículo por DOI' : 'Agregar Fuente desde Enlace Web o DOI'}</span>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Título personalizado (opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Dejar vacío para detectar el título automáticamente"
-                  value={titleInput}
-                  onChange={(e) => setTitleInput(e.target.value)}
-                  disabled={isIngestingUrl}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50"
-                />
-              </div>
-
-              {urlError && (
-                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
-                  {urlError}
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsUrlModalOpen(false)}
-                  disabled={isIngestingUrl}
-                  className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                  onClick={() => !isIngestingUrl && setIsUrlModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={!urlInput.trim() || isIngestingUrl}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-900/30 disabled:opacity-50 cursor-pointer"
-                >
-                  {isIngestingUrl ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Descargando y Extrayendo...
-                    </>
-                  ) : (
-                    <>
-                      <Globe className="w-3.5 h-3.5" /> Extraer e Indexar
-                    </>
-                  )}
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleUrlSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    {isDoi ? 'Identificador DOI Académico' : 'URL de la Página Web o Identificador DOI'}{' '}
+                    <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    {isDoi ? (
+                      <BookOpen className="w-4 h-4 text-emerald-500 absolute left-3 top-3" />
+                    ) : (
+                      <Link2 className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                    )}
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder="https://... o DOI (ej: 10.1353/pnm.2010.0009)"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      disabled={isIngestingUrl}
+                      className={`w-full bg-slate-950 border rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition-all disabled:opacity-50 ${
+                        isDoi
+                          ? 'border-emerald-500/50 focus:ring-2 focus:ring-emerald-500'
+                          : 'border-slate-800 focus:ring-2 focus:ring-indigo-500'
+                      }`}
+                    />
+                  </div>
+                  {isDoi ? (
+                    <p className="mt-1.5 text-[11px] text-emerald-400/90 flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      DOI Académico detectado: Se resolverán metadatos y enlaces Open Access vía OpenAlex, Europe PMC y CrossRef.
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-[10px] text-slate-500">
+                      Podés ingresar una URL web o un identificador DOI (ej. <code className="text-slate-400">10.1353/pnm.2010.0009</code>).
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    Título personalizado (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Dejar vacío para detectar el título automáticamente"
+                    value={titleInput}
+                    onChange={(e) => setTitleInput(e.target.value)}
+                    disabled={isIngestingUrl}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all disabled:opacity-50"
+                  />
+                </div>
+
+                {urlError && (
+                  <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
+                    {urlError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUrlModalOpen(false)}
+                    disabled={isIngestingUrl}
+                    className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!urlInput.trim() || isIngestingUrl}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-white text-xs font-semibold rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 ${
+                      isDoi
+                        ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/30'
+                        : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/30'
+                    }`}
+                  >
+                    {isIngestingUrl ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />{' '}
+                        {isDoi ? 'Resolviendo Paper...' : 'Descargando y Extrayendo...'}
+                      </>
+                    ) : isDoi ? (
+                      <>
+                        <BookOpen className="w-3.5 h-3.5" /> Resolver e Indexar Paper
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-3.5 h-3.5" /> Extraer e Indexar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
