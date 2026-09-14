@@ -20,6 +20,7 @@ from app.ports.chunker import ChunkerPort
 from app.ports.synthesizer import SynthesizerPort
 from app.ports.reranker import RerankerPort
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
+from app.core.fusion import reciprocal_rank_fusion
 
 
 def create_projects_router(
@@ -80,6 +81,7 @@ def create_projects_router(
 
         try:
             store = project_manager.get_store(project_id)
+            vector_store = project_manager.get_vector_store(project_id)
 
             if active_repo_ingester.is_code_or_repo(filename):
                 with open(file_path, "rb") as f_in:
@@ -96,6 +98,8 @@ def create_projects_router(
                 chunks = chunker.chunk(doc)
 
             store.add_document(doc, chunks)
+            vector_store.delete_document_chunks(doc.id)
+            vector_store.add_chunks(chunks)
             return doc
         except Exception as e:
             if os.path.exists(file_path):
@@ -110,9 +114,12 @@ def create_projects_router(
 
         try:
             store = project_manager.get_store(project_id)
+            vector_store = project_manager.get_vector_store(project_id)
             doc = ingester.ingest_url(url=data.url, title_override=data.title)
             chunks = chunker.chunk(doc)
             store.add_document(doc, chunks)
+            vector_store.delete_document_chunks(doc.id)
+            vector_store.add_chunks(chunks)
             return doc
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -128,7 +135,9 @@ def create_projects_router(
     @router.delete("/{project_id}/sources/{source_id}")
     async def delete_project_source(project_id: str, source_id: str):
         store = project_manager.get_store(project_id)
+        vector_store = project_manager.get_vector_store(project_id)
         success = store.delete_document(source_id)
+        vector_store.delete_document_chunks(source_id)
         if not success:
             raise HTTPException(status_code=404, detail="Source not found in project")
         return {"status": "deleted", "id": source_id}
@@ -149,6 +158,7 @@ def create_projects_router(
     @router.post("/{project_id}/chat", response_model=GroundedResponse)
     async def project_grounded_chat(project_id: str, query: GroundedQuery):
         store = project_manager.get_store(project_id)
+        vector_store = project_manager.get_vector_store(project_id)
 
         # 1. Save user question to persistent SQLite
         user_msg = ChatMessageRecord(
@@ -159,14 +169,32 @@ def create_projects_router(
         )
         store.save_message(user_msg)
 
-        # 2. Retrieve grounded candidate chunks and apply neural cross-encoder reranking
+        # 2. Hybrid Retrieval: FTS5 Lexical + LanceDB Dense Vectors + RRF Fusion
         candidate_pool_size = max(15, query.top_k * 3)
-        candidate_chunks = store.search_chunks(
+        fts_candidates = store.search_chunks(
             query=query.query,
             active_source_ids=query.active_source_ids,
             top_k=candidate_pool_size
         )
 
+        try:
+            vector_results = vector_store.search_vectors(
+                query=query.query,
+                active_source_ids=query.active_source_ids,
+                top_k=candidate_pool_size
+            )
+            vector_candidates = [c for c, _dist in vector_results]
+        except Exception:
+            vector_candidates = []
+
+        candidate_chunks = reciprocal_rank_fusion(
+            fts_candidates,
+            vector_candidates,
+            k=60,
+            top_k=candidate_pool_size
+        )
+
+        # 3. Neural Cross-Encoder Reranking
         chunks = active_reranker.rerank(
             query=query.query,
             chunks=candidate_chunks,

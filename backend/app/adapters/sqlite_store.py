@@ -329,3 +329,21 @@ class SQLiteDocumentStore(DocumentStorePort):
         with self._get_connection() as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM documents")
             return cursor.fetchone()[0]
+
+    def get_all_chunks(self) -> list[DocumentChunk]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM chunks ORDER BY source_id, start_char ASC")
+            chunks = []
+            for row in cursor.fetchall():
+                chunks.append(
+                    DocumentChunk(
+                        id=row["id"],
+                        source_id=row["source_id"],
+                        heading_hierarchy=json.loads(row["heading_hierarchy_json"]),
+                        start_char=row["start_char"],
+                        end_char=row["end_char"],
+                        content=row["content"],
+                        token_estimate=row["token_estimate"]
+                    )
+                )
+            return chunks

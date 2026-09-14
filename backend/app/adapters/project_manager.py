@@ -4,19 +4,27 @@ import json
 import shutil
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any
 from app.core.models import Project
 from app.adapters.sqlite_store import SQLiteDocumentStore
+from app.adapters.lancedb_store import LanceDBVectorStore
 
 
 class ProjectManager:
     """Manages physically isolated project workspaces under data/projects/."""
 
-    def __init__(self, projects_root: str = "data/projects", legacy_db_path: Optional[str] = "data/openfolio.db"):
+    def __init__(
+        self,
+        projects_root: str = "data/projects",
+        legacy_db_path: Optional[str] = "data/openfolio.db",
+        embedding_model: Optional[Any] = None
+    ):
         self.projects_root = os.path.abspath(projects_root)
         self.legacy_db_path = os.path.abspath(legacy_db_path) if legacy_db_path else None
         os.makedirs(self.projects_root, exist_ok=True)
         self._stores: dict[str, SQLiteDocumentStore] = {}
+        self._vector_stores: dict[str, LanceDBVectorStore] = {}
+        self._shared_embedding_model = embedding_model
 
     def _get_project_dir(self, project_id: str) -> str:
         return os.path.join(self.projects_root, project_id)
@@ -107,6 +115,26 @@ class ProjectManager:
             self._stores[project_id] = SQLiteDocumentStore(db_path=db_path)
         return self._stores[project_id]
 
+    def get_vector_store(self, project_id: str) -> LanceDBVectorStore:
+        if project_id not in self._vector_stores:
+            lance_dir = os.path.join(self._get_project_dir(project_id), "vectors.lance")
+            v_store = LanceDBVectorStore(
+                db_dir=lance_dir,
+                embedding_model=self._shared_embedding_model
+            )
+            try:
+                db = v_store._get_db()
+                t_names = v_store._get_table_names(db)
+                if "chunks" not in t_names or len(db.open_table("chunks")) == 0:
+                    sqlite_store = self.get_store(project_id)
+                    existing_chunks = sqlite_store.get_all_chunks()
+                    if existing_chunks:
+                        v_store.add_chunks(existing_chunks)
+            except Exception:
+                pass
+            self._vector_stores[project_id] = v_store
+        return self._vector_stores[project_id]
+
     def get_uploads_dir(self, project_id: str) -> str:
         d = self._get_uploads_dir(project_id)
         os.makedirs(d, exist_ok=True)
@@ -121,6 +149,9 @@ class ProjectManager:
         if project_id in self._stores:
             self._stores[project_id].close()
             del self._stores[project_id]
+
+        if project_id in self._vector_stores:
+            del self._vector_stores[project_id]
 
         shutil.rmtree(proj_dir)
         return True
