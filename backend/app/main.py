@@ -60,7 +60,7 @@ def create_app(
     active_store = store or active_pm.get_store(default_proj.id)
     active_ingester = ingester or MarkItDownAdapter()
     active_chunker = chunker or PositionalChunker()
-    active_reranker = reranker or CrossEncoderReranker()
+    active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
 
     providers = {}
     if settings.gemini_api_key:
@@ -106,7 +106,12 @@ def create_app(
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "app": "OpenFolioLM"}
+        return {
+            "status": "ok",
+            "app": "OpenFolioLM",
+            "embedding_model": settings.embedding_model,
+            "reranker_model": settings.reranker_model,
+        }
 
     @app.get("/api/models", response_model=ModelsListResponse)
     async def get_available_models():

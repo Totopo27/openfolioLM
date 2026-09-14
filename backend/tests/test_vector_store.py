@@ -122,3 +122,58 @@ def test_real_fastembed_integration(tmp_vector_dir):
     top_chunk, dist = results[0]
     # The machine learning paper must be ranked #1
     assert top_chunk.source_id == "paper1"
+    assert store.get_dimension() == 768
+
+
+def test_dimension_mismatch_auto_recreation(tmp_vector_dir):
+    """Test that LanceDB safely drops and recreates table if model dimension changes."""
+    # Step 1: Create table with 4-dimensional mock model
+    store_4d = LanceDBVectorStore(db_dir=tmp_vector_dir, embedding_model=MockEmbeddingModel(dim=4))
+    c1 = _make_chunk("doc1#c0", "doc1", "Python code")
+    store_4d.add_chunks([c1])
+    assert store_4d.check_dimension_match() is True
+
+    # Step 2: Now create store with 6-dimensional mock model
+    class Mock6D:
+        def embed(self, texts):
+            for _ in texts:
+                yield [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    store_6d = LanceDBVectorStore(db_dir=tmp_vector_dir, embedding_model=Mock6D())
+    c2 = _make_chunk("doc2#c0", "doc2", "Rust code")
+    # This must not throw an Arrow dimension mismatch error; it must recreate table cleanly
+    store_6d.add_chunks([c2])
+
+    results = store_6d.search_vectors("Rust", active_source_ids=["doc2"])
+    assert len(results) == 1
+    assert results[0][0].id == "doc2#c0"
+
+
+def test_rebuild_table_with_chunks(tmp_vector_dir):
+    store = LanceDBVectorStore(db_dir=tmp_vector_dir, embedding_model=MockEmbeddingModel())
+    c1 = _make_chunk("doc1#c0", "doc1", "Python code")
+    store.add_chunks([c1])
+
+    c2 = _make_chunk("doc2#c0", "doc2", "Rust code")
+    store.rebuild_table_with_chunks([c2])
+
+    # doc1 should be gone, doc2 should be present
+    res_doc1 = store.search_vectors("python", active_source_ids=["doc1"])
+    assert res_doc1 == []
+
+    res_doc2 = store.search_vectors("rust", active_source_ids=["doc2"])
+    assert len(res_doc2) == 1
+    assert res_doc2[0][0].id == "doc2#c0"
+
+
+def test_e5_prefix_formatting(tmp_vector_dir):
+    store = LanceDBVectorStore(
+        db_dir=tmp_vector_dir,
+        embedding_model_name="intfloat/multilingual-e5-large",
+        embedding_model=MockEmbeddingModel()
+    )
+    assert store._format_text("texto del documento", is_query=False) == "passage: texto del documento"
+    assert store._format_text("consulta de usuario", is_query=True) == "query: consulta de usuario"
+    # Should not duplicate prefix
+    assert store._format_text("query: ya tiene prefijo", is_query=True) == "query: ya tiene prefijo"
+

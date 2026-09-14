@@ -3,6 +3,7 @@ import shutil
 import uuid
 from typing import Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from app.core.config import settings
 from app.core.models import (
     Project,
     ProjectCreate,
@@ -263,5 +264,19 @@ def create_projects_router(
         store.save_message(assistant_msg)
 
         return response
+
+    @router.post("/{project_id}/reindex")
+    async def reindex_project(project_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        reindexed_count = project_manager.reindex_project_vectors(project_id)
+        return {
+            "status": "success",
+            "project_id": project_id,
+            "reindexed_chunks": reindexed_count,
+            "embedding_model": settings.embedding_model,
+        }
 
     return router

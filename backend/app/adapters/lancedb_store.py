@@ -1,14 +1,17 @@
 from __future__ import annotations
 import os
 import json
+import logging
 from typing import Optional, Any
 import lancedb
 import pyarrow as pa
+from app.core.config import settings
 from app.core.models import DocumentChunk
 from app.ports.vector_store import VectorStorePort
 
+logger = logging.getLogger(__name__)
 
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+DEFAULT_EMBEDDING_MODEL = settings.embedding_model
 
 
 class LanceDBVectorStore(VectorStorePort):
@@ -20,12 +23,20 @@ class LanceDBVectorStore(VectorStorePort):
     def __init__(
         self,
         db_dir: str,
-        embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
+        embedding_model_name: Optional[str] = None,
         embedding_model: Optional[Any] = None
     ):
         self.db_dir = os.path.abspath(db_dir)
-        self.embedding_model_name = embedding_model_name
+        self.embedding_model_name = embedding_model_name or settings.embedding_model
         self._embedding_model = embedding_model
+
+    def _format_text(self, text: str, is_query: bool = False) -> str:
+        """Applies model-specific formatting or prefixes (e.g. e5 models)."""
+        if "e5" in self.embedding_model_name.lower():
+            prefix = "query: " if is_query else "passage: "
+            if not text.startswith(prefix):
+                return prefix + text
+        return text
 
     def _get_embedding_model(self) -> Any:
         if self._embedding_model is None:
@@ -62,7 +73,7 @@ class LanceDBVectorStore(VectorStorePort):
         if not chunks:
             return
 
-        texts = [c.content for c in chunks]
+        texts = [self._format_text(c.content, is_query=False) for c in chunks]
         model = self._get_embedding_model()
         embeddings = list(model.embed(texts))
         if not embeddings:
@@ -95,7 +106,27 @@ class LanceDBVectorStore(VectorStorePort):
             db.create_table("chunks", schema=schema, data=records)
         else:
             tbl = db.open_table("chunks")
-            tbl.add(records)
+            existing_dim = None
+            try:
+                existing_dim = getattr(tbl.schema.field("vector").type, "list_size", None)
+            except Exception:
+                pass
+
+            if existing_dim is not None and existing_dim != dim:
+                logger.warning(
+                    "LanceDB dimension mismatch: table has dim %d but active model '%s' produces %d. Recreating table.",
+                    existing_dim,
+                    self.embedding_model_name,
+                    dim
+                )
+                try:
+                    db.drop_table("chunks")
+                except Exception as e:
+                    logger.warning("Error dropping mismatched table 'chunks': %s", e)
+                schema = self._get_schema(dim)
+                db.create_table("chunks", schema=schema, data=records)
+            else:
+                tbl.add(records)
 
     def delete_document_chunks(self, source_id: str) -> None:
         db = self._get_db()
@@ -128,13 +159,27 @@ class LanceDBVectorStore(VectorStorePort):
         if len(tbl) == 0:
             return []
 
+        formatted_query = self._format_text(query, is_query=True)
         model = self._get_embedding_model()
-        query_embeddings = list(model.embed([query]))
+        query_embeddings = list(model.embed([formatted_query]))
         if not query_embeddings:
             return []
 
         q_vec = query_embeddings[0]
         q_vec_list = q_vec.tolist() if hasattr(q_vec, "tolist") else list(q_vec)
+
+        # Dimension safety guard
+        try:
+            existing_dim = getattr(tbl.schema.field("vector").type, "list_size", None)
+            if existing_dim is not None and len(q_vec_list) != existing_dim:
+                logger.warning(
+                    "Query vector dimension (%d) does not match LanceDB table dimension (%d). Skipping vector search.",
+                    len(q_vec_list),
+                    existing_dim
+                )
+                return []
+        except Exception:
+            pass
 
         safe_sids = [sid.replace("'", "''") for sid in active_source_ids]
         where_in = ", ".join(f"'{sid}'" for sid in safe_sids)
@@ -160,3 +205,37 @@ class LanceDBVectorStore(VectorStorePort):
             output.append((chunk, distance))
 
         return output
+
+    def rebuild_table_with_chunks(self, chunks: list[DocumentChunk]) -> None:
+        """Drops the chunks table if it exists and rebuilds it with all provided chunks."""
+        db = self._get_db()
+        table_names = self._get_table_names(db)
+        if "chunks" in table_names:
+            try:
+                db.drop_table("chunks")
+            except Exception as e:
+                logger.warning("Error dropping table 'chunks' during rebuild: %s", e)
+        if chunks:
+            self.add_chunks(chunks)
+
+    def get_dimension(self) -> int:
+        """Returns the embedding dimension of the active model."""
+        model = self._get_embedding_model()
+        vec = next(model.embed(["_dim_check_"]))
+        return len(vec)
+
+    def check_dimension_match(self) -> bool:
+        """Checks if the existing chunks table matches the active model dimension."""
+        db = self._get_db()
+        t_names = self._get_table_names(db)
+        if "chunks" not in t_names:
+            return True
+        tbl = db.open_table("chunks")
+        try:
+            existing_dim = getattr(tbl.schema.field("vector").type, "list_size", None)
+            if existing_dim is not None:
+                return existing_dim == self.get_dimension()
+        except Exception:
+            pass
+        return True
+

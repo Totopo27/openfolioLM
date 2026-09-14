@@ -147,3 +147,35 @@ def test_project_chat_with_custom_reranker():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_project_reindex_endpoint():
+    temp_dir = tempfile.mkdtemp()
+    try:
+        mgr = ProjectManager(projects_root=temp_dir, legacy_db_path=None)
+        synthesizer = GroundedSynthesizer(llm_client=MockLLM())
+        app = create_app(project_manager=mgr, synthesizer=synthesizer)
+        client = TestClient(app)
+
+        # Health endpoint includes models
+        health_res = client.get("/api/health")
+        assert health_res.status_code == 200
+        health_data = health_res.json()
+        assert "embedding_model" in health_data
+        assert "reranker_model" in health_data
+
+        proj = client.post("/api/projects", json={"name": "Reindex Test"}).json()
+        doc = client.post(
+            f"/api/projects/{proj['id']}/sources/upload",
+            files={"file": ("paper.txt", io.BytesIO(b"Introduccion al paper cientifico sobre redes neuronales."), "text/plain")}
+        ).json()
+
+        reindex_res = client.post(f"/api/projects/{proj['id']}/reindex")
+        assert reindex_res.status_code == 200
+        reindex_data = reindex_res.json()
+        assert reindex_data["status"] == "success"
+        assert reindex_data["reindexed_chunks"] >= 1
+        assert reindex_data["embedding_model"] == health_data["embedding_model"]
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+

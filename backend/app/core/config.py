@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "")
 
+    # Neural Embedding & Reranker settings (FastEmbed ONNX)
+    embedding_model: str = os.getenv(
+        "EMBEDDING_MODEL", "jinaai/jina-embeddings-v2-base-es"
+    )
+    reranker_model: str = os.getenv(
+        "RERANKER_MODEL", "BAAI/bge-reranker-base"
+    )
+
     @property
     def effective_llm_base_url(self) -> str:
         if self.llm_base_url:
