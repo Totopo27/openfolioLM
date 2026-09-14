@@ -172,3 +172,40 @@ export interface NetworkGraph {
   metrics: GraphMetrics;
 }
 
+// ================= Timeline & Evolutionary Chronology =================
+
+export interface LineageLink {
+  source_id: string;
+  title: string;
+  year?: number | null;
+}
+
+export interface TimelineEvent {
+  id: string;
+  source_id: string;
+  title: string;
+  year: number;
+  authors: string[];
+  headline: string;
+  summary: string;
+  methodology?: string | null;
+  limitations: string[];
+  role: GraphRole;
+  citations_count: number;
+  built_upon_sources: LineageLink[];
+}
+
+export interface TimelineEra {
+  year: number;
+  era_name: string;
+  events: TimelineEvent[];
+}
+
+export interface ProjectTimeline {
+  project_id: string;
+  total_events: number;
+  year_span: [number, number];
+  eras: TimelineEra[];
+  narrative_arc?: string | null;
+}
+

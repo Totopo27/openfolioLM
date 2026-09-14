@@ -1,4 +1,4 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote, NetworkGraph } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote, NetworkGraph, ProjectTimeline } from '../types';
 
 const API_BASE = '/api';
 
@@ -260,6 +260,33 @@ export async function fetchProjectNetwork(
   );
   if (!res.ok) throw new Error('Failed to fetch project citation network');
   return res.json();
+}
+
+// ================= Timeline & Evolutionary Chronology APIs =================
+
+export async function fetchProjectTimeline(projectId: string): Promise<ProjectTimeline> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/timeline`);
+  if (!res.ok) throw new Error('Failed to fetch project timeline');
+  return res.json();
+}
+
+export async function generateTimelineNarrative(
+  projectId: string,
+  provider?: string
+): Promise<string> {
+  const url = provider
+    ? `${API_BASE}/projects/${projectId}/timeline/narrative?provider=${encodeURIComponent(provider)}`
+    : `${API_BASE}/projects/${projectId}/timeline/narrative`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to synthesize timeline narrative' }));
+    throw new Error(err.detail || 'Failed to synthesize timeline narrative');
+  }
+  const data = await res.json();
+  return data.narrative_arc || '';
 }
 
 

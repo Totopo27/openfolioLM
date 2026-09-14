@@ -32,10 +32,12 @@ from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.ports.fact_checker import FactCheckerPort
 from app.ports.academic_resolver import AcademicPaper, AcademicResolverPort
 from app.ports.network_builder import NetworkGraph, NetworkBuilderPort
+from app.ports.timeline_builder import ProjectTimeline, TimelineBuilderPort
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.citation_network import CitationNetworkBuilder
+from app.adapters.timeline_builder import TimelineBuilder
 from app.core.fusion import reciprocal_rank_fusion
 
 
@@ -55,6 +57,7 @@ def create_projects_router(
     fact_checker: Optional[FactCheckerPort] = None,
     academic_resolver: Optional[AcademicResolverPort] = None,
     network_builder: Optional[NetworkBuilderPort] = None,
+    timeline_builder: Optional[TimelineBuilderPort] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
@@ -63,6 +66,7 @@ def create_projects_router(
     active_fact_checker = fact_checker
     active_academic_resolver = academic_resolver or CompositeAcademicResolver()
     active_network_builder = network_builder or CitationNetworkBuilder(project_manager)
+    active_timeline_builder = timeline_builder or TimelineBuilder(project_manager, synthesizer)
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -512,5 +516,28 @@ def create_projects_router(
             project_id=project_id,
             min_similarity=min_similarity
         )
+
+    # --- Chronology & Timeline of Ideas ---
+
+    @router.get("/{project_id}/timeline", response_model=ProjectTimeline)
+    async def get_project_timeline(project_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return active_timeline_builder.build_timeline(project_id=project_id)
+
+    @router.post("/{project_id}/timeline/narrative")
+    async def generate_timeline_narrative(
+        project_id: str,
+        provider: Optional[str] = Query(None)
+    ):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        narrative = await active_timeline_builder.synthesize_narrative(
+            project_id=project_id,
+            provider_override=provider
+        )
+        return {"narrative_arc": narrative}
 
     return router

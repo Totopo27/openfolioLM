@@ -10,6 +10,7 @@ import {
   X,
   MessageSquare,
   Share2,
+  History,
 } from 'lucide-react';
 import {
   SourceDocument,
@@ -37,6 +38,7 @@ import { SourceManager } from './components/SourceManager';
 import { ChatPanel } from './components/ChatPanel';
 import { StudioNotebook } from './components/StudioNotebook';
 import { NetworkGraphViewer } from './components/NetworkGraphViewer';
+import { TimelineViewer } from './components/TimelineViewer';
 
 export const App: React.FC = () => {
   // Project State
@@ -60,7 +62,7 @@ export const App: React.FC = () => {
 
   // Studio & Tab State
   const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier'>('reading');
-  const [rightPaneMode, setRightPaneMode] = useState<'chat' | 'notebook' | 'network'>('chat');
+  const [rightPaneMode, setRightPaneMode] = useState<'chat' | 'notebook' | 'network' | 'timeline'>('chat');
   const [notesCount, setNotesCount] = useState<number>(0);
   const [draftNote, setDraftNote] = useState<{
     title: string;
@@ -545,6 +547,18 @@ export const App: React.FC = () => {
                 <Share2 className="w-3.5 h-3.5 text-indigo-300" />
                 <span>Red Semántica & Grafo</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setRightPaneMode('timeline')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                  rightPaneMode === 'timeline'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <History className="w-3.5 h-3.5 text-indigo-300" />
+                <span>Cronología & Linaje</span>
+              </button>
             </div>
           </div>
 
@@ -607,10 +621,23 @@ export const App: React.FC = () => {
               initialNewNote={draftNote}
               onClearInitialNote={() => setDraftNote(null)}
             />
-          ) : (
+          ) : rightPaneMode === 'network' ? (
             <NetworkGraphViewer
               projectId={activeProject?.id || 'default'}
               selectedDocId={selectedDoc?.id || null}
+              onSelectDocument={(docId) => {
+                const doc = sources.find((s) => s.id === docId);
+                if (doc) {
+                  setSelectedDoc(doc);
+                  setHighlightTarget(null);
+                }
+              }}
+            />
+          ) : (
+            <TimelineViewer
+              projectId={activeProject?.id || 'default'}
+              selectedDocId={selectedDoc?.id || null}
+              selectedEngine={selectedEngine}
               onSelectDocument={(docId) => {
                 const doc = sources.find((s) => s.id === docId);
                 if (doc) {
