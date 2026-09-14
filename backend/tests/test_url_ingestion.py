@@ -85,3 +85,56 @@ def test_api_project_url_ingestion():
         assert "superposition" in chunks[0].content
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_markitdown_ingest_url_fallback_on_403():
+    from app.adapters.stealth_scraper import RenderedPage
+    mock_stealth = MagicMock()
+    mock_stealth.extract_rendered_html.return_value = RenderedPage(
+        html="<!DOCTYPE html><html><head><title>Cloudflare Passed</title></head><body><h1>Deep Article</h1><p>Content rendered after bot challenge bypass.</p></body></html>",
+        title="Cloudflare Passed",
+        final_url="https://protected.com/article",
+        engine="playwright_stealth"
+    )
+
+    adapter = MarkItDownAdapter(stealth_scraper=mock_stealth)
+
+    # Simulate 403 Forbidden from httpx
+    mock_resp = MagicMock()
+    mock_resp.status_code = 403
+
+    with patch("httpx.Client.get", return_value=mock_resp):
+        doc = adapter.ingest_url("https://protected.com/article")
+        assert doc.filename == "Cloudflare Passed"
+        assert "Content rendered after bot challenge bypass" in doc.raw_markdown
+        assert doc.metadata["fetch_engine"] == "playwright_stealth"
+        assert mock_stealth.extract_rendered_html.called
+
+
+def test_markitdown_ingest_url_fallback_on_spa_shell():
+    from app.adapters.stealth_scraper import RenderedPage
+    mock_stealth = MagicMock()
+    mock_stealth.extract_rendered_html.return_value = RenderedPage(
+        html="<!DOCTYPE html><html><head><title>Hydrated React App</title></head><body><div id='root'><h1>Dashboard</h1><p>Client side metrics loaded successfully.</p></div></body></html>",
+        title="Hydrated React App",
+        final_url="https://react-spa.io/app",
+        engine="omni_scraper_session"
+    )
+
+    adapter = MarkItDownAdapter(stealth_scraper=mock_stealth)
+
+    # Simulate an empty SPA shell returned by HTTP GET
+    spa_html = b"<!DOCTYPE html><html><head><title>React App</title></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id='root'></div></body></html>"
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = spa_html
+    mock_resp.text = spa_html.decode("utf-8")
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("httpx.Client.get", return_value=mock_resp):
+        doc = adapter.ingest_url("https://react-spa.io/app")
+        assert doc.filename == "Hydrated React App"
+        assert "Client side metrics loaded successfully" in doc.raw_markdown
+        assert doc.metadata["fetch_engine"] == "omni_scraper_session"
+        assert mock_stealth.extract_rendered_html.called
+
