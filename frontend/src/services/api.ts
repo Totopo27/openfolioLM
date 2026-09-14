@@ -1,4 +1,4 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote, NetworkGraph } from '../types';
 
 const API_BASE = '/api';
 
@@ -248,5 +248,19 @@ export async function downloadProjectExport(
   document.body.removeChild(a);
   window.URL.revokeObjectURL(downloadUrl);
 }
+
+// ================= Knowledge Graph & Network APIs =================
+
+export async function fetchProjectNetwork(
+  projectId: string,
+  minSimilarity: number = 0.65
+): Promise<NetworkGraph> {
+  const res = await fetch(
+    `${API_BASE}/projects/${projectId}/network?min_similarity=${minSimilarity}`
+  );
+  if (!res.ok) throw new Error('Failed to fetch project citation network');
+  return res.json();
+}
+
 
 

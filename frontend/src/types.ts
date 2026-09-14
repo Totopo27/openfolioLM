@@ -132,3 +132,43 @@ export interface ProjectNote {
   updated_at: string;
 }
 
+export type GraphRole = 'foundation' | 'frontier' | 'bridge' | 'corpus';
+export type EdgeType = 'citation' | 'semantic_similarity' | 'co_authorship';
+
+export interface GraphNode {
+  id: string;
+  title: string;
+  label: string;
+  authors: string[];
+  year?: number | null;
+  citations_count: number;
+  role: GraphRole;
+  doc_type: string;
+  in_corpus: boolean;
+  cluster_id: number;
+  centrality: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  type: EdgeType;
+  weight: number;
+  label?: string | null;
+}
+
+export interface GraphMetrics {
+  node_count: number;
+  edge_count: number;
+  foundational_papers: string[];
+  frontier_papers: string[];
+  bridge_papers: string[];
+  density: number;
+}
+
+export interface NetworkGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  metrics: GraphMetrics;
+}
+

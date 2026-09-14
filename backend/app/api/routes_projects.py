@@ -31,9 +31,11 @@ from app.ports.reranker import RerankerPort
 from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.ports.fact_checker import FactCheckerPort
 from app.ports.academic_resolver import AcademicPaper, AcademicResolverPort
+from app.ports.network_builder import NetworkGraph, NetworkBuilderPort
 from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.academic_resolver import CompositeAcademicResolver
+from app.adapters.citation_network import CitationNetworkBuilder
 from app.core.fusion import reciprocal_rank_fusion
 
 
@@ -52,6 +54,7 @@ def create_projects_router(
     analyzer: Optional[DocumentAnalyzerPort] = None,
     fact_checker: Optional[FactCheckerPort] = None,
     academic_resolver: Optional[AcademicResolverPort] = None,
+    network_builder: Optional[NetworkBuilderPort] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
@@ -59,6 +62,7 @@ def create_projects_router(
     active_analyzer = analyzer or StructuredDocumentAnalyzer()
     active_fact_checker = fact_checker
     active_academic_resolver = academic_resolver or CompositeAcademicResolver()
+    active_network_builder = network_builder or CitationNetworkBuilder(project_manager)
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -493,5 +497,20 @@ def create_projects_router(
                 media_type="text/markdown; charset=utf-8",
                 headers={"Content-Disposition": f'attachment; filename="{filename}"'}
             )
+
+    # --- Knowledge Graph & Semantic Citation Network ---
+
+    @router.get("/{project_id}/network", response_model=NetworkGraph)
+    async def get_project_network(
+        project_id: str,
+        min_similarity: float = Query(0.65, ge=0.0, le=1.0)
+    ):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return active_network_builder.build_project_network(
+            project_id=project_id,
+            min_similarity=min_similarity
+        )
 
     return router

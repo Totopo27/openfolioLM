@@ -9,6 +9,7 @@ import {
   Plus,
   X,
   MessageSquare,
+  Share2,
 } from 'lucide-react';
 import {
   SourceDocument,
@@ -35,6 +36,7 @@ import { DocViewer } from './components/DocViewer';
 import { SourceManager } from './components/SourceManager';
 import { ChatPanel } from './components/ChatPanel';
 import { StudioNotebook } from './components/StudioNotebook';
+import { NetworkGraphViewer } from './components/NetworkGraphViewer';
 
 export const App: React.FC = () => {
   // Project State
@@ -58,7 +60,7 @@ export const App: React.FC = () => {
 
   // Studio & Tab State
   const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier'>('reading');
-  const [rightPaneMode, setRightPaneMode] = useState<'chat' | 'notebook'>('chat');
+  const [rightPaneMode, setRightPaneMode] = useState<'chat' | 'notebook' | 'network'>('chat');
   const [notesCount, setNotesCount] = useState<number>(0);
   const [draftNote, setDraftNote] = useState<{
     title: string;
@@ -531,6 +533,18 @@ export const App: React.FC = () => {
                   </span>
                 )}
               </button>
+              <button
+                type="button"
+                onClick={() => setRightPaneMode('network')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                  rightPaneMode === 'network'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Share2 className="w-3.5 h-3.5 text-indigo-300" />
+                <span>Red Semántica & Grafo</span>
+              </button>
             </div>
           </div>
 
@@ -585,13 +599,25 @@ export const App: React.FC = () => {
                 }}
               />
             </div>
-          ) : (
+          ) : rightPaneMode === 'notebook' ? (
             <StudioNotebook
               projectId={activeProject?.id || 'default'}
               projectName={activeProject?.name || 'Investigación'}
               onNotesCountChange={setNotesCount}
               initialNewNote={draftNote}
               onClearInitialNote={() => setDraftNote(null)}
+            />
+          ) : (
+            <NetworkGraphViewer
+              projectId={activeProject?.id || 'default'}
+              selectedDocId={selectedDoc?.id || null}
+              onSelectDocument={(docId) => {
+                const doc = sources.find((s) => s.id === docId);
+                if (doc) {
+                  setSelectedDoc(doc);
+                  setHighlightTarget(null);
+                }
+              }}
             />
           )}
         </div>
