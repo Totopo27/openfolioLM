@@ -1,4 +1,4 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier } from '../types';
 
 const API_BASE = '/api';
 
@@ -140,5 +140,38 @@ export async function fetchAvailableModels(): Promise<ModelEngine[]> {
   if (!res.ok) throw new Error('Failed to fetch models');
   const data = await res.json();
   return data.models || [];
+}
+
+// ================= Structured Document Dossier APIs =================
+
+export async function fetchProjectSourceDossier(
+  projectId: string,
+  sourceId: string
+): Promise<DocumentDossier | null> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/${sourceId}/dossier`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('Failed to fetch document dossier');
+  return res.json();
+}
+
+export async function generateProjectSourceDossier(
+  projectId: string,
+  sourceId: string,
+  provider?: string
+): Promise<DocumentDossier> {
+  const url = provider
+    ? `${API_BASE}/projects/${projectId}/sources/${sourceId}/analyze?provider=${encodeURIComponent(provider)}`
+    : `${API_BASE}/projects/${projectId}/sources/${sourceId}/analyze`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Analysis generation failed' }));
+    throw new Error(err.detail || 'Analysis generation failed');
+  }
+
+  return res.json();
 }
 

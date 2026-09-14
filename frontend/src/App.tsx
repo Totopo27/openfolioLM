@@ -474,6 +474,8 @@ export const App: React.FC = () => {
             document={selectedDoc}
             highlightTarget={highlightTarget}
             onClearHighlight={() => setHighlightTarget(null)}
+            projectId={activeProject?.id}
+            selectedEngine={selectedEngine}
           />
         </div>
 

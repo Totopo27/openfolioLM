@@ -60,3 +60,41 @@ export interface ModelEngine {
   is_available: boolean;
 }
 
+export type DocumentTypeEnum =
+  | 'research_paper'
+  | 'policy_plan'
+  | 'technical_report'
+  | 'legal_regulatory'
+  | 'general';
+
+export interface AreaAnalysis {
+  area: string;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  risks: string[];
+}
+
+export interface FODAMatrix {
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  threats: string[];
+}
+
+export interface DocumentDossier {
+  source_id: string;
+  title: string;
+  doc_type: DocumentTypeEnum;
+  executive_summary: string;
+  authors_or_entities: string[];
+  key_claims: string[];
+  methodology_or_approach?: string | null;
+  multidimensional_analysis: AreaAnalysis[];
+  foda: FODAMatrix;
+  limitations: string[];
+  verdict: string;
+  confidence_score: number;
+  created_at: string;
+}
+
