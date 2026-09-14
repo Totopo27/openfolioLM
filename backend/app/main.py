@@ -14,6 +14,7 @@ from app.ports.reranker import RerankerPort
 from app.ports.document_analyzer import DocumentAnalyzerPort
 from app.ports.fact_checker import FactCheckerPort
 from app.adapters.markitdown_adapter import MarkItDownAdapter
+from app.adapters.hybrid_ingester import HybridDocumentIngester
 from app.adapters.positional_chunker import PositionalChunker
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.grounded_synthesizer import GroundedSynthesizer
@@ -61,7 +62,7 @@ def create_app(
     default_proj = active_pm.ensure_default_project()
 
     active_store = store or active_pm.get_store(default_proj.id)
-    active_ingester = ingester or MarkItDownAdapter()
+    active_ingester = ingester or HybridDocumentIngester()
     active_chunker = chunker or PositionalChunker()
     active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
     active_fact_checker = fact_checker or (
@@ -123,6 +124,7 @@ def create_app(
             "embedding_model": settings.embedding_model,
             "reranker_model": settings.reranker_model,
             "nli_model": settings.nli_model if settings.enable_fact_checker else None,
+            "docling_enabled": settings.enable_docling,
         }
 
     @app.get("/api/models", response_model=ModelsListResponse)
