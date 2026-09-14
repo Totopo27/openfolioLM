@@ -115,3 +115,35 @@ def test_upload_code_repository_and_chat(client_and_manager):
     assert len(ans["citations"]) >= 1
     assert "auth_service.zip" in ans["citations"][0]["source_filename"]
 
+
+def test_project_chat_with_custom_reranker():
+    from unittest.mock import MagicMock
+    temp_dir = tempfile.mkdtemp()
+    try:
+        mgr = ProjectManager(projects_root=temp_dir, legacy_db_path=None)
+        synthesizer = GroundedSynthesizer(llm_client=MockLLM())
+        mock_reranker = MagicMock()
+        mock_reranker.rerank.side_effect = lambda query, chunks, top_k: list(chunks)[:top_k]
+
+        app = create_app(project_manager=mgr, synthesizer=synthesizer, reranker=mock_reranker)
+        client = TestClient(app)
+
+        proj = client.post("/api/projects", json={"name": "Reranker Test"}).json()
+        doc = client.post(
+            f"/api/projects/{proj['id']}/sources/upload",
+            files={"file": ("doc.txt", io.BytesIO(b"El autor es Rafael Herra."), "text/plain")}
+        ).json()
+
+        chat_res = client.post(
+            f"/api/projects/{proj['id']}/chat",
+            json={"query": "autor", "active_source_ids": [doc["id"]]}
+        )
+        assert chat_res.status_code == 200
+        # Verify reranker was invoked
+        assert mock_reranker.rerank.called
+        call_args = mock_reranker.rerank.call_args
+        assert call_args[1]["query"] == "autor" or call_args[0][0] == "autor"
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+

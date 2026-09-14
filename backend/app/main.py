@@ -10,10 +10,12 @@ from app.ports.store import DocumentStorePort
 from app.ports.synthesizer import SynthesizerPort
 from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
+from app.ports.reranker import RerankerPort
 from app.adapters.markitdown_adapter import MarkItDownAdapter
 from app.adapters.positional_chunker import PositionalChunker
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.grounded_synthesizer import GroundedSynthesizer
+from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.llm_client import OpenAICompatibleLLMClient
 from app.adapters.project_manager import ProjectManager
 from app.api.routes_sources import create_sources_router
@@ -27,6 +29,7 @@ def create_app(
     ingester: Optional[IngestionPort] = None,
     chunker: Optional[ChunkerPort] = None,
     project_manager: Optional[ProjectManager] = None,
+    reranker: Optional[RerankerPort] = None,
 ) -> FastAPI:
     app = FastAPI(
         title="OpenFolioLM API",
@@ -54,6 +57,7 @@ def create_app(
     active_store = store or active_pm.get_store(default_proj.id)
     active_ingester = ingester or MarkItDownAdapter()
     active_chunker = chunker or PositionalChunker()
+    active_reranker = reranker or CrossEncoderReranker()
 
     if synthesizer is None:
         providers = {}
@@ -77,7 +81,13 @@ def create_app(
         active_synthesizer = synthesizer
 
     # Register routers
-    app.include_router(create_projects_router(active_pm, active_ingester, active_chunker, active_synthesizer))
+    app.include_router(create_projects_router(
+        active_pm,
+        active_ingester,
+        active_chunker,
+        active_synthesizer,
+        reranker=active_reranker
+    ))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
     app.include_router(create_chat_router(active_store, active_synthesizer))
 

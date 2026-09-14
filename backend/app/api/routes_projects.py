@@ -18,6 +18,8 @@ from app.adapters.code_chunker import SemanticCodeChunker
 from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
 from app.ports.synthesizer import SynthesizerPort
+from app.ports.reranker import RerankerPort
+from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 
 
 def create_projects_router(
@@ -26,10 +28,12 @@ def create_projects_router(
     chunker: ChunkerPort,
     synthesizer: SynthesizerPort,
     repo_ingester: Optional[RepositoryIngester] = None,
-    code_chunker: Optional[ChunkerPort] = None
+    code_chunker: Optional[ChunkerPort] = None,
+    reranker: Optional[RerankerPort] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
+    active_reranker = reranker or CrossEncoderReranker()
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -155,10 +159,17 @@ def create_projects_router(
         )
         store.save_message(user_msg)
 
-        # 2. Retrieve grounded chunks
-        chunks = store.search_chunks(
+        # 2. Retrieve grounded candidate chunks and apply neural cross-encoder reranking
+        candidate_pool_size = max(15, query.top_k * 3)
+        candidate_chunks = store.search_chunks(
             query=query.query,
             active_source_ids=query.active_source_ids,
+            top_k=candidate_pool_size
+        )
+
+        chunks = active_reranker.rerank(
+            query=query.query,
+            chunks=candidate_chunks,
             top_k=query.top_k
         )
 
