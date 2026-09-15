@@ -90,3 +90,39 @@ def test_chunker_handles_plain_text_without_headers():
     for chunk in chunks:
         assert plain_text[chunk.start_char:chunk.end_char] == chunk.content
         assert chunk.heading_hierarchy == []
+
+
+def test_chunker_assigns_page_numbers_from_offsets_and_markers():
+    markdown_with_pages = (
+        "<!-- PAGE: 55 -->\n\n--- [Pág. 55] ---\n\n"
+        "# Chapter 12: Cognitive Sedentarism\n\n"
+        "This is text on page 55.\n\n"
+        "<!-- PAGE: 56 -->\n\n--- [Pág. 56] ---\n\n"
+        "## Del mandato al algoritmo\n\n"
+        "This text belongs to page 56 and describes delegation."
+    )
+
+    doc = SourceDocument(
+        id="paged_doc",
+        filename="corvalan.pdf",
+        raw_markdown=markdown_with_pages,
+        metadata={
+            "page_count": 2,
+            "page_offsets": [
+                {"page": 55, "physical_page": 60, "start_char": 0, "end_char": 105},
+                {"page": 56, "physical_page": 61, "start_char": 106, "end_char": len(markdown_with_pages)}
+            ]
+        }
+    )
+
+    chunker = PositionalChunker()
+    chunks = chunker.chunk(doc, max_chunk_chars=300, min_chunk_chars=20)
+
+    assert len(chunks) >= 2
+    # First chunk should be on page 55
+    ch1 = [c for c in chunks if "page 55" in c.content][0]
+    assert ch1.page_number == 55
+
+    # Second chunk should be on page 56
+    ch2 = [c for c in chunks if "mandato al algoritmo" in c.content][0]
+    assert ch2.page_number == 56

@@ -62,6 +62,7 @@ class SQLiteDocumentStore(DocumentStorePort):
                     end_char INTEGER NOT NULL,
                     content TEXT NOT NULL,
                     token_estimate INTEGER NOT NULL,
+                    page_number INTEGER,
                     FOREIGN KEY (source_id) REFERENCES documents(id) ON DELETE CASCADE
                 );
 
@@ -106,6 +107,10 @@ class SQLiteDocumentStore(DocumentStorePort):
 
             # Dynamic migrations for existing databases
             try:
+                conn.execute("ALTER TABLE chunks ADD COLUMN page_number INTEGER")
+            except Exception:
+                pass
+            try:
                 conn.execute("ALTER TABLE messages ADD COLUMN factual_score REAL")
             except Exception:
                 pass
@@ -146,14 +151,15 @@ class SQLiteDocumentStore(DocumentStorePort):
                     c.start_char,
                     c.end_char,
                     c.content,
-                    c.token_estimate
+                    c.token_estimate,
+                    c.page_number
                 )
                 for c in chunks
             ]
             conn.executemany(
                 """
-                INSERT INTO chunks (id, source_id, heading_hierarchy_json, start_char, end_char, content, token_estimate)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO chunks (id, source_id, heading_hierarchy_json, start_char, end_char, content, token_estimate, page_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 chunk_records
             )
@@ -263,6 +269,7 @@ class SQLiteDocumentStore(DocumentStorePort):
             cursor = conn.execute(sql, params)
             results = []
             for row in cursor.fetchall():
+                p_num = row["page_number"] if "page_number" in row.keys() and row["page_number"] is not None else None
                 results.append(
                     DocumentChunk(
                         id=row["id"],
@@ -271,7 +278,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                         start_char=row["start_char"],
                         end_char=row["end_char"],
                         content=row["content"],
-                        token_estimate=row["token_estimate"]
+                        token_estimate=row["token_estimate"],
+                        page_number=p_num
                     )
                 )
 
@@ -285,6 +293,7 @@ class SQLiteDocumentStore(DocumentStorePort):
                         (s_id,)
                     ).fetchone()
                     if row and row["id"] not in existing_ids:
+                        p_num = row["page_number"] if "page_number" in row.keys() and row["page_number"] is not None else None
                         opening_chunks.append(
                             DocumentChunk(
                                 id=row["id"],
@@ -293,7 +302,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                                 start_char=row["start_char"],
                                 end_char=row["end_char"],
                                 content=row["content"],
-                                token_estimate=row["token_estimate"]
+                                token_estimate=row["token_estimate"],
+                                page_number=p_num
                             )
                         )
                 # Prepend opening chunks so title/author context takes top priority
@@ -374,6 +384,7 @@ class SQLiteDocumentStore(DocumentStorePort):
             cursor = conn.execute("SELECT * FROM chunks ORDER BY source_id, start_char ASC")
             chunks = []
             for row in cursor.fetchall():
+                p_num = row["page_number"] if "page_number" in row.keys() and row["page_number"] is not None else None
                 chunks.append(
                     DocumentChunk(
                         id=row["id"],
@@ -382,7 +393,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                         start_char=row["start_char"],
                         end_char=row["end_char"],
                         content=row["content"],
-                        token_estimate=row["token_estimate"]
+                        token_estimate=row["token_estimate"],
+                        page_number=p_num
                     )
                 )
             return chunks
@@ -392,6 +404,7 @@ class SQLiteDocumentStore(DocumentStorePort):
             cursor = conn.execute("SELECT * FROM chunks WHERE source_id = ? ORDER BY start_char ASC", (source_id,))
             chunks = []
             for row in cursor.fetchall():
+                p_num = row["page_number"] if "page_number" in row.keys() and row["page_number"] is not None else None
                 chunks.append(
                     DocumentChunk(
                         id=row["id"],
@@ -400,7 +413,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                         start_char=row["start_char"],
                         end_char=row["end_char"],
                         content=row["content"],
-                        token_estimate=row["token_estimate"]
+                        token_estimate=row["token_estimate"],
+                        page_number=p_num
                     )
                 )
             return chunks

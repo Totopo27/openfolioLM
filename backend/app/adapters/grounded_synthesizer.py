@@ -29,9 +29,10 @@ class GroundedSynthesizer(SynthesizerPort):
         "2. Do NOT extrapolate, speculate, or introduce external knowledge.\n"
         "3. Every factual assertion must be attributed to its source chunk using inline markers like [^1], [^2] (or [1], [2]). "
         "Example: 'Federico Schumacher es el autor [^1].'\n"
-        "4. If the provided context does not contain the answer, you MUST state: "
+        "4. When the user asks where something is located or for a page number, answer stating the exact page number given in the chunk header (e.g. 'se encuentra en la página 56 [^1]'). NEVER use the chunk index or citation number as a page number.\n"
+        "5. If the provided context does not contain the answer, you MUST state: "
         "'The provided active documents do not contain information to answer this query.'\n"
-        "5. Never invent or hallucinate citation numbers that are not in the context."
+        "6. Never invent or hallucinate citation numbers that are not in the context."
     )
 
     def __init__(
@@ -85,8 +86,9 @@ class GroundedSynthesizer(SynthesizerPort):
             source = sources_map.get(chunk.source_id)
             filename = source.filename if source else chunk.source_id
             header_str = " > ".join(chunk.heading_hierarchy) if chunk.heading_hierarchy else "General"
+            page_info = f" | Pág. {chunk.page_number}" if chunk.page_number is not None else ""
             context_parts.append(
-                f"[Chunk {i}] File: {filename} | Section: {header_str}\n{chunk.content}"
+                f"[Chunk {i}] File: {filename}{page_info} | Section: {header_str}\n{chunk.content}"
             )
 
         context_block = "\n\n---\n\n".join(context_parts)
@@ -137,7 +139,8 @@ class GroundedSynthesizer(SynthesizerPort):
                         heading_path=chunk.heading_hierarchy,
                         start_char=chunk.start_char,
                         end_char=chunk.end_char,
-                        quote_snippet=snippet
+                        quote_snippet=snippet,
+                        page_number=chunk.page_number
                     )
                 )
 

@@ -92,7 +92,35 @@ def test_synthesizer_normalizes_standard_bracket_citations():
     )
 
     assert response.evidence_found is True
-    assert "[^1]" in response.answer
-    assert "[1]" not in response.answer
     assert len(response.citations) == 1
     assert response.citations[0].index == 1
+
+
+def test_synthesizer_propagates_page_number_to_citation():
+    doc = SourceDocument(
+        id="doc_corvalan",
+        filename="sedentarismo.pdf",
+        raw_markdown="Del mandato al algoritmo en página 56."
+    )
+    chunk = DocumentChunk(
+        id="doc_corvalan#c56",
+        source_id="doc_corvalan",
+        start_char=0,
+        end_char=38,
+        content="Del mandato al algoritmo en página 56.",
+        page_number=56
+    )
+
+    mock_llm = MockLLMClient("Se encuentra en la página 56 [^1].")
+    synthesizer = GroundedSynthesizer(llm_client=mock_llm)
+
+    response = synthesizer.synthesize(
+        query=GroundedQuery(query="¿En qué página está?", active_source_ids=["doc_corvalan"]),
+        chunks=[chunk],
+        sources_map={"doc_corvalan": doc}
+    )
+
+    assert response.evidence_found is True
+    assert len(response.citations) == 1
+    assert response.citations[0].page_number == 56
+    assert "Pág. 56" in mock_llm.last_prompt

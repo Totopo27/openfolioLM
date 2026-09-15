@@ -92,6 +92,7 @@ export const DocViewer: React.FC<DocViewerProps> = ({
               {document.filename}
             </h2>
             <p className="text-xs text-slate-400">
+              {document.metadata?.page_count ? `${document.metadata.page_count} págs • ` : ''}
               {document.char_count.toLocaleString()} chars &bull; {document.mime_type}
             </p>
           </div>

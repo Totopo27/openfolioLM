@@ -29,6 +29,8 @@ interface StudioNotebookProps {
   projectId: string;
   projectName: string;
   onNotesCountChange?: (count: number) => void;
+  targetNoteId?: string | null;
+  onClearTargetNote?: () => void;
   initialNewNote?: { title: string; content: string; source_citation_ids?: string[] } | null;
   onClearInitialNote?: () => void;
 }
@@ -37,6 +39,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   projectId,
   projectName,
   onNotesCountChange,
+  targetNoteId,
+  onClearTargetNote,
   initialNewNote,
   onClearInitialNote,
 }) => {
@@ -62,9 +66,15 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
 
   useEffect(() => {
     if (projectId) {
-      loadNotes();
+      loadNotes(targetNoteId);
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (targetNoteId) {
+      loadNotes(targetNoteId);
+    }
+  }, [targetNoteId]);
 
   // Handle incoming note draft from chat or outside
   useEffect(() => {
@@ -78,15 +88,33 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
     }
   }, [initialNewNote]);
 
-  const loadNotes = async () => {
+  const loadNotes = async (selectTargetId?: string | null) => {
     try {
       setIsLoading(true);
       const data = await fetchProjectNotes(projectId);
       setNotes(data);
       onNotesCountChange?.(data.length);
+
+      const toSelectId = selectTargetId || targetNoteId;
+      if (toSelectId) {
+        const found = data.find((n) => n.id === toSelectId);
+        if (found) {
+          selectNote(found);
+          setSaveSuccess(true);
+          setTimeout(() => setSaveSuccess(false), 2500);
+          onClearTargetNote?.();
+          return;
+        }
+      }
+
+      // If there is an unsaved initial draft, do not clobber it with data[0]
+      if (initialNewNote) {
+        return;
+      }
+
       if (data.length > 0 && !selectedNoteId) {
         selectNote(data[0]);
-      } else if (data.length === 0) {
+      } else if (data.length === 0 && !selectedNoteId) {
         handleCreateNewDraft();
       }
     } catch (err) {

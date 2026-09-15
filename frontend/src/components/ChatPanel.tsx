@@ -9,7 +9,7 @@ interface ChatPanelProps {
   onSendMessage: (text: string) => void;
   onCitationClick: (citation: Citation) => void;
   onClearChat?: () => void;
-  onSaveToNotebook?: (text: string, title?: string, citationIds?: string[]) => void;
+  onSaveToNotebook?: (text: string, title?: string, citationIds?: string[]) => void | Promise<void>;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -22,7 +22,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSaveToNotebook,
 }) => {
   const [input, setInput] = useState('');
+  const [savingMsgId, setSavingMsgId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleSaveMessageToNotebook = async (m: ChatMessage) => {
+    if (!onSaveToNotebook) return;
+    const msgKey = m.id || m.timestamp;
+    setSavingMsgId(msgKey);
+    try {
+      const firstLine = m.text.replace(/\[\^\d+\]/g, '').trim().split('\n')[0];
+      const cleanTitle = firstLine.slice(0, 50).trim() + (firstLine.length > 50 ? '...' : '');
+      const cIds = m.citations?.map((c) => c.chunk_id) || [];
+      await onSaveToNotebook(m.text, cleanTitle || 'Hallazgo de Investigación', cIds);
+    } finally {
+      setSavingMsgId(null);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,7 +82,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   type="button"
                   onClick={() => citation && onCitationClick(citation)}
                   className="inline-flex items-center justify-center px-1.5 py-0.5 mx-0.5 text-xs font-bold font-mono bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 hover:text-indigo-100 rounded border border-indigo-500/30 transition-all hover:scale-105"
-                  title={citation ? `${citation.source_filename}: "${citation.quote_snippet}"` : 'Citation'}
+                  title={citation ? `${citation.source_filename}${citation.page_number ? ` (Pág. ${citation.page_number})` : ''}: "${citation.quote_snippet}"` : 'Citation'}
                 >
                   [{index}]
                 </button>
@@ -92,8 +107,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   className="p-2.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-indigo-500/40 cursor-pointer transition-all text-xs group"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-indigo-300 group-hover:text-indigo-200">
-                      [{c.index}] {c.source_filename}
+                    <span className="font-semibold text-indigo-300 group-hover:text-indigo-200 flex items-center gap-1.5">
+                      <span>[{c.index}]</span>
+                      <span className="truncate max-w-[200px]">{c.source_filename}</span>
+                      {c.page_number !== undefined && c.page_number !== null && (
+                        <span className="px-1.5 py-0.2 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+                          Pág. {c.page_number}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">
                       {c.heading_path.join(' > ') || 'General'}
@@ -200,17 +221,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-end">
                     <button
                       type="button"
-                      onClick={() => {
-                        const firstLine = m.text.replace(/\[\^\d+\]/g, '').trim().split('\n')[0];
-                        const cleanTitle = firstLine.slice(0, 50).trim() + (firstLine.length > 50 ? '...' : '');
-                        const cIds = m.citations?.map((c) => c.chunk_id) || [];
-                        onSaveToNotebook(m.text, cleanTitle || 'Hallazgo de Investigación', cIds);
-                      }}
-                      className="inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer"
+                      disabled={savingMsgId === (m.id || m.timestamp)}
+                      onClick={() => handleSaveMessageToNotebook(m)}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer disabled:opacity-50"
                       title="Guardar esta respuesta en el Cuaderno de Síntesis"
                     >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      <span>Guardar en Cuaderno</span>
+                      {savingMsgId === (m.id || m.timestamp) ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Guardando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Guardar en Cuaderno</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 )}

@@ -42,8 +42,31 @@ class MarkItDownAdapter(IngestionPort):
         filename: str,
         source_id: Optional[str] = None
     ) -> SourceDocument:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Source file not found at: {file_path}")
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == ".pdf":
+            try:
+                from app.adapters.pdf_page_extractor import PageAwarePDFExtractor
+                extractor = PageAwarePDFExtractor()
+                page_result = extractor.extract(file_path)
+                if page_result.raw_markdown and page_result.raw_markdown.strip():
+                    doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
+                    mime_type, _ = mimetypes.guess_type(filename)
+                    return SourceDocument(
+                        id=doc_id,
+                        filename=filename,
+                        mime_type=mime_type or "application/pdf",
+                        raw_markdown=page_result.raw_markdown,
+                        char_count=len(page_result.raw_markdown),
+                        metadata={
+                            "original_file_path": file_path,
+                            "file_size_bytes": os.path.getsize(file_path),
+                            "page_count": page_result.page_count,
+                            "page_offsets": page_result.page_offsets,
+                            "has_page_markers": True
+                        }
+                    )
+            except Exception:
+                pass
 
         result = self._md.convert(file_path)
         markdown_text = result.text_content or ""

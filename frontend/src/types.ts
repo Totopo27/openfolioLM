@@ -26,6 +26,7 @@ export interface Citation {
   start_char: number;
   end_char: number;
   quote_snippet: string;
+  page_number?: number;
 }
 
 export interface GroundedResponse {

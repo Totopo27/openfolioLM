@@ -9,6 +9,25 @@ class PositionalChunker(ChunkerPort):
 
     HEADING_REGEX = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
     PARAGRAPH_SPLIT_REGEX = re.compile(r"\n\s*\n")
+    PAGE_COMMENT_REGEX = re.compile(r"<!--\s*PAGE:\s*(\d+)")
+
+    def _resolve_page_number(
+        self,
+        char_offset: int,
+        raw_markdown: str,
+        page_offsets: Optional[list[dict]] = None
+    ) -> Optional[int]:
+        if page_offsets:
+            for rec in page_offsets:
+                if rec.get("start_char", 0) <= char_offset < rec.get("end_char", float("inf")):
+                    return rec.get("page")
+
+        prefix = raw_markdown[:char_offset + 50]
+        matches = list(self.PAGE_COMMENT_REGEX.finditer(prefix))
+        if matches:
+            return int(matches[-1].group(1))
+
+        return None
 
     def chunk(
         self,
@@ -19,6 +38,8 @@ class PositionalChunker(ChunkerPort):
         raw = document.raw_markdown
         if not raw or not raw.strip():
             return []
+
+        page_offsets = document.metadata.get("page_offsets") if document.metadata else None
 
         # Find all headings with their exact start and end positions
         heading_matches = list(self.HEADING_REGEX.finditer(raw))
@@ -36,7 +57,8 @@ class PositionalChunker(ChunkerPort):
                 heading_hierarchy=[],
                 start_idx=chunk_idx,
                 max_chars=max_chunk_chars,
-                min_chars=min_chunk_chars
+                min_chars=min_chunk_chars,
+                page_offsets=page_offsets
             )
 
         # Process text before first heading if any
@@ -50,7 +72,8 @@ class PositionalChunker(ChunkerPort):
                 heading_hierarchy=[],
                 start_idx=chunk_idx,
                 max_chars=max_chunk_chars,
-                min_chars=min_chunk_chars
+                min_chars=min_chunk_chars,
+                page_offsets=page_offsets
             )
             chunks.extend(pre_chunks)
             chunk_idx += len(pre_chunks)
@@ -82,7 +105,8 @@ class PositionalChunker(ChunkerPort):
                 heading_hierarchy=current_hierarchy,
                 start_idx=chunk_idx,
                 max_chars=max_chunk_chars,
-                min_chars=min_chunk_chars
+                min_chars=min_chunk_chars,
+                page_offsets=page_offsets
             )
             chunks.extend(sec_chunks)
             chunk_idx += len(sec_chunks)
@@ -98,7 +122,8 @@ class PositionalChunker(ChunkerPort):
         heading_hierarchy: list[str],
         start_idx: int,
         max_chars: int,
-        min_chars: int
+        min_chars: int,
+        page_offsets: Optional[list[dict]] = None
     ) -> list[DocumentChunk]:
         slice_text = raw[slice_start:slice_end]
         if not slice_text.strip():
@@ -106,13 +131,15 @@ class PositionalChunker(ChunkerPort):
 
         # If the slice is within max_chars, it's a single chunk
         if len(slice_text) <= max_chars:
+            page_num = self._resolve_page_number(slice_start, raw, page_offsets)
             chunk = DocumentChunk(
                 id=f"{source_id}#c{start_idx}",
                 source_id=source_id,
                 heading_hierarchy=heading_hierarchy,
                 start_char=slice_start,
                 end_char=slice_end,
-                content=slice_text
+                content=slice_text,
+                page_number=page_num
             )
             return [chunk]
 
@@ -160,6 +187,7 @@ class PositionalChunker(ChunkerPort):
             if chunk_content.strip():
                 global_start = slice_start + p_start
                 global_end = slice_start + actual_end
+                page_num = self._resolve_page_number(global_start, raw, page_offsets)
 
                 chunk = DocumentChunk(
                     id=f"{source_id}#c{curr_idx}",
@@ -167,7 +195,8 @@ class PositionalChunker(ChunkerPort):
                     heading_hierarchy=heading_hierarchy,
                     start_char=global_start,
                     end_char=global_end,
-                    content=raw[global_start:global_end]
+                    content=raw[global_start:global_end],
+                    page_number=page_num
                 )
                 chunks.append(chunk)
                 curr_idx += 1

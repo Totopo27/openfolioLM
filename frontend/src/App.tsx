@@ -32,6 +32,7 @@ import {
   clearProjectMessages,
   sendProjectGroundedChat,
   fetchAvailableModels,
+  createProjectNote,
 } from './services/api';
 import { DocViewer } from './components/DocViewer';
 import { SourceManager } from './components/SourceManager';
@@ -70,6 +71,25 @@ export const App: React.FC = () => {
     content: string;
     source_citation_ids?: string[];
   } | null>(null);
+  const [targetNoteId, setTargetNoteId] = useState<string | null>(null);
+
+  const handleSaveToNotebook = async (text: string, noteTitle?: string, cIds?: string[]) => {
+    if (!activeProject) return;
+    try {
+      const created = await createProjectNote(activeProject.id, {
+        title: noteTitle || 'Hallazgo de Investigación',
+        content: text,
+        tags: ['síntesis', 'chat'],
+        source_citation_ids: cIds || [],
+      });
+      setNotesCount((prev) => prev + 1);
+      setTargetNoteId(created.id);
+      setRightPaneMode('notebook');
+    } catch (err: any) {
+      console.error('Error saving note to notebook:', err);
+      alert(`Error al guardar en el cuaderno: ${err.message}`);
+    }
+  };
 
   // Literature Discovery Modal
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
@@ -617,14 +637,7 @@ export const App: React.FC = () => {
                 onSendMessage={handleSendMessage}
                 onCitationClick={handleCitationClick}
                 onClearChat={handleClearChat}
-                onSaveToNotebook={(text, noteTitle, cIds) => {
-                  setDraftNote({
-                    title: noteTitle || 'Hallazgo de Investigación',
-                    content: text,
-                    source_citation_ids: cIds,
-                  });
-                  setRightPaneMode('notebook');
-                }}
+                onSaveToNotebook={handleSaveToNotebook}
               />
             </div>
           ) : rightPaneMode === 'notebook' ? (
@@ -632,6 +645,8 @@ export const App: React.FC = () => {
               projectId={activeProject?.id || 'default'}
               projectName={activeProject?.name || 'Investigación'}
               onNotesCountChange={setNotesCount}
+              targetNoteId={targetNoteId}
+              onClearTargetNote={() => setTargetNoteId(null)}
               initialNewNote={draftNote}
               onClearInitialNote={() => setDraftNote(null)}
             />

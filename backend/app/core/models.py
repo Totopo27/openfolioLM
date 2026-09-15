@@ -33,6 +33,7 @@ class DocumentChunk(BaseModel):
     content: str = Field(..., description="Verbatim text slice: raw_markdown[start_char:end_char]")
     token_estimate: int = Field(default=0, description="Approximate token count")
     embedding: Optional[list[float]] = Field(default=None, description="Dense vector embedding")
+    page_number: Optional[int] = Field(default=None, description="Physical or folio page number")
 
     def model_post_init(self, __context: Any) -> None:
         if not self.token_estimate and self.content:
@@ -50,6 +51,7 @@ class Citation(BaseModel):
     start_char: int = Field(..., ge=0, description="Start character offset for highlighting in viewer")
     end_char: int = Field(..., gt=0, description="End character offset for highlighting in viewer")
     quote_snippet: str = Field(..., description="Short exact excerpt supporting the statement")
+    page_number: Optional[int] = Field(default=None, description="Physical or folio page number")
 
 
 class GroundedQuery(BaseModel):
