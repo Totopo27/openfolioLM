@@ -7,41 +7,41 @@ from app.core.models import (
     DocumentChunk,
     DocumentDossier,
     DocumentTypeEnum,
-    AreaAnalysis,
-    FODAMatrix,
+    ThematicModule,
+    StudyGuide,
 )
 from app.ports.document_analyzer import DocumentAnalyzerPort
 
 
-ANALYSIS_SYSTEM_PROMPT = """Eres un Auditor Científico y Analista Senior de Documentos (CeNAT / OpenFolioLM).
-Tu tarea es examinar el documento proporcionado y generar una FICHA TÉCNICA Y DOSSIER ESTRUCTURADO MULTIDIMENSIONAL.
+ANALYSIS_SYSTEM_PROMPT = """Eres un Revisor Editorial Académico y Pedagogo Científico Senior (OpenFolioLM).
+Tu tarea es examinar la obra proporcionada (libro de texto, manual técnico, monografía o paper) y generar la ESTRUCTURA Y GUÍA DE ESTUDIO CONCEPTUAL.
 
 Debes responder ÚNICAMENTE con un objeto JSON válido (sin explicaciones adicionales antes ni después) con el siguiente esquema exacto:
 
 {
-  "title": "Título preciso del documento o paper",
-  "doc_type": "research_paper | policy_plan | technical_report | legal_regulatory | general",
-  "executive_summary": "Resumen ejecutivo conciso de menos de 250 palabras",
-  "authors_or_entities": ["Autor 1", "Institución / Entidad"],
-  "key_claims": ["Tesis o propuesta principal 1", "Hallazgo o compromiso 2"],
-  "methodology_or_approach": "Metodología científica, marco normativo o enfoque de implementación",
-  "multidimensional_analysis": [
+  "title": "Título preciso de la obra o documento",
+  "doc_type": "book | textbook | research_paper | technical_report | monograph | general",
+  "executive_summary": "Resumen ejecutivo conciso de la obra (<250 palabras)",
+  "authors_or_entities": ["Autor 1", "Editorial / Institución"],
+  "key_claims": ["Tesis, principio axiomático o propuesta fundamental 1", "Fundamento 2"],
+  "methodology_or_approach": "Enfoque pedagógico, marco teórico o metodología didáctica utilizada",
+  "thematic_modules": [
     {
-      "area": "Nombre del área (ej. 'Técnica / Metodológica', 'Económica / Viabilidad', 'Social / Inclusión', 'Ambiental', 'Legal')",
-      "summary": "Evaluación crítica del área",
-      "strengths": ["Aspecto positivo 1"],
-      "weaknesses": ["Omisión o punto débil 1"],
-      "risks": ["Riesgo operacional o impacto adverso"]
+      "topic": "Nombre del módulo, capítulo o eje temático",
+      "summary": "Qué enseña o qué problema aborda este módulo",
+      "core_concepts": ["Concepto o algoritmo clave 1", "Concepto 2"],
+      "practical_applications": ["Proyecto, ejercicio o implementación práctica 1"]
     }
   ],
-  "foda": {
-    "strengths": ["Fortaleza interna del documento"],
-    "weaknesses": ["Debilidad interna o falta de datos"],
-    "opportunities": ["Oportunidad de impacto o aplicación"],
-    "threats": ["Amenaza externa o riesgo de inviabilidad"]
+  "study_guide": {
+    "target_audience": "Público objetivo y perfil recomendado de lector",
+    "prerequisites": ["Conocimiento previo o herramienta necesaria 1", "Prerrequisito 2"],
+    "difficulty_level": "Introductorio | Intermedio | Avanzado | Especializado",
+    "key_takeaways": ["Habilidad o competencia adquirida al completar el estudio 1"],
+    "recommended_reading_path": "Ruta pedagógica aconsejada (ej. lectura lineal secuencial, modular por proyectos, etc.)"
   },
-  "limitations": ["Limitación metodológica, vacíos en el documento o supuestos no comprobados"],
-  "verdict": "Dictamen crítico final sobre solidez, coherencia y viabilidad",
+  "limitations": ["Alcance temático expresamente no cubierto o límites de la obra"],
+  "verdict": "Dictamen crítico editorial sobre rigor conceptual, claridad didáctica y valor formativo",
   "confidence_score": 0.95
 }
 """
@@ -49,8 +49,8 @@ Debes responder ÚNICAMENTE con un objeto JSON válido (sin explicaciones adicio
 
 class StructuredDocumentAnalyzer(DocumentAnalyzerPort):
     """
-    Adapter for extracting structured analytical dossiers using LLMs with Pydantic validation.
-    Synthesizes scientific extraction (CeNAT) and multidimensional policy evaluation (PASE matrix).
+    Adapter for extracting structured academic dossiers and study guides using LLMs with Pydantic validation.
+    Generates thematic breakdown, core pedagogical roadmap, and critical assessment.
     """
 
     def __init__(
@@ -153,9 +153,15 @@ class StructuredDocumentAnalyzer(DocumentAnalyzerPort):
                 authors_or_entities=[],
                 key_claims=[],
                 methodology_or_approach=None,
-                multidimensional_analysis=[],
-                foda=FODAMatrix(),
+                thematic_modules=[],
+                study_guide=StudyGuide(
+                    target_audience="Lectores interesados en el tema",
+                    prerequisites=[],
+                    difficulty_level="Intermedio",
+                    key_takeaways=[],
+                    recommended_reading_path="Lectura directa"
+                ),
                 limitations=["Análisis automático no concluyente debido a formato del modelo."],
-                verdict="Se sugiere revisar el documento mediante consultas directas en el chat.",
+                verdict="Se sugiere revisar la obra mediante consultas directas en el chat.",
                 confidence_score=0.3
             )

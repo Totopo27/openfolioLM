@@ -413,7 +413,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                     <div>
                       <p className="font-medium">Dossier Ejecutivo (.md)</p>
                       <p className="text-[10px] text-slate-400">
-                        Corpus, Fichas CeNAT, FODA y Notas
+                        Corpus, Guías de Estudio, Módulos y Notas
                       </p>
                     </div>
                   </button>

@@ -1,4 +1,4 @@
-﻿import re
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from app.core.models import (
@@ -103,7 +103,7 @@ def export_project_markdown(
         f"- **Fuentes Ingeridas:** {len(sources)}",
         f"- **Notas de Síntesis en Cuaderno:** {len(notes)}",
         f"- **Consultas & Evidencia Grounded:** {len([m for m in messages if m.sender == 'assistant'])}",
-        f"- **Fichas Analíticas CeNAT/PASE Generadas:** {len(dossiers)}",
+        f"- **Fichas Analíticas y Guías de Estudio Generadas:** {len(dossiers)}",
         "",
     ])
 
@@ -140,23 +140,52 @@ def export_project_markdown(
             if dossier:
                 lines.extend([
                     "",
-                    "#### 📑 Ficha CeNAT / PASE",
+                    "#### 📑 Estructura & Guía de Estudio de la Obra",
                     f"**Tipología:** `{dossier.doc_type.value}` | **Confianza:** {dossier.confidence_score * 100:.0f}%",
                     "",
                     f"**Resumen Ejecutivo:** {dossier.executive_summary}",
                     "",
                 ])
                 if dossier.key_claims:
-                    lines.append("**Tesis y Hallazgos Principales:**")
+                    lines.append("**Tesis y Fundamentos Principales:**")
                     for claim in dossier.key_claims:
                         lines.append(f"- {claim}")
                     lines.append("")
 
                 if dossier.methodology_or_approach:
-                    lines.append(f"**Metodología / Marco:** {dossier.methodology_or_approach}\n")
+                    lines.append(f"**Enfoque Pedagógico / Metodología:** {dossier.methodology_or_approach}\n")
+
+                if dossier.study_guide:
+                    sg = dossier.study_guide
+                    lines.append(f"**Público Objetivo:** {sg.target_audience} | **Dificultad:** `{sg.difficulty_level}`")
+                    if sg.prerequisites:
+                        lines.append(f"**Prerrequisitos:** {', '.join(sg.prerequisites)}")
+                    if sg.key_takeaways:
+                        lines.append("**Competencias y Aprendizajes Clave:**")
+                        for kt in sg.key_takeaways:
+                            lines.append(f"- {kt}")
+                    if sg.recommended_reading_path:
+                        lines.append(f"**Ruta de Lectura Aconsejada:** {sg.recommended_reading_path}")
+                    lines.append("")
+
+                if dossier.thematic_modules:
+                    lines.append("**Módulos Temáticos y Conceptos Axiomáticos:**")
+                    for mod in dossier.thematic_modules:
+                        lines.append(f"- **{mod.topic}**: {mod.summary}")
+                        if mod.core_concepts:
+                            lines.append(f"  - _Conceptos clave:_ {', '.join(mod.core_concepts)}")
+                        if mod.practical_applications:
+                            lines.append(f"  - _Aplicaciones prácticas:_ {', '.join(mod.practical_applications)}")
+                    lines.append("")
+
+                if dossier.limitations:
+                    lines.append("**Límites y Alcance Temático:**")
+                    for lim in dossier.limitations:
+                        lines.append(f"- {lim}")
+                    lines.append("")
 
                 if dossier.verdict:
-                    lines.append(f"**Veredicto / Juicio Crítico:** {dossier.verdict}\n")
+                    lines.append(f"**Dictamen Editorial / Juicio Crítico:** {dossier.verdict}\n")
             lines.append("---")
             lines.append("")
 
@@ -181,43 +210,40 @@ def export_project_markdown(
                 "",
             ])
 
-    # Section 3: Consolidated SWOT / FODA (if available)
-    all_strengths = []
-    all_weaknesses = []
-    all_opportunities = []
-    all_threats = []
+    # Section 3: Consolidated Study Guide & Thematic Architecture
+    all_prereqs = []
+    all_takeaways = []
+    all_modules = []
 
     for d in dossiers.values():
-        if d.foda:
-            all_strengths.extend(d.foda.strengths)
-            all_weaknesses.extend(d.foda.weaknesses)
-            all_opportunities.extend(d.foda.opportunities)
-            all_threats.extend(d.foda.threats)
+        if d.study_guide:
+            all_prereqs.extend(d.study_guide.prerequisites)
+            all_takeaways.extend(d.study_guide.key_takeaways)
+        if d.thematic_modules:
+            all_modules.extend(d.thematic_modules)
 
-    if all_strengths or all_weaknesses or all_opportunities or all_threats:
+    if all_prereqs or all_takeaways or all_modules:
         lines.extend([
-            "## 🧭 Matriz FODA / PASE Consolidada del Corpus",
+            "## 📚 Guía de Estudio Consolidada y Mapa Temático del Corpus",
             "",
-            "| Fortalezas | Oportunidades |",
-            "| :--- | :--- |",
         ])
-        max_so = max(len(all_strengths), len(all_opportunities), 1)
-        for idx in range(max_so):
-            s = f"• {all_strengths[idx]}" if idx < len(all_strengths) else ""
-            o = f"• {all_opportunities[idx]}" if idx < len(all_opportunities) else ""
-            lines.append(f"| {s} | {o} |")
+        if all_prereqs:
+            lines.append("### 🔑 Prerrequisitos Globales del Corpus")
+            for pr in set(all_prereqs):
+                lines.append(f"- {pr}")
+            lines.append("")
 
-        lines.extend([
-            "",
-            "| Debilidades | Amenazas & Riesgos |",
-            "| :--- | :--- |",
-        ])
-        max_wt = max(len(all_weaknesses), len(all_threats), 1)
-        for idx in range(max_wt):
-            w = f"• {all_weaknesses[idx]}" if idx < len(all_weaknesses) else ""
-            t = f"• {all_threats[idx]}" if idx < len(all_threats) else ""
-            lines.append(f"| {w} | {t} |")
-        lines.append("")
+        if all_takeaways:
+            lines.append("### 🎯 Competencias y Aprendizajes Clave Consolidados")
+            for tk in all_takeaways:
+                lines.append(f"- {tk}")
+            lines.append("")
+
+        if all_modules:
+            lines.append("### 🗺️ Ejes y Módulos Conceptuales del Corpus")
+            for mod in all_modules:
+                lines.append(f"- **{mod.topic}**: {mod.summary}")
+            lines.append("")
 
     # Section 4: Chat QA Trail
     assistant_msgs = [m for m in messages if m.sender == "assistant"]

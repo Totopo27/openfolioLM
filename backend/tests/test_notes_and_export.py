@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 from app.core.models import (
@@ -7,7 +7,8 @@ from app.core.models import (
     ProjectNote,
     DocumentDossier,
     DocumentTypeEnum,
-    FODAMatrix,
+    ThematicModule,
+    StudyGuide,
     ChatMessageRecord,
 )
 from app.adapters.sqlite_store import SQLiteDocumentStore
@@ -128,11 +129,20 @@ def test_exporter_markdown():
             executive_summary="Revisión exhaustiva del estado del arte en RAG.",
             key_claims=["RAG reduce las alucinaciones en un 60%"],
             verdict="Documento fundamental para el estado del arte.",
-            foda=FODAMatrix(
-                strengths=["Análisis comparativo robusto"],
-                weaknesses=["Poca experimentación en idiomas no ingleses"],
-                opportunities=["Extensión hacia razonamiento multimodal"],
-                threats=["Evolución acelerada de modelos con contexto largo"]
+            thematic_modules=[
+                ThematicModule(
+                    topic="Arquitecturas RAG Avanzadas",
+                    summary="Integración de recuperación densa, dispersa y reranking.",
+                    core_concepts=["Dense Retrieval", "RRF", "Cross-encoders"],
+                    practical_applications=["Búsqueda semántica híbrida"]
+                )
+            ],
+            study_guide=StudyGuide(
+                target_audience="Investigadores e ingenieros en IA",
+                prerequisites=["Embeddings", "Transformers", "Bases de datos vectoriales"],
+                difficulty_level="Avanzado",
+                key_takeaways=["Mitigación de alucinaciones y grounding estricto"],
+                recommended_reading_path="Lectura secuencial desde fundamentos hasta RAG modular"
             )
         )
     }
@@ -150,8 +160,8 @@ def test_exporter_markdown():
     assert "Investigación sobre arquitecturas de agentes y RAG." in md
     assert "Survey of Retrieval-Augmented Generation" in md
     assert "Reflexión sobre BM25 + Vectores" in md
-    assert "Matriz FODA / PASE Consolidada" in md
-    assert "Análisis comparativo robusto" in md
+    assert "Guía de Estudio Consolidada y Mapa Temático" in md
+    assert "Mitigación de alucinaciones y grounding estricto" in md
     assert "La arquitectura RAG mitiga alucinaciones" in md
 
 

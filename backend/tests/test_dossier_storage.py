@@ -5,8 +5,8 @@ from app.core.models import (
     DocumentChunk,
     DocumentDossier,
     DocumentTypeEnum,
-    AreaAnalysis,
-    FODAMatrix,
+    ThematicModule,
+    StudyGuide,
 )
 from app.adapters.sqlite_store import SQLiteDocumentStore
 
@@ -46,20 +46,20 @@ def test_dossier_save_and_retrieve():
         authors_or_entities=["CeNAT", "MICITT"],
         key_claims=["Escalabilidad lineal en clusters MPI"],
         methodology_or_approach="Benchmarking en Slurm",
-        multidimensional_analysis=[
-            AreaAnalysis(
-                area="Técnica / HPC",
+        thematic_modules=[
+            ThematicModule(
+                topic="Técnica / HPC",
                 summary="Excelente rendimiento con baja latencia.",
-                strengths=["InfiniBand optimizado"],
-                weaknesses=["Cuello de botella I/O en disco"],
-                risks=["Sobrecarga de memoria"]
+                core_concepts=["InfiniBand", "MPI Clusters"],
+                practical_applications=["Modelado climático en 64 nodos"]
             )
         ],
-        foda=FODAMatrix(
-            strengths=["Supercomputadora Kabré"],
-            weaknesses=["Capacidad de almacenamiento"],
-            opportunities=["Colaboración académica"],
-            threats=["Costos de energía"]
+        study_guide=StudyGuide(
+            target_audience="Investigadores en computación de alto rendimiento",
+            prerequisites=["Linux avanzado", "C / MPI"],
+            difficulty_level="Avanzado",
+            key_takeaways=["Optimización de I/O en clusters distribuidos"],
+            recommended_reading_path="Lectura secuencial de metodologías de benchmark"
         ),
         limitations=["Pruebas limitadas a 64 nodos"],
         verdict="Aporte significativo para la ciencia regional.",
@@ -75,9 +75,11 @@ def test_dossier_save_and_retrieve():
     assert retrieved.title == "Supercomputación CeNAT"
     assert retrieved.doc_type == DocumentTypeEnum.RESEARCH_PAPER
     assert retrieved.authors_or_entities == ["CeNAT", "MICITT"]
-    assert len(retrieved.multidimensional_analysis) == 1
-    assert retrieved.multidimensional_analysis[0].area == "Técnica / HPC"
-    assert retrieved.foda.strengths == ["Supercomputadora Kabré"]
+    assert len(retrieved.thematic_modules) == 1
+    assert retrieved.thematic_modules[0].topic == "Técnica / HPC"
+    assert retrieved.thematic_modules[0].core_concepts == ["InfiniBand", "MPI Clusters"]
+    assert retrieved.study_guide.difficulty_level == "Avanzado"
+    assert retrieved.study_guide.prerequisites == ["Linux avanzado", "C / MPI"]
     assert retrieved.confidence_score == 0.92
 
     # Verify deletion cascade

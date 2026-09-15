@@ -346,7 +346,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                     type="button"
                     onClick={() => onOpenDossier(doc)}
                     className="p-1 hover:text-amber-400 text-slate-400 transition-colors cursor-pointer"
-                    title="Dossier Científico (CeNAT / PASE)"
+                    title="Estructura & Guía de Estudio"
                   >
                     <FileText className="w-3.5 h-3.5" />
                   </button>

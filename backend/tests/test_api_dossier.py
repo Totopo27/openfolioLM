@@ -19,20 +19,20 @@ class MockAnalyzerLLM:
             "authors_or_entities": ["Asamblea Legislativa"],
             "key_claims": ["El agua como bien de dominio público", "Prioridad para consumo humano"],
             "methodology_or_approach": "Enfoque ecosistémico y canon hídrico",
-            "multidimensional_analysis": [
+            "thematic_modules": [
                 {
-                    "area": "Legal / Regulatoria",
-                    "summary": "Establece un régimen sancionatorio estricto.",
-                    "strengths": ["Claridad en competencias"],
-                    "weaknesses": ["Solapamiento con MINAE"],
-                    "risks": ["Litigios constitucionales"]
+                    "topic": "Régimen Sancionatorio y Tutela Hídrica",
+                    "summary": "Establece un régimen sancionatorio estricto para contaminación.",
+                    "core_concepts": ["Dominio público", "Canon hídrico"],
+                    "practical_applications": ["Inspección y clausura de vertederos ilegales"]
                 }
             ],
-            "foda": {
-                "strengths": ["Protección de nacientes"],
-                "weaknesses": ["Presupuesto de fiscalización"],
-                "opportunities": ["Cooperación internacional"],
-                "threats": ["Estrés hídrico por sequías"]
+            "study_guide": {
+                "target_audience": "Abogados ambientalistas, ingenieros civiles y administradores",
+                "prerequisites": ["Derecho administrativo general"],
+                "difficulty_level": "Intermedio",
+                "key_takeaways": ["Aplicación práctica de la normativa sobre vertidos"],
+                "recommended_reading_path": "Revisar primero principios rectores y luego catálogo de sanciones"
             },
             "limitations": ["No incluye acuíferos transfronterizos"],
             "verdict": "Ley fundamental para la seguridad hídrica nacional.",
@@ -81,8 +81,9 @@ def test_dossier_analyze_and_get_endpoints(dossier_client):
     assert dossier["title"] == "Ley de Aguas y Recursos Hídricos"
     assert dossier["doc_type"] == "legal_regulatory"
     assert len(dossier["key_claims"]) == 2
-    assert len(dossier["multidimensional_analysis"]) == 1
-    assert dossier["foda"]["strengths"] == ["Protección de nacientes"]
+    assert len(dossier["thematic_modules"]) == 1
+    assert dossier["thematic_modules"][0]["topic"] == "Régimen Sancionatorio y Tutela Hídrica"
+    assert dossier["study_guide"]["difficulty_level"] == "Intermedio"
     assert dossier["confidence_score"] == 0.96
 
     # 5. GET dossier after analysis -> 200 cached

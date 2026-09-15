@@ -4,7 +4,7 @@ from app.core.models import SourceDocument, DocumentChunk, DocumentDossier
 
 
 class DocumentAnalyzerPort(Protocol):
-    """Port for extracting structured analytical dossiers from documents."""
+    """Port for extracting structured analytical dossiers and study guides from documents."""
 
     def analyze_document(
         self,
@@ -12,5 +12,5 @@ class DocumentAnalyzerPort(Protocol):
         chunks: list[DocumentChunk],
         provider: Optional[str] = None
     ) -> DocumentDossier:
-        """Extract structured CeNAT/PASE analytical dossier from document content."""
+        """Extract structured analytical dossier and study guide from document content."""
         ...

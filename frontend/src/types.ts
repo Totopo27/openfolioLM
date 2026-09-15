@@ -65,25 +65,28 @@ export interface ModelEngine {
 }
 
 export type DocumentTypeEnum =
+  | 'book'
+  | 'textbook'
   | 'research_paper'
-  | 'policy_plan'
   | 'technical_report'
+  | 'monograph'
+  | 'policy_plan'
   | 'legal_regulatory'
   | 'general';
 
-export interface AreaAnalysis {
-  area: string;
+export interface ThematicModule {
+  topic: string;
   summary: string;
-  strengths: string[];
-  weaknesses: string[];
-  risks: string[];
+  core_concepts: string[];
+  practical_applications: string[];
 }
 
-export interface FODAMatrix {
-  strengths: string[];
-  weaknesses: string[];
-  opportunities: string[];
-  threats: string[];
+export interface StudyGuide {
+  target_audience: string;
+  prerequisites: string[];
+  difficulty_level: string;
+  key_takeaways: string[];
+  recommended_reading_path: string;
 }
 
 export interface DocumentDossier {
@@ -94,8 +97,8 @@ export interface DocumentDossier {
   authors_or_entities: string[];
   key_claims: string[];
   methodology_or_approach?: string | null;
-  multidimensional_analysis: AreaAnalysis[];
-  foda: FODAMatrix;
+  thematic_modules?: ThematicModule[];
+  study_guide?: StudyGuide;
   limitations: string[];
   verdict: string;
   confidence_score: number;

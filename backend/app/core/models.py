@@ -145,43 +145,55 @@ class ModelsListResponse(BaseModel):
 
 
 class DocumentTypeEnum(str, Enum):
+    BOOK = "book"
+    TEXTBOOK = "textbook"
     RESEARCH_PAPER = "research_paper"
-    POLICY_PLAN = "policy_plan"
     TECHNICAL_REPORT = "technical_report"
+    MONOGRAPH = "monograph"
+    POLICY_PLAN = "policy_plan"
     LEGAL_REGULATORY = "legal_regulatory"
     GENERAL = "general"
 
 
-class AreaAnalysis(BaseModel):
-    """Evaluation of a specific thematic dimension (Social, Economic, Technical, etc.)."""
-    area: str = Field(..., description="Thematic dimension name, e.g. 'Social / Inclusión', 'Viabilidad Económica'")
-    summary: str = Field(..., description="Concise assessment of this dimension")
-    strengths: list[str] = Field(default_factory=list, description="Identified strengths or positive aspects")
-    weaknesses: list[str] = Field(default_factory=list, description="Identified weaknesses or omissions")
-    risks: list[str] = Field(default_factory=list, description="Associated operational, financial or social risks")
+class ThematicModule(BaseModel):
+    """Thematic module or chapter axis of a book, paper or technical manual."""
+    topic: str = Field(..., description="Module, chapter or thematic area title")
+    summary: str = Field(..., description="Concise overview of what this module covers")
+    core_concepts: list[str] = Field(default_factory=list, description="Key concepts, algorithms, or theories explained")
+    practical_applications: list[str] = Field(default_factory=list, description="Practical implementations, exercises, or real-world use cases")
 
 
-class FODAMatrix(BaseModel):
-    """SWOT / FODA analytical matrix."""
-    strengths: list[str] = Field(default_factory=list, description="Fortalezas (internal positives)")
-    weaknesses: list[str] = Field(default_factory=list, description="Debilidades (internal negatives)")
-    opportunities: list[str] = Field(default_factory=list, description="Oportunidades (external positives)")
-    threats: list[str] = Field(default_factory=list, description="Amenazas / Riesgos (external negatives)")
+class StudyGuide(BaseModel):
+    """Pedagogical study guide and conceptual roadmap for technical/academic reading."""
+    target_audience: str = Field(default="Público general", description="Intended readership (e.g., sound designers, software architects, researchers)")
+    prerequisites: list[str] = Field(default_factory=list, description="Required prior knowledge, tools, or math background")
+    difficulty_level: str = Field(default="Intermedio", description="Difficulty tier: Introductorio | Intermedio | Avanzado | Especializado")
+    key_takeaways: list[str] = Field(default_factory=list, description="Core competencies or key learnings upon completing the work")
+    recommended_reading_path: str = Field(default="", description="Pedagogical advice on how to navigate the material")
 
 
 class DocumentDossier(BaseModel):
-    """Structured analytical dossier synthesizing CeNAT extraction + PASE multidimensional matrix."""
+    """Structured analytical dossier synthesizing book architecture, study guide, and conceptual modules."""
     source_id: str = Field(..., description="Referenced SourceDocument.id")
     title: str = Field(..., description="Extracted or verified document title")
     doc_type: DocumentTypeEnum = Field(default=DocumentTypeEnum.GENERAL, description="Categorized document typology")
     executive_summary: str = Field(..., description="High-level executive overview (<250 words)")
     authors_or_entities: list[str] = Field(default_factory=list, description="Authors, organizations or publishing entities")
-    key_claims: list[str] = Field(default_factory=list, description="Core theses, proposals or findings")
-    methodology_or_approach: Optional[str] = Field(default=None, description="Research methodology, legal framework, or implementation approach")
-    multidimensional_analysis: list[AreaAnalysis] = Field(default_factory=list, description="Thematic area evaluations")
-    foda: FODAMatrix = Field(default_factory=FODAMatrix, description="Structured FODA / SWOT matrix")
-    limitations: list[str] = Field(default_factory=list, description="Documented or observed limitations and gaps")
-    verdict: str = Field(..., description="Overall critical judgment, feasibility assessment or conclusion")
+    key_claims: list[str] = Field(default_factory=list, description="Core theses, arguments or theoretical principles")
+    methodology_or_approach: Optional[str] = Field(default=None, description="Pedagogical, scientific, or technical approach")
+    thematic_modules: list[ThematicModule] = Field(default_factory=list, description="Thematic breakdown of chapters and core modules")
+    study_guide: StudyGuide = Field(
+        default_factory=lambda: StudyGuide(
+            target_audience="Público general",
+            prerequisites=[],
+            difficulty_level="Intermedio",
+            key_takeaways=[],
+            recommended_reading_path=""
+        ),
+        description="Pedagogical roadmap, difficulty, and prerequisites"
+    )
+    limitations: list[str] = Field(default_factory=list, description="Scope boundaries and topics explicitly not covered")
+    verdict: str = Field(..., description="Overall editorial and pedagogical evaluation of conceptual rigor and clarity")
     confidence_score: float = Field(default=0.9, ge=0.0, le=1.0, description="Confidence in extracted evidence")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

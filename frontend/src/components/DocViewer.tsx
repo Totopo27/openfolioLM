@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, Bookmark, Sparkles } from 'lucide-react';
+import { FileText, Bookmark, GraduationCap } from 'lucide-react';
 import { SourceDocument, HighlightTarget } from '../types';
 import { CodeViewer } from './CodeViewer';
 import { DossierViewer } from './DossierViewer';
@@ -117,8 +117,8 @@ export const DocViewer: React.FC<DocViewerProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Ficha Técnica & FODA</span>
+              <GraduationCap className="w-3.5 h-3.5 text-amber-300" />
+              <span>Estructura & Guía de Estudio</span>
             </button>
           </div>
 

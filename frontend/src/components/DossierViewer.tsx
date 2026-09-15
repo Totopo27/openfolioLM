@@ -6,9 +6,13 @@ import {
   CheckCircle2,
   AlertTriangle,
   Scale,
-  TrendingUp,
-  FileBarChart,
+  GraduationCap,
+  BookOpen,
+  Layers,
+  Compass,
   Building2,
+  Target,
+  Key,
 } from 'lucide-react';
 import { SourceDocument, DocumentDossier, DocumentTypeEnum } from '../types';
 import { fetchProjectSourceDossier, generateProjectSourceDossier } from '../services/api';
@@ -23,23 +27,41 @@ const TYPE_CONFIG: Record<
   DocumentTypeEnum,
   { label: string; bg: string; text: string; border: string }
 > = {
+  book: {
+    label: '📚 Libro / Obra',
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/30',
+  },
+  textbook: {
+    label: '📖 Libro de Texto / Manual',
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/30',
+  },
   research_paper: {
     label: '🔬 Paper Científico',
     bg: 'bg-indigo-500/10',
     text: 'text-indigo-400',
     border: 'border-indigo-500/30',
   },
-  policy_plan: {
-    label: '🏛️ Plan de Gobierno / Política',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/30',
+  monograph: {
+    label: '📑 Monografía Académica',
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400',
+    border: 'border-amber-500/30',
   },
   technical_report: {
     label: '⚙️ Reporte Técnico',
     bg: 'bg-cyan-500/10',
     text: 'text-cyan-400',
     border: 'border-cyan-500/30',
+  },
+  policy_plan: {
+    label: '🏛️ Propuesta / Plan',
+    bg: 'bg-slate-500/10',
+    text: 'text-slate-400',
+    border: 'border-slate-500/30',
   },
   legal_regulatory: {
     label: '⚖️ Normativa / Marco Legal',
@@ -77,7 +99,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
       setDossier(data);
     } catch (err: any) {
       console.error('Failed to load dossier:', err);
-      setError(err.message || 'Error al cargar la ficha técnica');
+      setError(err.message || 'Error al cargar la guía de estudio');
     } finally {
       setIsLoading(false);
     }
@@ -92,7 +114,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
       setDossier(newDossier);
     } catch (err: any) {
       console.error('Failed to generate dossier:', err);
-      setError(err.message || 'Error al generar la ficha técnica');
+      setError(err.message || 'Error al generar la estructura y guía de estudio');
     } finally {
       setIsGenerating(false);
     }
@@ -102,7 +124,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 text-slate-500">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mb-3" />
-        <p className="text-sm font-medium text-slate-400">Consultando ficha técnica del documento...</p>
+        <p className="text-sm font-medium text-slate-400">Consultando estructura y guía de estudio...</p>
       </div>
     );
   }
@@ -111,12 +133,12 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 text-slate-400 max-w-lg mx-auto text-center">
         <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 text-indigo-400 mb-4 shadow-lg shadow-indigo-950/20">
-          <FileBarChart className="w-12 h-12 stroke-[1.5]" />
+          <BookOpen className="w-12 h-12 stroke-[1.5]" />
         </div>
-        <h3 className="text-lg font-semibold text-slate-200">Ficha Técnica & Dossier Multidimensional</h3>
+        <h3 className="text-lg font-semibold text-slate-200">Estructura & Guía de Estudio de la Obra</h3>
         <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-          Generá automáticamente un dossier analítico estructurado con tipado estricto Pydantic:
-          resumen ejecutivo, matriz FODA, dimensiones temáticas y dictamen crítico de viabilidad.
+          Generá automáticamente un dossier conceptual estructurado para libros, textos y papers:
+          resumen ejecutivo, prerrequisitos, guía de lectura, mapa de módulos temáticos y dictamen crítico editorial.
         </p>
 
         {error && (
@@ -133,12 +155,12 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
           {isGenerating ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Extrayendo Ficha con CeNAT / PASE...</span>
+              <span>Analizando Arquitectura Conceptual y Guía...</span>
             </>
           ) : (
             <>
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Generar Ficha Estructurada</span>
+              <GraduationCap className="w-4 h-4 text-amber-300" />
+              <span>Generar Guía de Estudio & Estructura</span>
             </>
           )}
         </button>
@@ -196,18 +218,168 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         {/* Executive Summary */}
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
-            <FileBarChart className="w-3.5 h-3.5 text-indigo-400" /> Resumen Ejecutivo
+            <BookOpen className="w-3.5 h-3.5 text-indigo-400" /> Resumen Ejecutivo de la Obra
           </h4>
           <p className="text-sm text-slate-200 leading-relaxed">{dossier.executive_summary}</p>
         </div>
       </div>
+
+      {/* Study Guide & Pedagogical Roadmap */}
+      {dossier.study_guide && (
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/20 via-slate-800/40 to-slate-900/60 border border-indigo-500/20 space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-indigo-400" /> Guía de Aprendizaje & Prerrequisitos
+            </h3>
+            {dossier.study_guide.difficulty_level && (
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
+                Nivel: {dossier.study_guide.difficulty_level}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Target Audience */}
+            {dossier.study_guide.target_audience && (
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 space-y-1.5">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-indigo-400" /> Público Objetivo
+                </h4>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {dossier.study_guide.target_audience}
+                </p>
+              </div>
+            )}
+
+            {/* Reading Path */}
+            {dossier.study_guide.recommended_reading_path && (
+              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 space-y-1.5">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-cyan-400" /> Ruta de Lectura Recomendada
+                </h4>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {dossier.study_guide.recommended_reading_path}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Prerequisites */}
+          {dossier.study_guide.prerequisites && dossier.study_guide.prerequisites.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-amber-400" /> Prerrequisitos Indispensables
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {dossier.study_guide.prerequisites.map((prereq, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center text-xs px-3 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                  >
+                    {prereq}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Key Takeaways */}
+          {dossier.study_guide.key_takeaways && dossier.study_guide.key_takeaways.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Competencias & Aprendizajes Clave
+              </h4>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {dossier.study_guide.key_takeaways.map((takeaway, idx) => (
+                  <li
+                    key={idx}
+                    className="text-xs text-slate-300 leading-relaxed p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 flex items-start gap-2"
+                  >
+                    <span className="text-emerald-400 mt-0.5">&bull;</span>
+                    <span>{takeaway}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Thematic Modules & Conceptual Breakdown */}
+      {dossier.thematic_modules && dossier.thematic_modules.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-400" /> Módulos & Arquitectura Conceptual
+            </h3>
+            <span className="text-xs text-slate-500">
+              {dossier.thematic_modules.length} módulos identificados
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {dossier.thematic_modules.map((mod, idx) => (
+              <div
+                key={idx}
+                className="p-5 rounded-xl bg-slate-800/20 border border-slate-700/50 space-y-3 hover:border-slate-600 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 text-[11px] flex items-center justify-center font-mono">
+                      {idx + 1}
+                    </span>
+                    {mod.topic}
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">{mod.summary}</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  {mod.core_concepts && mod.core_concepts.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                        Conceptos Axiomáticos:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {mod.core_concepts.map((concept, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="text-[11px] px-2.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
+                          >
+                            {concept}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {mod.practical_applications && mod.practical_applications.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                        Aplicaciones & Prácticas:
+                      </span>
+                      <ul className="text-xs text-slate-300 space-y-1">
+                        {mod.practical_applications.map((app, aIdx) => (
+                          <li key={aIdx} className="flex items-start gap-1.5 text-[11px] text-cyan-200/90">
+                            <span className="text-cyan-400 mt-0.5">&bull;</span>
+                            <span>{app}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Key Claims & Methodology */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Key Claims */}
         <div className="p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-3">
           <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Tesis y Afirmaciones Clave
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Tesis y Fundamentos Principales
           </h3>
           <ul className="space-y-2">
             {dossier.key_claims.map((claim, idx) => (
@@ -222,7 +394,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         {/* Methodology */}
         <div className="p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-3">
           <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-            <Scale className="w-4 h-4 text-cyan-400" /> Enfoque Metodológico / Marco
+            <Scale className="w-4 h-4 text-cyan-400" /> Enfoque Didáctico / Metodológico
           </h3>
           <p className="text-xs leading-relaxed text-slate-300">
             {dossier.methodology_or_approach || 'No se especificó una metodología formal en los fragmentos analizados.'}
@@ -230,140 +402,11 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         </div>
       </div>
 
-      {/* FODA / SWOT Matrix (CeNAT / PASE pattern) */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-indigo-400" /> Matriz FODA Estructurada
-          </h3>
-          <span className="text-xs text-slate-500">Evaluación Interna / Externa</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Fortalezas */}
-          <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/20 space-y-2">
-            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-              🟢 Fortalezas (Internas)
-            </h4>
-            <ul className="space-y-1.5">
-              {dossier.foda.strengths.map((item, idx) => (
-                <li key={idx} className="text-xs text-emerald-200/90 leading-relaxed flex items-start gap-1.5">
-                  <span className="text-emerald-500">+</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Debilidades */}
-          <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/20 space-y-2">
-            <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              🟡 Debilidades (Internas)
-            </h4>
-            <ul className="space-y-1.5">
-              {dossier.foda.weaknesses.map((item, idx) => (
-                <li key={idx} className="text-xs text-amber-200/90 leading-relaxed flex items-start gap-1.5">
-                  <span className="text-amber-500">-</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Oportunidades */}
-          <div className="p-4 rounded-xl bg-blue-950/20 border border-blue-500/20 space-y-2">
-            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-              🔵 Oportunidades (Externas)
-            </h4>
-            <ul className="space-y-1.5">
-              {dossier.foda.opportunities.map((item, idx) => (
-                <li key={idx} className="text-xs text-blue-200/90 leading-relaxed flex items-start gap-1.5">
-                  <span className="text-blue-500">&uarr;</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Amenazas */}
-          <div className="p-4 rounded-xl bg-rose-950/20 border border-rose-500/20 space-y-2">
-            <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-              🔴 Amenazas / Riesgos (Externos)
-            </h4>
-            <ul className="space-y-1.5">
-              {dossier.foda.threats.map((item, idx) => (
-                <li key={idx} className="text-xs text-rose-200/90 leading-relaxed flex items-start gap-1.5">
-                  <span className="text-rose-500">&times;</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Multidimensional Area Analysis */}
-      {dossier.multidimensional_analysis && dossier.multidimensional_analysis.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">
-            Desglose Analítico por Dimensiones
-          </h3>
-          <div className="grid grid-cols-1 gap-4">
-            {dossier.multidimensional_analysis.map((area, idx) => (
-              <div
-                key={idx}
-                className="p-5 rounded-xl bg-slate-800/20 border border-slate-700/50 space-y-3 hover:border-slate-600 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-indigo-300">{area.area}</h4>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">{area.summary}</p>
-
-                {(area.strengths?.length > 0 || area.weaknesses?.length > 0 || area.risks?.length > 0) && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-[11px]">
-                    {area.strengths?.length > 0 && (
-                      <div className="space-y-1">
-                        <span className="font-semibold text-emerald-400">Fortalezas:</span>
-                        <ul className="list-disc list-inside text-slate-400 space-y-0.5">
-                          {area.strengths.map((s, i) => (
-                            <li key={i}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {area.weaknesses?.length > 0 && (
-                      <div className="space-y-1">
-                        <span className="font-semibold text-amber-400">Debilidades:</span>
-                        <ul className="list-disc list-inside text-slate-400 space-y-0.5">
-                          {area.weaknesses.map((w, i) => (
-                            <li key={i}>{w}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {area.risks?.length > 0 && (
-                      <div className="space-y-1">
-                        <span className="font-semibold text-rose-400">Riesgos:</span>
-                        <ul className="list-disc list-inside text-slate-400 space-y-0.5">
-                          {area.risks.map((r, i) => (
-                            <li key={i}>{r}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Limitations */}
       {dossier.limitations && dossier.limitations.length > 0 && (
         <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
           <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Limitaciones & Vacíos Identificados
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Límites & Alcance Temático de la Obra
           </h4>
           <ul className="space-y-1">
             {dossier.limitations.map((lim, idx) => (
@@ -379,7 +422,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
       {/* Final Verdict */}
       <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 space-y-2 shadow-xl shadow-indigo-950/30">
         <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-amber-300" /> Dictamen & Conclusión Crítica
+          <Sparkles className="w-4 h-4 text-amber-300" /> Dictamen Editorial & Juicio Crítico
         </h4>
         <p className="text-sm font-medium text-slate-100 leading-relaxed">{dossier.verdict}</p>
       </div>
