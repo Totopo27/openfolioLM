@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pytest
-from app.adapters.markitdown_adapter import MarkItDownAdapter
+from app.adapters.markitdown_adapter import MarkItDownAdapter, UnsafeURLError
 
 
 def test_markitdown_adapter_converts_text_file():
@@ -42,3 +42,19 @@ def test_markitdown_adapter_file_not_found():
     adapter = MarkItDownAdapter()
     with pytest.raises(FileNotFoundError):
         adapter.convert(file_path="non_existent_file.pdf", filename="ghost.pdf")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "http://127.0.0.1/private",
+        "http://[::1]/private",
+        "http://169.254.169.254/latest/meta-data",
+        "http://user:password@example.com/private",
+    ],
+)
+def test_markitdown_adapter_rejects_unsafe_urls(url):
+    adapter = MarkItDownAdapter()
+    with pytest.raises(UnsafeURLError):
+        adapter.ingest_url(url)

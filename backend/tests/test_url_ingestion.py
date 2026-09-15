@@ -13,13 +13,11 @@ def test_markitdown_ingest_url_success():
     adapter = MarkItDownAdapter()
     sample_html = b"<!DOCTYPE html><html><head><title>Econ 101 Guide</title></head><body><h1>Microeconomics</h1><p>Supply and demand dictate market equilibrium.</p></body></html>"
     
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.content = sample_html
-    mock_resp.text = sample_html.decode("utf-8")
-    mock_resp.raise_for_status = MagicMock()
-
-    with patch("httpx.Client.get", return_value=mock_resp):
+    with patch.object(
+        adapter,
+        "_fetch_public_html",
+        return_value=(sample_html, "https://example.com/econ-guide", 200),
+    ):
         doc = adapter.ingest_url("https://example.com/econ-guide", title_override="Custom Economics")
         assert doc.id.startswith("doc_")
         assert doc.filename == "Custom Economics"
@@ -33,13 +31,11 @@ def test_markitdown_ingest_url_default_title():
     adapter = MarkItDownAdapter()
     sample_html = b"<!DOCTYPE html><html><head><title>Default Page Title</title></head><body><p>Article body.</p></body></html>"
     
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.content = sample_html
-    mock_resp.text = sample_html.decode("utf-8")
-    mock_resp.raise_for_status = MagicMock()
-
-    with patch("httpx.Client.get", return_value=mock_resp):
+    with patch.object(
+        adapter,
+        "_fetch_public_html",
+        return_value=(sample_html, "https://example.com/article", 200),
+    ):
         doc = adapter.ingest_url("https://example.com/article")
         assert doc.filename == "Default Page Title"
         assert "Article body" in doc.raw_markdown
@@ -58,13 +54,11 @@ def test_api_project_url_ingestion():
         proj_id = create_res.json()["id"]
 
         sample_html = b"<!DOCTYPE html><html><head><title>Quantum Computing</title></head><body><p>Qubits leverage superposition.</p></body></html>"
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = sample_html
-        mock_resp.text = sample_html.decode("utf-8")
-        mock_resp.raise_for_status = MagicMock()
-
-        with patch("httpx.Client.get", return_value=mock_resp):
+        with patch.object(
+            MarkItDownAdapter,
+            "_fetch_public_html",
+            return_value=(sample_html, "https://example.com/quantum", 200),
+        ):
             url_res = client.post(
                 f"/api/projects/{proj_id}/sources/url",
                 json={"url": "https://example.com/quantum", "title": "Quantum Intro"}
@@ -99,11 +93,11 @@ def test_markitdown_ingest_url_fallback_on_403():
 
     adapter = MarkItDownAdapter(stealth_scraper=mock_stealth)
 
-    # Simulate 403 Forbidden from httpx
-    mock_resp = MagicMock()
-    mock_resp.status_code = 403
-
-    with patch("httpx.Client.get", return_value=mock_resp):
+    with patch.object(
+        adapter,
+        "_fetch_public_html",
+        return_value=(b"", "https://protected.com/article", 403),
+    ):
         doc = adapter.ingest_url("https://protected.com/article")
         assert doc.filename == "Cloudflare Passed"
         assert "Content rendered after bot challenge bypass" in doc.raw_markdown
@@ -117,7 +111,7 @@ def test_markitdown_ingest_url_fallback_on_spa_shell():
     mock_stealth.extract_rendered_html.return_value = RenderedPage(
         html="<!DOCTYPE html><html><head><title>Hydrated React App</title></head><body><div id='root'><h1>Dashboard</h1><p>Client side metrics loaded successfully.</p></div></body></html>",
         title="Hydrated React App",
-        final_url="https://react-spa.io/app",
+        final_url="https://example.com/app",
         engine="omni_scraper_session"
     )
 
@@ -125,16 +119,13 @@ def test_markitdown_ingest_url_fallback_on_spa_shell():
 
     # Simulate an empty SPA shell returned by HTTP GET
     spa_html = b"<!DOCTYPE html><html><head><title>React App</title></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id='root'></div></body></html>"
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.content = spa_html
-    mock_resp.text = spa_html.decode("utf-8")
-    mock_resp.raise_for_status = MagicMock()
-
-    with patch("httpx.Client.get", return_value=mock_resp):
-        doc = adapter.ingest_url("https://react-spa.io/app")
+    with patch.object(
+        adapter,
+        "_fetch_public_html",
+        return_value=(spa_html, "https://example.com/app", 200),
+    ):
+        doc = adapter.ingest_url("https://example.com/app")
         assert doc.filename == "Hydrated React App"
         assert "Client side metrics loaded successfully" in doc.raw_markdown
         assert doc.metadata["fetch_engine"] == "omni_scraper_session"
         assert mock_stealth.extract_rendered_html.called
-
