@@ -30,6 +30,7 @@ interface SourceManagerProps {
   onIngestUrl?: (url: string, title?: string) => Promise<void>;
   onSourcesAdded?: (newDocs: SourceDocument[]) => void;
   onOpenDossier?: (doc: SourceDocument) => void;
+  onOpenDiscovery?: () => void;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -45,6 +46,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onIngestUrl,
   onSourcesAdded,
   onOpenDossier,
+  onOpenDiscovery,
   onDelete,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -219,10 +221,10 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
             </button>
           )}
 
-          {projectId && onSourcesAdded && (
+          {projectId && (onOpenDiscovery || onSourcesAdded) && (
             <button
               type="button"
-              onClick={() => setIsDiscoveryOpen(true)}
+              onClick={() => onOpenDiscovery ? onOpenDiscovery() : setIsDiscoveryOpen(true)}
               disabled={isUploading || isIngestingUrl}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
               title="Buscar literatura científica en OpenAlex e indexar a un clic"
@@ -489,8 +491,8 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         );
       })()}
 
-      {/* Literature Discovery Modal */}
-      {projectId && onSourcesAdded && (
+      {/* Literature Discovery Modal (Fallback if not handled by parent App) */}
+      {!onOpenDiscovery && projectId && onSourcesAdded && (
         <LiteratureDiscoveryModal
           projectId={projectId}
           isOpen={isDiscoveryOpen}

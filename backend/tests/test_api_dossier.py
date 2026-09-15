@@ -90,3 +90,26 @@ def test_dossier_analyze_and_get_endpoints(dossier_client):
     get_cached = client.get(f"/api/projects/{proj_id}/sources/{source_id}/dossier")
     assert get_cached.status_code == 200
     assert get_cached.json()["title"] == "Ley de Aguas y Recursos Hídricos"
+
+    # 6. PUT update / curate dossier (human edits concepts and takeaways)
+    modified_dossier = get_cached.json()
+    modified_dossier["thematic_modules"][0]["core_concepts"].append("Protección de Cuencas Hidrográficas")
+    modified_dossier["study_guide"]["difficulty_level"] = "Avanzado"
+
+    put_res = client.put(f"/api/projects/{proj_id}/sources/{source_id}/dossier", json=modified_dossier)
+    assert put_res.status_code == 200
+    assert "Protección de Cuencas Hidrográficas" in put_res.json()["thematic_modules"][0]["core_concepts"]
+    assert put_res.json()["study_guide"]["difficulty_level"] == "Avanzado"
+
+    # Verify persistence on re-fetching
+    re_fetched = client.get(f"/api/projects/{proj_id}/sources/{source_id}/dossier").json()
+    assert "Protección de Cuencas Hidrográficas" in re_fetched["thematic_modules"][0]["core_concepts"]
+
+    # 7. GET discovery suggested-topics
+    suggested_res = client.get(f"/api/projects/{proj_id}/discovery/suggested-topics")
+    assert suggested_res.status_code == 200
+    topics = suggested_res.json()
+    assert len(topics) >= 1
+    assert topics[0]["topic"] == "Régimen Sancionatorio y Tutela Hídrica"
+    assert "Protección de Cuencas Hidrográficas" in topics[0]["concepts"]
+    assert "Régimen Sancionatorio y Tutela Hídrica" in topics[0]["query_hint"]

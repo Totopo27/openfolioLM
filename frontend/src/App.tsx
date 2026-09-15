@@ -39,6 +39,7 @@ import { ChatPanel } from './components/ChatPanel';
 import { StudioNotebook } from './components/StudioNotebook';
 import { NetworkGraphViewer } from './components/NetworkGraphViewer';
 import { TimelineViewer } from './components/TimelineViewer';
+import { LiteratureDiscoveryModal } from './components/LiteratureDiscoveryModal';
 
 export const App: React.FC = () => {
   // Project State
@@ -69,6 +70,15 @@ export const App: React.FC = () => {
     content: string;
     source_citation_ids?: string[];
   } | null>(null);
+
+  // Literature Discovery Modal
+  const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
+  const [discoveryInitialQuery, setDiscoveryInitialQuery] = useState<string | undefined>(undefined);
+
+  const handleOpenDiscovery = (query?: string) => {
+    setDiscoveryInitialQuery(query);
+    setIsDiscoveryOpen(true);
+  };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -339,6 +349,19 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSourcesAdded = (newDocs: SourceDocument[]) => {
+    setSources((prev) => [...newDocs, ...prev]);
+    setActiveSourceIds((prev) => [...prev, ...newDocs.map((d) => d.id)]);
+    if (newDocs.length > 0) setSelectedDoc(newDocs[0]);
+    if (activeProject) {
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === activeProject.id ? { ...p, doc_count: p.doc_count + newDocs.length } : p
+        )
+      );
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-slate-950 text-slate-100">
       {/* Top Navbar */}
@@ -498,6 +521,7 @@ export const App: React.FC = () => {
             selectedEngine={selectedEngine}
             activeTab={docViewerTab}
             onTabChange={setDocViewerTab}
+            onExploreTopic={handleOpenDiscovery}
           />
         </div>
 
@@ -582,18 +606,8 @@ export const App: React.FC = () => {
                 }}
                 onUpload={handleUpload}
                 onIngestUrl={handleIngestUrl}
-                onSourcesAdded={(newDocs) => {
-                  setSources((prev) => [...newDocs, ...prev]);
-                  setActiveSourceIds((prev) => [...prev, ...newDocs.map((d) => d.id)]);
-                  if (newDocs.length > 0) setSelectedDoc(newDocs[0]);
-                  if (activeProject) {
-                    setProjects((prev) =>
-                      prev.map((p) =>
-                        p.id === activeProject.id ? { ...p, doc_count: p.doc_count + newDocs.length } : p
-                      )
-                    );
-                  }
-                }}
+                onSourcesAdded={handleSourcesAdded}
+                onOpenDiscovery={() => handleOpenDiscovery()}
                 onDelete={handleDeleteSource}
               />
               <ChatPanel
@@ -716,6 +730,20 @@ export const App: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Literature Discovery Modal (Compendio & Modules seed search) */}
+      {activeProject && (
+        <LiteratureDiscoveryModal
+          projectId={activeProject.id}
+          isOpen={isDiscoveryOpen}
+          initialQuery={discoveryInitialQuery}
+          onClose={() => {
+            setIsDiscoveryOpen(false);
+            setDiscoveryInitialQuery(undefined);
+          }}
+          onSourcesAdded={handleSourcesAdded}
+        />
       )}
     </div>
   );

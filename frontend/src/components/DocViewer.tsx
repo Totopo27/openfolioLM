@@ -12,6 +12,7 @@ interface DocViewerProps {
   selectedEngine?: string;
   activeTab?: 'reading' | 'dossier';
   onTabChange?: (tab: 'reading' | 'dossier') => void;
+  onExploreTopic?: (query: string) => void;
 }
 
 export const DocViewer: React.FC<DocViewerProps> = ({
@@ -22,6 +23,7 @@ export const DocViewer: React.FC<DocViewerProps> = ({
   selectedEngine,
   activeTab: controlledActiveTab,
   onTabChange,
+  onExploreTopic,
 }) => {
   const highlightRef = useRef<HTMLDivElement>(null);
   const [internalActiveTab, setInternalActiveTab] = useState<'reading' | 'dossier'>('reading');
@@ -147,6 +149,7 @@ export const DocViewer: React.FC<DocViewerProps> = ({
             projectId={projectId || 'default'}
             document={document}
             selectedEngine={selectedEngine}
+            onExploreTopic={onExploreTopic}
           />
         ) : document.metadata?.is_code || document.metadata?.is_repo ? (
           <CodeViewer

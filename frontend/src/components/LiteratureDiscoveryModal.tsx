@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Search,
@@ -10,14 +10,18 @@ import {
   SlidersHorizontal,
   ExternalLink,
   Sparkles,
+  Lightbulb,
+  Tag,
 } from 'lucide-react';
-import { AcademicPaper, SourceDocument } from '../types';
+import { AcademicPaper, SourceDocument, SuggestedTopic } from '../types';
+import { fetchSuggestedTopics } from '../services/api';
 
 interface LiteratureDiscoveryModalProps {
   projectId: string;
   isOpen: boolean;
   onClose: () => void;
   onSourcesAdded: (sources: SourceDocument[]) => void;
+  initialQuery?: string;
 }
 
 export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> = ({
@@ -25,8 +29,9 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
   isOpen,
   onClose,
   onSourcesAdded,
+  initialQuery = '',
 }) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [minYear, setMinYear] = useState<string>('');
   const [minCitations, setMinCitations] = useState<string>('0');
   const [limit, setLimit] = useState<number>(15);
@@ -36,10 +41,43 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
   const [searchResults, setSearchResults] = useState<AcademicPaper[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
 
+  const [suggestedTopics, setSuggestedTopics] = useState<SuggestedTopic[]>([]);
+  const [isLoadingTopics, setIsLoadingTopics] = useState(false);
+
   const [selectedDois, setSelectedDois] = useState<string[]>([]);
   const [ingestingDois, setIngestingDois] = useState<string[]>([]);
   const [ingestedDois, setIngestedDois] = useState<string[]>([]);
   const [expandedAbstracts, setExpandedAbstracts] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialQuery !== undefined) {
+        setQuery(initialQuery);
+      }
+      loadSuggestedTopics();
+    }
+  }, [isOpen, initialQuery, projectId]);
+
+  const loadSuggestedTopics = async () => {
+    try {
+      setIsLoadingTopics(true);
+      const topics = await fetchSuggestedTopics(projectId);
+      setSuggestedTopics(topics);
+    } catch (err) {
+      console.error('Failed to load suggested topics:', err);
+    } finally {
+      setIsLoadingTopics(false);
+    }
+  };
+
+  const handleApplyTopicChip = (chipText: string) => {
+    setQuery((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return chipText;
+      if (trimmed.toLowerCase().includes(chipText.toLowerCase())) return prev;
+      return `${trimmed} ${chipText}`;
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -248,6 +286,54 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                   <option value={25}>25 resultados</option>
                   <option value={35}>35 resultados</option>
                 </select>
+              </div>
+            </div>
+          )}
+
+          {/* Suggested Topics from Compendium / Books */}
+          {((suggestedTopics && suggestedTopics.length > 0) || isLoadingTopics) && (
+            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-400" /> Conceptos de tu Compendio (Clic para inyectar a la búsqueda):
+                  {isLoadingTopics && <Loader2 className="w-3 h-3 animate-spin text-slate-400 ml-1" />}
+                </span>
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="text-[10px] text-slate-400 hover:text-slate-200 underline cursor-pointer"
+                  >
+                    Limpiar consulta
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                {suggestedTopics.map((top, idx) => (
+                  <React.Fragment key={idx}>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyTopicChip(top.topic)}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 inline-flex items-center gap-1 cursor-pointer transition hover:border-indigo-500/50"
+                      title={`Módulo: ${top.topic} (${top.source_title})`}
+                    >
+                      <BookOpen className="w-3 h-3 text-indigo-400" />
+                      <span className="font-medium">{top.topic}</span>
+                    </button>
+                    {(top.concepts || []).slice(0, 3).map((concept, cIdx) => (
+                      <button
+                        key={`${idx}-${cIdx}`}
+                        type="button"
+                        onClick={() => handleApplyTopicChip(concept)}
+                        className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 inline-flex items-center gap-1 cursor-pointer transition hover:border-indigo-400/40"
+                        title={`Concepto de '${top.topic}'`}
+                      >
+                        <Tag className="w-2.5 h-2.5 text-indigo-400" />
+                        <span>{concept}</span>
+                      </button>
+                    ))}
+                  </React.Fragment>
+                ))}
               </div>
             </div>
           )}

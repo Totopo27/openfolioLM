@@ -310,6 +310,21 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail="Dossier not found for this source. Run /analyze first.")
         return dossier
 
+    @router.put("/{project_id}/sources/{source_id}/dossier", response_model=DocumentDossier)
+    async def update_project_source_dossier(project_id: str, source_id: str, updated_dossier: DocumentDossier):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        existing_doc = store.get_document(source_id)
+        if not existing_doc:
+            raise HTTPException(status_code=404, detail="Source document not found in project")
+
+        updated_dossier.source_id = source_id
+        store.save_dossier(updated_dossier)
+        return updated_dossier
+
     # --- Project Persistent Chat Messages ---
 
     @router.get("/{project_id}/messages", response_model=list[ChatMessageRecord])
@@ -420,6 +435,42 @@ def create_projects_router(
         }
 
     # --- Literature Discovery Endpoints ---
+
+    @router.get("/{project_id}/discovery/suggested-topics")
+    async def get_suggested_literature_topics(project_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        dossiers = store.get_all_dossiers()
+        sources = {d.id: d for d in store.list_documents()}
+
+        results = []
+        for src_id, dos in dossiers.items():
+            source_doc = sources.get(src_id)
+            title = source_doc.filename if source_doc else dos.title
+
+            for mod in dos.thematic_modules:
+                if mod.core_concepts or mod.topic:
+                    results.append({
+                        "source_id": src_id,
+                        "source_title": title,
+                        "topic": mod.topic,
+                        "concepts": mod.core_concepts,
+                        "query_hint": f'"{mod.topic}" ' + " ".join(f'"{c}"' for c in mod.core_concepts[:2]) if mod.core_concepts else f'"{mod.topic}"'
+                    })
+
+            if not dos.thematic_modules and dos.key_claims:
+                results.append({
+                    "source_id": src_id,
+                    "source_title": title,
+                    "topic": dos.title,
+                    "concepts": dos.key_claims[:3],
+                    "query_hint": dos.title
+                })
+
+        return results
 
     @router.get("/{project_id}/discovery/search", response_model=list[AcademicPaper])
     async def search_academic_literature(

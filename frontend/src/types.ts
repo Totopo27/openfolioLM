@@ -105,6 +105,14 @@ export interface DocumentDossier {
   created_at: string;
 }
 
+export interface SuggestedTopic {
+  source_id: string;
+  source_title: string;
+  topic: string;
+  concepts: string[];
+  query_hint: string;
+}
+
 export interface AcademicPaper {
   doi: string;
   title: string;

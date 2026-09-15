@@ -13,14 +13,21 @@ import {
   Building2,
   Target,
   Key,
+  Search,
+  Edit3,
+  Save,
+  Plus,
+  X,
+  Check,
 } from 'lucide-react';
 import { SourceDocument, DocumentDossier, DocumentTypeEnum } from '../types';
-import { fetchProjectSourceDossier, generateProjectSourceDossier } from '../services/api';
+import { fetchProjectSourceDossier, generateProjectSourceDossier, updateProjectSourceDossier } from '../services/api';
 
 interface DossierViewerProps {
   projectId: string;
   document: SourceDocument;
   selectedEngine?: string;
+  onExploreTopic?: (query: string) => void;
 }
 
 const TYPE_CONFIG: Record<
@@ -81,11 +88,17 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
   projectId,
   document,
   selectedEngine,
+  onExploreTopic,
 }) => {
   const [dossier, setDossier] = useState<DocumentDossier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [newConceptInputs, setNewConceptInputs] = useState<Record<number, string>>({});
 
   useEffect(() => {
     loadDossier();
@@ -117,6 +130,46 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
       setError(err.message || 'Error al generar la estructura y guía de estudio');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleDeleteConcept = (moduleIdx: number, conceptIdx: number) => {
+    if (!dossier || !dossier.thematic_modules) return;
+    const updatedModules = [...dossier.thematic_modules];
+    const targetModule = { ...updatedModules[moduleIdx] };
+    targetModule.core_concepts = targetModule.core_concepts.filter((_, idx) => idx !== conceptIdx);
+    updatedModules[moduleIdx] = targetModule;
+    setDossier({ ...dossier, thematic_modules: updatedModules });
+  };
+
+  const handleAddConcept = (moduleIdx: number) => {
+    const text = (newConceptInputs[moduleIdx] || '').trim();
+    if (!text || !dossier || !dossier.thematic_modules) return;
+    const updatedModules = [...dossier.thematic_modules];
+    const targetModule = { ...updatedModules[moduleIdx] };
+    if (!targetModule.core_concepts.includes(text)) {
+      targetModule.core_concepts = [...targetModule.core_concepts, text];
+    }
+    updatedModules[moduleIdx] = targetModule;
+    setDossier({ ...dossier, thematic_modules: updatedModules });
+    setNewConceptInputs(prev => ({ ...prev, [moduleIdx]: '' }));
+  };
+
+  const handleSaveDossier = async () => {
+    if (!dossier) return;
+    try {
+      setIsSaving(true);
+      setError(null);
+      const saved = await updateProjectSourceDossier(projectId, document.id, dossier);
+      setDossier(saved);
+      setIsEditing(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('Failed to save dossier:', err);
+      setError(err.message || 'Error al guardar las correcciones');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -185,17 +238,52 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
             <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-400 border border-slate-700">
               {confidencePercent}% confianza
             </span>
+            {saveSuccess && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-in fade-in">
+                <Check className="w-3 h-3 text-emerald-400" /> Guardado
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50"
-            title="Regenerar análisis con el modelo actual"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin text-indigo-400' : ''}`} />
-            <span>{isGenerating ? 'Regenerando...' : 'Regenerar'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {isEditing && (
+              <button
+                type="button"
+                onClick={handleSaveDossier}
+                disabled={isSaving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 transition disabled:opacity-50 shadow-sm cursor-pointer"
+                title="Guardar correcciones del dossier en la base de datos"
+              >
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>{isSaving ? 'Guardando...' : 'Guardar Cambios'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsEditing(!isEditing)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer border ${
+                isEditing
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                  : 'text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700'
+              }`}
+              title={isEditing ? 'Finalizar edición' : 'Editar conceptos axiomáticos de la obra'}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>{isEditing ? 'Finalizar' : 'Editar Conceptos'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50 cursor-pointer"
+              title="Regenerar análisis con el modelo actual"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin text-indigo-400' : ''}`} />
+              <span>{isGenerating ? 'Regenerando...' : 'Regenerar'}</span>
+            </button>
+          </div>
         </div>
 
         <div>
@@ -323,34 +411,88 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
                 key={idx}
                 className="p-5 rounded-xl bg-slate-800/20 border border-slate-700/50 space-y-3 hover:border-slate-600 transition"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-2">
                     <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 text-[11px] flex items-center justify-center font-mono">
                       {idx + 1}
                     </span>
                     {mod.topic}
                   </h4>
+
+                  {onExploreTopic && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const terms = [mod.topic, ...(mod.core_concepts?.slice(0, 2) || [])].join(' ');
+                        onExploreTopic(terms);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 transition cursor-pointer"
+                      title={`Explorar papers y literatura científica sobre: ${mod.topic}`}
+                    >
+                      <Search className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Explorar Papers</span>
+                    </button>
+                  )}
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">{mod.summary}</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                  {mod.core_concepts && mod.core_concepts.length > 0 && (
-                    <div className="space-y-1.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
                         Conceptos Axiomáticos:
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mod.core_concepts.map((concept, cIdx) => (
-                          <span
-                            key={cIdx}
-                            className="text-[11px] px-2.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
-                          >
-                            {concept}
-                          </span>
-                        ))}
-                      </div>
+                      {isEditing && (
+                        <span className="text-[10px] text-amber-400 font-medium">Editando</span>
+                      )}
                     </div>
-                  )}
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      {(mod.core_concepts || []).map((concept, cIdx) => (
+                        <span
+                          key={cIdx}
+                          className="text-[11px] pl-2.5 pr-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 inline-flex items-center gap-1.5"
+                        >
+                          <span>{concept}</span>
+                          {isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteConcept(idx, cIdx)}
+                              className="text-slate-400 hover:text-rose-400 cursor-pointer transition-colors p-0.5 rounded"
+                              title={`Eliminar '${concept}'`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+
+                      {isEditing && (
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newConceptInputs[idx] || ''}
+                            onChange={(e) => setNewConceptInputs(prev => ({ ...prev, [idx]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddConcept(idx);
+                              }
+                            }}
+                            placeholder="Añadir concepto..."
+                            className="text-[11px] px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:border-indigo-500 placeholder:text-slate-500 w-32"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddConcept(idx)}
+                            className="p-1 text-indigo-300 hover:text-indigo-200 bg-indigo-500/20 hover:bg-indigo-500/30 rounded border border-indigo-500/30 cursor-pointer"
+                            title="Agregar concepto a este módulo"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   {mod.practical_applications && mod.practical_applications.length > 0 && (
                     <div className="space-y-1.5">

@@ -1,4 +1,4 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote, NetworkGraph, ProjectTimeline } from '../types';
+import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote, NetworkGraph, ProjectTimeline, SuggestedTopic } from '../types';
 
 const API_BASE = '/api';
 
@@ -172,6 +172,29 @@ export async function generateProjectSourceDossier(
     throw new Error(err.detail || 'Analysis generation failed');
   }
 
+  return res.json();
+}
+
+export async function updateProjectSourceDossier(
+  projectId: string,
+  sourceId: string,
+  dossier: DocumentDossier
+): Promise<DocumentDossier> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/${sourceId}/dossier`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dossier),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update dossier' }));
+    throw new Error(err.detail || 'Failed to update dossier');
+  }
+  return res.json();
+}
+
+export async function fetchSuggestedTopics(projectId: string): Promise<SuggestedTopic[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/discovery/suggested-topics`);
+  if (!res.ok) throw new Error('Failed to fetch suggested topics');
   return res.json();
 }
 
