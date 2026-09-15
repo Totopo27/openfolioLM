@@ -140,6 +140,8 @@ export interface ProjectNote {
   content: string;
   source_citation_ids: string[];
   tags: string[];
+  origin_prompt?: string;
+  source_message_id?: string;
   created_at: string;
   updated_at: string;
 }

@@ -200,15 +200,20 @@ def export_project_markdown(
     else:
         for i, note in enumerate(notes, 1):
             tags_str = " ".join(f"`#{t}`" for t in note.tags) if note.tags else "_Sin etiquetas_"
-            lines.extend([
+            note_lines = [
                 f"### {i}. {note.title}",
                 f"> **Etiquetas:** {tags_str} | **Actualizado:** {note.updated_at.strftime('%Y-%m-%d %H:%M')}",
+            ]
+            if note.origin_prompt:
+                note_lines.append(f"> 💡 **Pregunta de Origen:** _{note.origin_prompt}_")
+            note_lines.extend([
                 "",
                 note.content,
                 "",
                 "---",
                 "",
             ])
+            lines.extend(note_lines)
 
     # Section 3: Consolidated Study Guide & Thematic Architecture
     all_prereqs = []

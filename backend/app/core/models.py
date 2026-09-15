@@ -208,6 +208,8 @@ class ProjectNote(BaseModel):
     content: str = Field(..., description="Markdown body with synthesis, reflections or pinned answers")
     source_citation_ids: list[str] = Field(default_factory=list, description="Source or chunk IDs linked to this note")
     tags: list[str] = Field(default_factory=list, description="Categorization tags")
+    origin_prompt: Optional[str] = Field(default=None, description="User prompt/question that originated this note")
+    source_message_id: Optional[str] = Field(default=None, description="Chat message ID associated with this note")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -217,6 +219,8 @@ class ProjectNoteCreate(BaseModel):
     content: str = Field(..., min_length=1)
     source_citation_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    origin_prompt: Optional[str] = None
+    source_message_id: Optional[str] = None
 
 
 class ProjectNoteUpdate(BaseModel):
@@ -224,3 +228,5 @@ class ProjectNoteUpdate(BaseModel):
     content: Optional[str] = None
     source_citation_ids: Optional[list[str]] = None
     tags: Optional[list[str]] = None
+    origin_prompt: Optional[str] = None
+    source_message_id: Optional[str] = None

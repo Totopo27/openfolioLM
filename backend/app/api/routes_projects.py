@@ -559,6 +559,8 @@ def create_projects_router(
             content=note_in.content,
             source_citation_ids=note_in.source_citation_ids,
             tags=note_in.tags,
+            origin_prompt=note_in.origin_prompt,
+            source_message_id=note_in.source_message_id,
             created_at=now,
             updated_at=now,
         )
@@ -593,6 +595,8 @@ def create_projects_router(
             content=note_in.content if note_in.content is not None else existing.content,
             source_citation_ids=note_in.source_citation_ids if note_in.source_citation_ids is not None else existing.source_citation_ids,
             tags=note_in.tags if note_in.tags is not None else existing.tags,
+            origin_prompt=note_in.origin_prompt if note_in.origin_prompt is not None else existing.origin_prompt,
+            source_message_id=note_in.source_message_id if note_in.source_message_id is not None else existing.source_message_id,
             created_at=existing.created_at,
             updated_at=datetime.now(timezone.utc),
         )

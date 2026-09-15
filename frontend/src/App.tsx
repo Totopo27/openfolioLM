@@ -72,8 +72,15 @@ export const App: React.FC = () => {
     source_citation_ids?: string[];
   } | null>(null);
   const [targetNoteId, setTargetNoteId] = useState<string | null>(null);
+  const [targetMessageId, setTargetMessageId] = useState<string | null>(null);
 
-  const handleSaveToNotebook = async (text: string, noteTitle?: string, cIds?: string[]) => {
+  const handleSaveToNotebook = async (
+    text: string,
+    noteTitle?: string,
+    cIds?: string[],
+    originPrompt?: string,
+    sourceMessageId?: string
+  ) => {
     if (!activeProject) return;
     try {
       const created = await createProjectNote(activeProject.id, {
@@ -81,6 +88,8 @@ export const App: React.FC = () => {
         content: text,
         tags: ['síntesis', 'chat'],
         source_citation_ids: cIds || [],
+        origin_prompt: originPrompt,
+        source_message_id: sourceMessageId,
       });
       setNotesCount((prev) => prev + 1);
       setTargetNoteId(created.id);
@@ -88,6 +97,13 @@ export const App: React.FC = () => {
     } catch (err: any) {
       console.error('Error saving note to notebook:', err);
       alert(`Error al guardar en el cuaderno: ${err.message}`);
+    }
+  };
+
+  const handleNavigateToChat = (msgId?: string) => {
+    setRightPaneMode('chat');
+    if (msgId) {
+      setTargetMessageId(msgId);
     }
   };
 
@@ -638,6 +654,8 @@ export const App: React.FC = () => {
                 onCitationClick={handleCitationClick}
                 onClearChat={handleClearChat}
                 onSaveToNotebook={handleSaveToNotebook}
+                targetMessageId={targetMessageId}
+                onClearTargetMessage={() => setTargetMessageId(null)}
               />
             </div>
           ) : rightPaneMode === 'notebook' ? (
@@ -649,6 +667,7 @@ export const App: React.FC = () => {
               onClearTargetNote={() => setTargetNoteId(null)}
               initialNewNote={draftNote}
               onClearInitialNote={() => setDraftNote(null)}
+              onNavigateToChat={handleNavigateToChat}
             />
           ) : rightPaneMode === 'network' ? (
             <NetworkGraphViewer

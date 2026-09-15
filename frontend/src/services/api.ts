@@ -208,7 +208,14 @@ export async function fetchProjectNotes(projectId: string): Promise<ProjectNote[
 
 export async function createProjectNote(
   projectId: string,
-  note: { title: string; content: string; source_citation_ids?: string[]; tags?: string[] }
+  note: {
+    title: string;
+    content: string;
+    source_citation_ids?: string[];
+    tags?: string[];
+    origin_prompt?: string;
+    source_message_id?: string;
+  }
 ): Promise<ProjectNote> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/notes`, {
     method: 'POST',
@@ -218,6 +225,8 @@ export async function createProjectNote(
       content: note.content,
       source_citation_ids: note.source_citation_ids || [],
       tags: note.tags || [],
+      origin_prompt: note.origin_prompt,
+      source_message_id: note.source_message_id,
     }),
   });
   if (!res.ok) {
@@ -230,7 +239,14 @@ export async function createProjectNote(
 export async function updateProjectNote(
   projectId: string,
   noteId: string,
-  note: { title?: string; content?: string; source_citation_ids?: string[]; tags?: string[] }
+  note: {
+    title?: string;
+    content?: string;
+    source_citation_ids?: string[];
+    tags?: string[];
+    origin_prompt?: string;
+    source_message_id?: string;
+  }
 ): Promise<ProjectNote> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/notes/${noteId}`, {
     method: 'PUT',

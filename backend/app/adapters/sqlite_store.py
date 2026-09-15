@@ -100,6 +100,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                     content TEXT NOT NULL,
                     source_citation_ids_json TEXT NOT NULL DEFAULT '[]',
                     tags_json TEXT NOT NULL DEFAULT '[]',
+                    origin_prompt TEXT,
+                    source_message_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -116,6 +118,14 @@ class SQLiteDocumentStore(DocumentStorePort):
                 pass
             try:
                 conn.execute("ALTER TABLE messages ADD COLUMN hallucination_risk TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE notes ADD COLUMN origin_prompt TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE notes ADD COLUMN source_message_id TEXT")
             except Exception:
                 pass
 
@@ -458,8 +468,10 @@ class SQLiteDocumentStore(DocumentStorePort):
                 """
                 INSERT OR REPLACE INTO notes (
                     id, project_id, title, content,
-                    source_citation_ids_json, tags_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    source_citation_ids_json, tags_json,
+                    origin_prompt, source_message_id,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     note.id,
@@ -468,6 +480,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                     note.content,
                     json.dumps(note.source_citation_ids),
                     json.dumps(note.tags),
+                    note.origin_prompt,
+                    note.source_message_id,
                     note.created_at.isoformat(),
                     note.updated_at.isoformat(),
                 )
@@ -486,6 +500,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                 content=row["content"],
                 source_citation_ids=json.loads(row["source_citation_ids_json"]),
                 tags=json.loads(row["tags_json"]),
+                origin_prompt=row["origin_prompt"] if "origin_prompt" in row.keys() else None,
+                source_message_id=row["source_message_id"] if "source_message_id" in row.keys() else None,
                 created_at=datetime.fromisoformat(row["created_at"]),
                 updated_at=datetime.fromisoformat(row["updated_at"]),
             )
@@ -506,6 +522,8 @@ class SQLiteDocumentStore(DocumentStorePort):
                         content=row["content"],
                         source_citation_ids=json.loads(row["source_citation_ids_json"]),
                         tags=json.loads(row["tags_json"]),
+                        origin_prompt=row["origin_prompt"] if "origin_prompt" in row.keys() else None,
+                        source_message_id=row["source_message_id"] if "source_message_id" in row.keys() else None,
                         created_at=datetime.fromisoformat(row["created_at"]),
                         updated_at=datetime.fromisoformat(row["updated_at"]),
                     )

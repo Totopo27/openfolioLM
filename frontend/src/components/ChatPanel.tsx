@@ -9,7 +9,15 @@ interface ChatPanelProps {
   onSendMessage: (text: string) => void;
   onCitationClick: (citation: Citation) => void;
   onClearChat?: () => void;
-  onSaveToNotebook?: (text: string, title?: string, citationIds?: string[]) => void | Promise<void>;
+  onSaveToNotebook?: (
+    text: string,
+    title?: string,
+    citationIds?: string[],
+    originPrompt?: string,
+    sourceMessageId?: string
+  ) => void | Promise<void>;
+  targetMessageId?: string | null;
+  onClearTargetMessage?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -20,12 +28,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onCitationClick,
   onClearChat,
   onSaveToNotebook,
+  targetMessageId,
+  onClearTargetMessage,
 }) => {
   const [input, setInput] = useState('');
   const [savingMsgId, setSavingMsgId] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSaveMessageToNotebook = async (m: ChatMessage) => {
+  const handleSaveMessageToNotebook = async (m: ChatMessage, msgIndex: number) => {
     if (!onSaveToNotebook) return;
     const msgKey = m.id || m.timestamp;
     setSavingMsgId(msgKey);
@@ -33,7 +44,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       const firstLine = m.text.replace(/\[\^\d+\]/g, '').trim().split('\n')[0];
       const cleanTitle = firstLine.slice(0, 50).trim() + (firstLine.length > 50 ? '...' : '');
       const cIds = m.citations?.map((c) => c.chunk_id) || [];
-      await onSaveToNotebook(m.text, cleanTitle || 'Hallazgo de Investigación', cIds);
+
+      // Find preceding user question
+      let originPrompt: string | undefined = undefined;
+      for (let i = msgIndex - 1; i >= 0; i--) {
+        if (messages[i].sender === 'user') {
+          originPrompt = messages[i].text;
+          break;
+        }
+      }
+
+      await onSaveToNotebook(m.text, cleanTitle || 'Hallazgo de Investigación', cIds, originPrompt, m.id);
     } finally {
       setSavingMsgId(null);
     }
@@ -44,7 +65,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (targetMessageId) {
+      const el = document.getElementById(`chat-msg-${targetMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedId(targetMessageId);
+        const timer = setTimeout(() => {
+          setHighlightedId(null);
+          onClearTargetMessage?.();
+        }, 3500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [targetMessageId]);
+
+  useEffect(() => {
+    if (!targetMessageId) {
+      scrollToBottom();
+    }
   }, [messages, isLoading]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -204,46 +242,56 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </p>
           </div>
         ) : (
-          messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
-            >
+          messages.map((m, idx) => {
+            const isHighlighted = highlightedId === m.id;
+            return (
               <div
-                className={`max-w-[85%] rounded-2xl px-5 py-4 text-sm shadow-md ${
-                  m.sender === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-none'
-                    : 'bg-slate-900/90 border border-slate-800 text-slate-200 rounded-bl-none'
+                key={m.id}
+                id={`chat-msg-${m.id}`}
+                className={`flex flex-col transition-all duration-500 ${
+                  m.sender === 'user' ? 'items-end' : 'items-start'
                 }`}
               >
-                {renderMessageWithCitations(m)}
-                {m.sender === 'assistant' && onSaveToNotebook && (
-                  <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-end">
-                    <button
-                      type="button"
-                      disabled={savingMsgId === (m.id || m.timestamp)}
-                      onClick={() => handleSaveMessageToNotebook(m)}
-                      className="inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer disabled:opacity-50"
-                      title="Guardar esta respuesta en el Cuaderno de Síntesis"
-                    >
-                      {savingMsgId === (m.id || m.timestamp) ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Guardando...</span>
-                        </>
-                      ) : (
-                        <>
-                          <BookOpen className="w-3.5 h-3.5" />
-                          <span>Guardar en Cuaderno</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
+                <div
+                  className={`max-w-[85%] rounded-2xl px-5 py-4 text-sm shadow-md transition-all duration-500 ${
+                    isHighlighted
+                      ? 'ring-2 ring-indigo-400 shadow-xl shadow-indigo-500/30 scale-[1.01]'
+                      : ''
+                  } ${
+                    m.sender === 'user'
+                      ? 'bg-indigo-600 text-white rounded-br-none'
+                      : 'bg-slate-900/90 border border-slate-800 text-slate-200 rounded-bl-none'
+                  }`}
+                >
+                  {renderMessageWithCitations(m)}
+                  {m.sender === 'assistant' && onSaveToNotebook && (
+                    <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-end">
+                      <button
+                        type="button"
+                        disabled={savingMsgId === (m.id || m.timestamp)}
+                        onClick={() => handleSaveMessageToNotebook(m, idx)}
+                        className="inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer disabled:opacity-50"
+                        title="Guardar esta respuesta en el Cuaderno de Síntesis"
+                      >
+                        {savingMsgId === (m.id || m.timestamp) ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Guardando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Guardar en Cuaderno</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 px-1">{m.timestamp}</span>
               </div>
-              <span className="text-[10px] text-slate-500 mt-1 px-1">{m.timestamp}</span>
-            </div>
-          ))
+            );
+          })
         )}
 
         {isLoading && (

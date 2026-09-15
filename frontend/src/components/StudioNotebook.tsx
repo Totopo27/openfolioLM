@@ -13,6 +13,9 @@ import {
   Layers,
   ChevronDown,
   FileText,
+  MessageSquare,
+  HelpCircle,
+  ExternalLink,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,8 +34,15 @@ interface StudioNotebookProps {
   onNotesCountChange?: (count: number) => void;
   targetNoteId?: string | null;
   onClearTargetNote?: () => void;
-  initialNewNote?: { title: string; content: string; source_citation_ids?: string[] } | null;
+  initialNewNote?: {
+    title: string;
+    content: string;
+    source_citation_ids?: string[];
+    origin_prompt?: string;
+    source_message_id?: string;
+  } | null;
   onClearInitialNote?: () => void;
+  onNavigateToChat?: (sourceMessageId?: string) => void;
 }
 
 export const StudioNotebook: React.FC<StudioNotebookProps> = ({
@@ -43,6 +53,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   onClearTargetNote,
   initialNewNote,
   onClearInitialNote,
+  onNavigateToChat,
 }) => {
   const [notes, setNotes] = useState<ProjectNote[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
@@ -56,6 +67,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [sourceCitationIds, setSourceCitationIds] = useState<string[]>([]);
+  const [originPrompt, setOriginPrompt] = useState<string | null>(null);
+  const [sourceMessageId, setSourceMessageId] = useState<string | null>(null);
 
   // Status & loading
   const [isLoading, setIsLoading] = useState(false);
@@ -82,7 +95,9 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
       handleCreateNewDraft(
         initialNewNote.title,
         initialNewNote.content,
-        initialNewNote.source_citation_ids || []
+        initialNewNote.source_citation_ids || [],
+        initialNewNote.origin_prompt || null,
+        initialNewNote.source_message_id || null
       );
       onClearInitialNote?.();
     }
@@ -130,19 +145,25 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
     setContent(note.content);
     setTags(note.tags || []);
     setSourceCitationIds(note.source_citation_ids || []);
+    setOriginPrompt(note.origin_prompt || null);
+    setSourceMessageId(note.source_message_id || null);
     setSaveSuccess(false);
   };
 
   const handleCreateNewDraft = (
     defaultTitle = 'Nueva Nota de Investigación',
     defaultContent = '',
-    defaultCitations: string[] = []
+    defaultCitations: string[] = [],
+    defaultOriginPrompt: string | null = null,
+    defaultMessageId: string | null = null
   ) => {
     setSelectedNoteId(null);
     setTitle(defaultTitle);
     setContent(defaultContent);
     setTags(['síntesis']);
     setSourceCitationIds(defaultCitations);
+    setOriginPrompt(defaultOriginPrompt);
+    setSourceMessageId(defaultMessageId);
     setViewMode('edit');
     setSaveSuccess(false);
   };
@@ -159,6 +180,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
           content: content.trim(),
           tags,
           source_citation_ids: sourceCitationIds,
+          origin_prompt: originPrompt || undefined,
+          source_message_id: sourceMessageId || undefined,
         });
         setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
       } else {
@@ -168,6 +191,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
           content: content.trim(),
           tags,
           source_citation_ids: sourceCitationIds,
+          origin_prompt: originPrompt || undefined,
+          source_message_id: sourceMessageId || undefined,
         });
         setNotes((prev) => [created, ...prev]);
         setSelectedNoteId(created.id);
@@ -357,6 +382,15 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                   </p>
 
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {note.origin_prompt && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/30 font-medium"
+                        title="Nota generada desde el Chat"
+                      >
+                        <MessageSquare className="w-2.5 h-2.5 text-indigo-400" />
+                        Chat
+                      </span>
+                    )}
                     {note.tags?.map((t) => (
                       <span
                         key={t}
@@ -512,6 +546,48 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
             />
           </div>
         </div>
+
+        {/* Origin Prompt Context Card */}
+        {originPrompt && (
+          <div className="mx-6 mt-4 p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex flex-col gap-2 shadow-sm shrink-0">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-300">
+                <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+                Consulta de Origen (Chat)
+              </span>
+              {onNavigateToChat && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToChat(sourceMessageId || undefined)}
+                  className="inline-flex items-center gap-1.5 text-xs text-indigo-300 hover:text-indigo-100 bg-indigo-600/30 hover:bg-indigo-600/50 px-2.5 py-1 rounded-lg border border-indigo-500/40 transition-all font-medium cursor-pointer"
+                  title="Regresar a la conversación del chat donde se generó esta respuesta"
+                >
+                  <MessageSquare className="w-3 h-3 text-indigo-400" />
+                  <span>Ver en Chat</span>
+                  <ExternalLink className="w-3 h-3 text-indigo-400" />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-200 italic font-sans leading-relaxed pl-3 border-l-2 border-indigo-500/40">
+              "{originPrompt}"
+            </p>
+          </div>
+        )}
+
+        {!originPrompt && tags.includes('chat') && onNavigateToChat && (
+          <div className="mx-6 mt-3 flex items-center justify-end shrink-0">
+            <button
+              type="button"
+              onClick={() => onNavigateToChat(sourceMessageId || undefined)}
+              className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-lg border border-indigo-500/30 transition-all font-medium cursor-pointer"
+              title="Regresar al chat"
+            >
+              <MessageSquare className="w-3 h-3" />
+              <span>Ver en Chat</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          </div>
+        )}
 
         {/* Note Content Area */}
         <div className="flex-1 overflow-y-auto p-6">

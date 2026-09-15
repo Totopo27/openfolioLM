@@ -33,6 +33,8 @@ def test_sqlite_store_notes(memory_store):
         content="La recuperación híbrida supera a la densa pura.",
         source_citation_ids=["src-1#c0"],
         tags=["rag", "evaluacion"],
+        origin_prompt="¿Cómo funciona la recuperación híbrida?",
+        source_message_id="msg-101",
         created_at=now,
         updated_at=now,
     )
@@ -44,10 +46,14 @@ def test_sqlite_store_notes(memory_store):
     assert retrieved.id == "note-1"
     assert retrieved.title == "Hallazgo sobre RAG"
     assert retrieved.tags == ["rag", "evaluacion"]
+    assert retrieved.origin_prompt == "¿Cómo funciona la recuperación híbrida?"
+    assert retrieved.source_message_id == "msg-101"
 
     # List notes
     all_notes = memory_store.list_notes(project_id="proj-a")
     assert len(all_notes) == 1
+    assert all_notes[0].origin_prompt == "¿Cómo funciona la recuperación híbrida?"
+    assert all_notes[0].source_message_id == "msg-101"
 
     # Update note
     note.title = "Hallazgo Actualizado"
@@ -118,7 +124,9 @@ def test_exporter_markdown():
             project_id="proj-test",
             title="Reflexión sobre BM25 + Vectores",
             content="El Reciprocal Rank Fusion (RRF) balancea precisión léxica y semántica.",
-            tags=["rag", "fusion"]
+            tags=["rag", "fusion"],
+            origin_prompt="¿Cómo balancear precisión léxica y semántica?",
+            source_message_id="msg-orig-1"
         )
     ]
     dossiers = {
@@ -160,6 +168,7 @@ def test_exporter_markdown():
     assert "Investigación sobre arquitecturas de agentes y RAG." in md
     assert "Survey of Retrieval-Augmented Generation" in md
     assert "Reflexión sobre BM25 + Vectores" in md
+    assert "Pregunta de Origen:** _¿Cómo balancear precisión léxica y semántica?_" in md
     assert "Guía de Estudio Consolidada y Mapa Temático" in md
     assert "Mitigación de alucinaciones y grounding estricto" in md
     assert "La arquitectura RAG mitiga alucinaciones" in md
@@ -190,19 +199,23 @@ def test_api_notes_and_export(tmp_path):
     app.include_router(router)
     client = TestClient(app)
 
-    # 1. Create Note
+    # 1. Create Note with origin prompt & message id
     res = client.post(
         f"/api/projects/{proj.id}/notes",
         json={
             "title": "Nota 1",
             "content": "Contenido de prueba",
             "source_citation_ids": [],
-            "tags": ["sintesis"]
+            "tags": ["sintesis"],
+            "origin_prompt": "¿Qué es la síntesis?",
+            "source_message_id": "msg-001"
         }
     )
     assert res.status_code == 200
     note_data = res.json()
     assert note_data["title"] == "Nota 1"
+    assert note_data["origin_prompt"] == "¿Qué es la síntesis?"
+    assert note_data["source_message_id"] == "msg-001"
     note_id = note_data["id"]
 
     # 2. List Notes
@@ -211,6 +224,7 @@ def test_api_notes_and_export(tmp_path):
     notes_list = res.json()
     assert len(notes_list) == 1
     assert notes_list[0]["id"] == note_id
+    assert notes_list[0]["origin_prompt"] == "¿Qué es la síntesis?"
 
     # 3. Update Note
     res = client.put(
@@ -219,6 +233,7 @@ def test_api_notes_and_export(tmp_path):
     )
     assert res.status_code == 200
     assert res.json()["title"] == "Nota 1 Modificada"
+    assert res.json()["origin_prompt"] == "¿Qué es la síntesis?"
     assert "v2" in res.json()["tags"]
 
     # 4. Export Markdown
