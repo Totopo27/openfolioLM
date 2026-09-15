@@ -172,22 +172,6 @@ class ProjectManager:
                 db_dir=lance_dir,
                 embedding_model=self._shared_embedding_model
             )
-            try:
-                db = v_store._get_db()
-                t_names = v_store._get_table_names(db)
-                rebuild_needed = False
-                if "chunks" not in t_names or len(db.open_table("chunks")) == 0:
-                    rebuild_needed = True
-                elif not v_store.check_dimension_match():
-                    rebuild_needed = True
-
-                if rebuild_needed:
-                    sqlite_store = self.get_store(project_id)
-                    existing_chunks = sqlite_store.get_all_chunks()
-                    if existing_chunks:
-                        v_store.rebuild_table_with_chunks(existing_chunks)
-            except Exception:
-                pass
             self._vector_stores[project_id] = v_store
         return self._vector_stores[project_id]
 

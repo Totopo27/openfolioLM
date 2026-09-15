@@ -136,56 +136,57 @@ class CitationNetworkBuilder(NetworkBuilderPort):
                         )
 
         # C. Dense Semantic Cosine Similarity (from LanceDB embeddings)
-        doc_vectors: dict[str, np.ndarray] = {}
-        try:
-            vector_store = self.project_manager.get_vector_store(project_id)
-            db = vector_store._get_db()
-            table_names = vector_store._get_table_names(db)
-            if "chunks" in table_names:
-                tbl = db.open_table("chunks")
-                df = tbl.to_pandas()
-                if not df.empty and "source_id" in df.columns and "vector" in df.columns:
-                    grouped = df.groupby("source_id")
-                    for sid, group in grouped:
-                        vecs = np.array(group["vector"].tolist())
-                        mean_vec = np.mean(vecs, axis=0)
-                        norm = np.linalg.norm(mean_vec)
-                        if norm > 0:
-                            doc_vectors[sid] = mean_vec / norm
-        except Exception as e:
-            logger.debug(f"Could not load vector embeddings for graph: {e}")
+        if len(docs) >= 2:
+            doc_vectors: dict[str, np.ndarray] = {}
+            try:
+                vector_store = self.project_manager.get_vector_store(project_id)
+                db = vector_store._get_db()
+                table_names = vector_store._get_table_names(db)
+                if "chunks" in table_names:
+                    tbl = db.open_table("chunks")
+                    df = tbl.to_pandas()
+                    if not df.empty and "source_id" in df.columns and "vector" in df.columns:
+                        grouped = df.groupby("source_id")
+                        for sid, group in grouped:
+                            vecs = np.array(group["vector"].tolist())
+                            mean_vec = np.mean(vecs, axis=0)
+                            norm = np.linalg.norm(mean_vec)
+                            if norm > 0:
+                                doc_vectors[sid] = mean_vec / norm
+            except Exception as e:
+                logger.debug(f"Could not load vector embeddings for graph: {e}")
 
-        # Compute pairwise cosine similarity
-        for i in range(len(doc_ids)):
-            for j in range(i + 1, len(doc_ids)):
-                doc_a = doc_ids[i]
-                doc_b = doc_ids[j]
-                u, v = sorted([doc_a.id, doc_b.id])
-                pair_key = (u, v, "semantic_similarity")
+            # Compute pairwise cosine similarity
+            for i in range(len(doc_ids)):
+                for j in range(i + 1, len(doc_ids)):
+                    doc_a = doc_ids[i]
+                    doc_b = doc_ids[j]
+                    u, v = sorted([doc_a.id, doc_b.id])
+                    pair_key = (u, v, "semantic_similarity")
 
-                sim = 0.0
-                if doc_a.id in doc_vectors and doc_b.id in doc_vectors:
-                    sim = float(np.dot(doc_vectors[doc_a.id], doc_vectors[doc_b.id]))
-                else:
-                    # Fallback to Jaccard similarity on tokens
-                    tokens_a = _normalize_tokens(doc_a.filename + " " + (doc_a.raw_markdown[:1500]))
-                    tokens_b = _normalize_tokens(doc_b.filename + " " + (doc_b.raw_markdown[:1500]))
-                    inter = len(tokens_a & tokens_b)
-                    union = len(tokens_a | tokens_b)
-                    sim = inter / union if union > 0 else 0.0
+                    sim = 0.0
+                    if doc_a.id in doc_vectors and doc_b.id in doc_vectors:
+                        sim = float(np.dot(doc_vectors[doc_a.id], doc_vectors[doc_b.id]))
+                    else:
+                        # Fallback to Jaccard similarity on tokens
+                        tokens_a = _normalize_tokens(doc_a.filename + " " + (doc_a.raw_markdown[:1500]))
+                        tokens_b = _normalize_tokens(doc_b.filename + " " + (doc_b.raw_markdown[:1500]))
+                        inter = len(tokens_a & tokens_b)
+                        union = len(tokens_a | tokens_b)
+                        sim = inter / union if union > 0 else 0.0
 
-                if sim >= min_similarity:
-                    if pair_key not in edge_keys:
-                        edge_keys.add(pair_key)
-                        edges.append(
-                            GraphEdge(
-                                source=doc_a.id,
-                                target=doc_b.id,
-                                type="semantic_similarity",
-                                weight=round(sim, 3),
-                                label=f"{int(sim * 100)}% similitud"
+                    if sim >= min_similarity:
+                        if pair_key not in edge_keys:
+                            edge_keys.add(pair_key)
+                            edges.append(
+                                GraphEdge(
+                                    source=doc_a.id,
+                                    target=doc_b.id,
+                                    type="semantic_similarity",
+                                    weight=round(sim, 3),
+                                    label=f"{int(sim * 100)}% similitud"
+                                )
                             )
-                        )
 
         # 3. Graph Topological Algorithms (Pure Python)
         node_ids = list(nodes_dict.keys())
