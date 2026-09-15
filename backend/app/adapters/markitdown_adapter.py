@@ -1,14 +1,32 @@
-import os
-import uuid
+import io
+import ipaddress
 import mimetypes
-from typing import Optional
+import os
+import re
+import socket
+import uuid
+from typing import Any, Optional
+from urllib.parse import ParseResult, urljoin, urlparse
+
+import httpx
 from markitdown import MarkItDown
+
 from app.core.models import SourceDocument
 from app.ports.ingester import IngestionPort
 
 
+class UnsafeURLError(ValueError):
+    """Raised when a URL can reach a non-public network resource."""
+
+
 class MarkItDownAdapter(IngestionPort):
-    """Adapter wrapping Microsoft MarkItDown for heterogeneous document ingestion with stealth web fallback."""
+    """MarkItDown adapter with bounded, public-network-only URL ingestion."""
+
+    ALLOWED_URL_SCHEMES = frozenset({"http", "https"})
+    REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+    STEALTH_FALLBACK_STATUS_CODES = frozenset({401, 403, 429, 503})
+    MAX_REDIRECTS = 5
+    MAX_WEB_CONTENT_BYTES = 10 * 1024 * 1024
 
     def __init__(
         self,
@@ -48,7 +66,6 @@ class MarkItDownAdapter(IngestionPort):
     @staticmethod
     def _is_empty_spa_shell(html: str) -> bool:
         """Detects if an HTML response is an unhydrated Single Page App skeleton."""
-        import re
         has_noscript_alert = bool(
             re.search(r"you need to enable javascript|requires javascript|habilitar javascript", html, re.IGNORECASE)
         )
@@ -62,18 +79,102 @@ class MarkItDownAdapter(IngestionPort):
             return True
         return False
 
+    @classmethod
+    def _validate_public_url(cls, url: str) -> ParseResult:
+        """Validate the scheme and every resolved address before a request."""
+        try:
+            parsed = urlparse(url)
+            port = parsed.port
+        except ValueError as exc:
+            raise UnsafeURLError("Malformed URL") from exc
+
+        if parsed.scheme.lower() not in cls.ALLOWED_URL_SCHEMES:
+            raise UnsafeURLError("Only http:// and https:// URLs are allowed")
+        if not parsed.hostname:
+            raise UnsafeURLError("URL must include a hostname")
+        if parsed.username or parsed.password:
+            raise UnsafeURLError("URLs containing credentials are not allowed")
+
+        lookup_port = port or (443 if parsed.scheme.lower() == "https" else 80)
+        try:
+            addresses = socket.getaddrinfo(
+                parsed.hostname,
+                lookup_port,
+                type=socket.SOCK_STREAM,
+            )
+        except socket.gaierror as exc:
+            raise UnsafeURLError("URL hostname could not be resolved") from exc
+
+        if not addresses:
+            raise UnsafeURLError("URL hostname did not resolve to an address")
+
+        for _family, _socktype, _proto, _canonname, sockaddr in addresses:
+            raw_address = sockaddr[0].split("%", 1)[0]
+            try:
+                resolved_ip = ipaddress.ip_address(raw_address)
+            except ValueError as exc:
+                raise UnsafeURLError("URL resolved to an invalid address") from exc
+            if not resolved_ip.is_global:
+                raise UnsafeURLError("URL resolves to a non-public network address")
+
+        return parsed
+
+    @classmethod
+    def _read_limited_body(cls, response: httpx.Response) -> bytes:
+        content_length = response.headers.get("content-length")
+        if content_length:
+            try:
+                declared_length = int(content_length)
+            except ValueError:
+                declared_length = None
+            if declared_length is not None and declared_length > cls.MAX_WEB_CONTENT_BYTES:
+                raise ValueError("Remote response exceeds the allowed size")
+
+        body = bytearray()
+        for chunk in response.iter_bytes():
+            if len(body) + len(chunk) > cls.MAX_WEB_CONTENT_BYTES:
+                raise ValueError("Remote response exceeds the allowed size")
+            body.extend(chunk)
+        return bytes(body)
+
+    def _fetch_public_html(
+        self,
+        url: str,
+        headers: dict[str, str],
+    ) -> tuple[bytes, str, int]:
+        """Fetch a URL while validating each redirect and bounding the body."""
+        current_url = url
+        with httpx.Client(timeout=15.0, follow_redirects=False) as client:
+            for redirect_count in range(self.MAX_REDIRECTS + 1):
+                self._validate_public_url(current_url)
+                with client.stream("GET", current_url, headers=headers) as response:
+                    if response.status_code in self.REDIRECT_STATUS_CODES:
+                        location = response.headers.get("location")
+                        if not location:
+                            response.raise_for_status()
+                        if redirect_count >= self.MAX_REDIRECTS:
+                            raise httpx.TooManyRedirects(
+                                "URL exceeded the redirect limit",
+                                request=response.request,
+                            )
+                        current_url = urljoin(str(response.url), location)
+                        self._validate_public_url(current_url)
+                        continue
+
+                    if response.status_code in self.STEALTH_FALLBACK_STATUS_CODES:
+                        return b"", current_url, response.status_code
+
+                    response.raise_for_status()
+                    return self._read_limited_body(response), current_url, response.status_code
+
+        raise RuntimeError("URL redirect handling ended unexpectedly")
+
     def ingest_url(
         self,
         url: str,
         source_id: Optional[str] = None,
         title_override: Optional[str] = None
     ) -> SourceDocument:
-        import io
-        import re
-        from urllib.parse import urlparse
-        import httpx
-        from app.adapters.stealth_scraper import StealthWebScraper
-
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -85,53 +186,61 @@ class MarkItDownAdapter(IngestionPort):
         extracted_title: str = ""
         fetch_engine: str = "httpx"
         use_stealth: bool = False
+        final_url = url
+
+        self._validate_public_url(url)
 
         # Tier 1: Fast-path via direct HTTP request
         try:
-            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-                resp = client.get(url, headers=headers)
-                # Check for anti-bot challenges or rate limiting
-                if resp.status_code in (401, 403, 429, 503):
-                    use_stealth = True
-                else:
-                    resp.raise_for_status()
-                    html_content = resp.content
-                    text_response = resp.text
-
-                    # Check for unhydrated SPA shells
-                    if self._is_empty_spa_shell(text_response):
-                        use_stealth = True
-                    else:
-                        title_match = re.search(r"<title>(.*?)</title>", text_response, flags=re.IGNORECASE | re.DOTALL)
-                        if title_match:
-                            extracted_title = re.sub(r"\s+", " ", title_match.group(1)).strip()
-        except Exception:
+            html_content, final_url, status_code = self._fetch_public_html(url, headers)
+            use_stealth = status_code in self.STEALTH_FALLBACK_STATUS_CODES
+            if html_content:
+                text_response = html_content.decode("utf-8", errors="replace")
+                use_stealth = self._is_empty_spa_shell(text_response)
+                if not use_stealth:
+                    title_match = re.search(
+                        r"<title>(.*?)</title>",
+                        text_response,
+                        flags=re.IGNORECASE | re.DOTALL,
+                    )
+                    if title_match:
+                        extracted_title = re.sub(r"\s+", " ", title_match.group(1)).strip()
+        except UnsafeURLError:
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
+            if self._stealth_scraper is None:
+                raise RuntimeError("Unable to retrieve the requested public URL") from exc
             use_stealth = True
 
-        # Tier 2: Resilient Stealth Browser Fallback (inspired by omni-scraper)
+        # Browser rendering is opt-in: the supplied scraper must enforce equivalent
+        # request interception. The default adapter never launches an unrestricted browser.
         if use_stealth:
+            if self._stealth_scraper is None:
+                raise RuntimeError(
+                    "The URL requires browser rendering, but no hardened renderer is configured"
+                )
             try:
-                scraper = self._stealth_scraper or StealthWebScraper()
-                rendered = scraper.extract_rendered_html(url)
+                rendered = self._stealth_scraper.extract_rendered_html(url)
+                self._validate_public_url(rendered.final_url)
                 html_content = rendered.html.encode("utf-8")
+                if len(html_content) > self.MAX_WEB_CONTENT_BYTES:
+                    raise ValueError("Rendered response exceeds the allowed size")
                 extracted_title = rendered.title
                 fetch_engine = rendered.engine
+                final_url = rendered.final_url
             except Exception as e:
-                # If stealth also fails, raise clear explanatory error
-                raise RuntimeError(
-                    f"Error al extraer la URL '{url}' mediante motor rápido y stealth browser: {str(e)}"
-                )
+                raise RuntimeError("Unable to render the requested public URL") from e
 
-        parsed_url = urlparse(url)
+        parsed_url = urlparse(final_url)
         default_filename = extracted_title or (parsed_url.netloc + parsed_url.path).strip("/") or "web_document"
-        final_filename = title_override or default_filename
+        final_filename = (title_override or default_filename).strip()
 
         # Convert HTML stream to Markdown
         result = self._md.convert_stream(io.BytesIO(html_content), file_extension=".html")
         markdown_text = result.text_content or ""
 
         # Prepend clean Title and Source URL header
-        header_prefix = f"# {final_filename}\n\n*Fuente Web: [{url}]({url})*\n\n"
+        header_prefix = f"# {final_filename}\n\n*Fuente Web: [{final_url}]({final_url})*\n\n"
         full_markdown = header_prefix + markdown_text
 
         doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
@@ -144,6 +253,7 @@ class MarkItDownAdapter(IngestionPort):
             char_count=len(full_markdown),
             metadata={
                 "source_url": url,
+                "final_url": final_url,
                 "content_bytes": len(html_content),
                 "page_title": extracted_title,
                 "fetch_engine": fetch_engine,

@@ -2,8 +2,9 @@ import os
 import re
 from typing import Optional
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.models import ModelsListResponse, ModelEngine
 from app.ports.store import DocumentStorePort
@@ -24,10 +25,30 @@ from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.nli_fact_checker import NLIFactChecker
 from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.llm_client import OpenAICompatibleLLMClient
-from app.adapters.project_manager import ProjectManager
+from app.adapters.project_manager import InvalidProjectIdError, ProjectManager
 from app.api.routes_sources import create_sources_router
 from app.api.routes_chat import create_chat_router
 from app.api.routes_projects import create_projects_router
+
+
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+)
+
+
+def _get_cors_origins() -> list[str]:
+    raw_origins = os.getenv("OPENFOLIO_CORS_ORIGINS", "")
+    origins = (
+        [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
+        if raw_origins
+        else list(DEFAULT_CORS_ORIGINS)
+    )
+    if "*" in origins:
+        raise RuntimeError("OPENFOLIO_CORS_ORIGINS must not contain a wildcard")
+    return origins
 
 
 def create_app(
@@ -47,14 +68,22 @@ def create_app(
         version="0.1.0"
     )
 
-    # Allow CORS for local frontend development
+    # Permit only explicitly trusted local development frontends. Production
+    # deployments should normally be same-origin or set OPENFOLIO_CORS_ORIGINS.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=_get_cors_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Accept", "Content-Type"],
     )
+
+    @app.exception_handler(InvalidProjectIdError)
+    async def invalid_project_id_handler(
+        _request: Request,
+        _exc: InvalidProjectIdError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "Project not found"})
 
     # Initialize dependencies if not supplied
     projects_dir = os.path.join(settings.data_dir, "projects")

@@ -4,6 +4,7 @@ import json
 import shutil
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Any
 from app.core.models import Project, SourceDocument
 from app.adapters.sqlite_store import SQLiteDocumentStore
@@ -15,6 +16,11 @@ STOPWORDS = {
     "with", "by", "from", "as", "is", "that", "this", "it", "using", "based",
     "un", "una", "los", "las", "el", "la", "de", "en", "para", "por", "con"
 }
+PROJECT_ID_PATTERN = re.compile(r"^proj_[a-z0-9_]{1,64}$")
+
+
+class InvalidProjectIdError(ValueError):
+    """Raised when a project identifier could escape the projects root."""
 
 
 def normalize_title(title: Optional[str]) -> str:
@@ -48,15 +54,26 @@ class ProjectManager:
         legacy_db_path: Optional[str] = "data/openfolio.db",
         embedding_model: Optional[Any] = None
     ):
-        self.projects_root = os.path.abspath(projects_root)
+        self.projects_root = str(Path(projects_root).resolve())
         self.legacy_db_path = os.path.abspath(legacy_db_path) if legacy_db_path else None
         os.makedirs(self.projects_root, exist_ok=True)
         self._stores: dict[str, SQLiteDocumentStore] = {}
         self._vector_stores: dict[str, LanceDBVectorStore] = {}
         self._shared_embedding_model = embedding_model
 
+    @staticmethod
+    def validate_project_id(project_id: str) -> str:
+        if not PROJECT_ID_PATTERN.fullmatch(project_id):
+            raise InvalidProjectIdError("Invalid project identifier")
+        return project_id
+
     def _get_project_dir(self, project_id: str) -> str:
-        return os.path.join(self.projects_root, project_id)
+        safe_id = self.validate_project_id(project_id)
+        root = Path(self.projects_root).resolve()
+        project_dir = (root / safe_id).resolve()
+        if project_dir.parent != root:
+            raise InvalidProjectIdError("Project path escapes the projects root")
+        return str(project_dir)
 
     def _get_meta_path(self, project_id: str) -> str:
         return os.path.join(self._get_project_dir(project_id), "project.json")
@@ -129,6 +146,10 @@ class ProjectManager:
 
         projects = []
         for entry in os.listdir(self.projects_root):
+            try:
+                self.validate_project_id(entry)
+            except InvalidProjectIdError:
+                continue
             proj_dir = os.path.join(self.projects_root, entry)
             if os.path.isdir(proj_dir):
                 proj = self.get_project(entry)
@@ -185,7 +206,7 @@ class ProjectManager:
 
     def delete_project(self, project_id: str) -> bool:
         proj_dir = self._get_project_dir(project_id)
-        if not os.path.exists(proj_dir):
+        if not os.path.isdir(proj_dir) or not os.path.isfile(self._get_meta_path(project_id)):
             return False
 
         # Close database connection and evict from active stores cache

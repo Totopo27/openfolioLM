@@ -1,8 +1,9 @@
 import os
-import shutil
+import logging
+import re
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ from app.core.models import (
     ProjectNote,
     ProjectNoteCreate,
     ProjectNoteUpdate,
+    DocumentChunk,
 )
 from app.core.exporter import export_project_bibtex, export_project_markdown
 from app.adapters.project_manager import ProjectManager
@@ -41,8 +43,97 @@ from app.adapters.timeline_builder import TimelineBuilder
 from app.core.fusion import reciprocal_rank_fusion
 
 
+logger = logging.getLogger(__name__)
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
+
+
 class BatchIngestRequest(BaseModel):
     dois: list[str] = Field(default_factory=list)
+
+
+class DocumentPersistenceError(RuntimeError):
+    """Raised when coordinated document/index persistence cannot complete."""
+
+
+def _safe_upload_filename(filename: Optional[str]) -> str:
+    candidate = (filename or "").replace("\\", "/")
+    basename = os.path.basename(candidate).strip()
+    basename = re.sub(r"[\x00-\x1f\x7f]", "_", basename)
+    if basename in {"", ".", ".."}:
+        return f"document_{uuid.uuid4().hex[:8]}.bin"
+    # Leave room for the UUID prefix used for the on-disk filename so the
+    # complete path component remains below common 255-byte filesystem limits.
+    return basename[:200]
+
+
+async def _save_upload_with_limit(file: UploadFile, destination: str) -> None:
+    total_bytes = 0
+    try:
+        with open(destination, "xb") as output:
+            while chunk := await file.read(UPLOAD_READ_CHUNK_BYTES):
+                total_bytes += len(chunk)
+                if total_bytes > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+                    )
+                output.write(chunk)
+    except Exception:
+        if os.path.exists(destination):
+            os.remove(destination)
+        raise
+
+
+def _persist_document_with_rollback(
+    store: Any,
+    vector_store: Any,
+    document: SourceDocument,
+    chunks: list[DocumentChunk],
+) -> None:
+    """Coordinate SQLite and LanceDB writes with compensating rollback."""
+    previous_document = store.get_document(document.id)
+    previous_chunks = (
+        store.get_document_chunks(document.id) if previous_document is not None else []
+    )
+
+    try:
+        store.add_document(document, chunks)
+        vector_store.delete_document_chunks(document.id)
+        vector_store.add_chunks(chunks)
+    except Exception as exc:
+        rollback_errors: list[Exception] = []
+
+        try:
+            if previous_document is None:
+                store.delete_document(document.id)
+            else:
+                store.add_document(previous_document, previous_chunks)
+        except Exception as rollback_exc:
+            rollback_errors.append(rollback_exc)
+
+        try:
+            vector_store.delete_document_chunks(document.id)
+            if previous_chunks:
+                vector_store.add_chunks(previous_chunks)
+        except Exception as rollback_exc:
+            rollback_errors.append(rollback_exc)
+
+        if rollback_errors:
+            logger.error(
+                "Document persistence rollback for %s had %d error(s)",
+                document.id,
+                len(rollback_errors),
+            )
+        raise DocumentPersistenceError(
+            "Document and vector index could not be updated consistently"
+        ) from exc
+
+
+def _delete_indexed_document(store: Any, vector_store: Any, source_id: str) -> None:
+    """Remove an obsolete document after its replacement is durable."""
+    store.delete_document(source_id)
+    vector_store.delete_document_chunks(source_id)
 
 
 def create_projects_router(
@@ -105,11 +196,10 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail="Project not found")
 
         uploads_dir = project_manager.get_uploads_dir(project_id)
-        filename = file.filename or f"doc_{uuid.uuid4().hex[:8]}.bin"
-        file_path = os.path.join(uploads_dir, filename)
-
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+        filename = _safe_upload_filename(file.filename)
+        stored_filename = f"{uuid.uuid4().hex}_{filename}"
+        file_path = os.path.join(uploads_dir, stored_filename)
+        await _save_upload_with_limit(file, file_path)
 
         try:
             store = project_manager.get_store(project_id)
@@ -129,14 +219,13 @@ def create_projects_router(
                 doc = ingester.convert(file_path=file_path, filename=filename)
                 chunks = chunker.chunk(doc)
 
-            store.add_document(doc, chunks)
-            vector_store.delete_document_chunks(doc.id)
-            vector_store.add_chunks(chunks)
+            _persist_document_with_rollback(store, vector_store, doc, chunks)
             return doc
-        except Exception as e:
+        except Exception:
             if os.path.exists(file_path):
                 os.remove(file_path)
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.exception("Failed to ingest uploaded source for project %s", project_id)
+            raise HTTPException(status_code=500, detail="Unable to ingest uploaded source")
 
     @router.post("/{project_id}/sources/url", response_model=SourceDocument)
     async def ingest_project_url(project_id: str, data: URLIngestRequest):
@@ -155,19 +244,23 @@ def create_projects_router(
                 doi=doc.metadata.get("doi") if doc.metadata else None,
                 title=doc.filename
             )
-            if existing_doc and existing_doc.id != doc.id:
-                if existing_doc.char_count >= doc.char_count:
-                    return existing_doc
-                store.delete_document(existing_doc.id)
-                vector_store.delete_document_chunks(existing_doc.id)
+            if (
+                existing_doc
+                and existing_doc.id != doc.id
+                and existing_doc.char_count >= doc.char_count
+            ):
+                return existing_doc
 
             chunks = chunker.chunk(doc)
-            store.add_document(doc, chunks)
-            vector_store.delete_document_chunks(doc.id)
-            vector_store.add_chunks(chunks)
+            _persist_document_with_rollback(store, vector_store, doc, chunks)
+            if existing_doc and existing_doc.id != doc.id:
+                _delete_indexed_document(store, vector_store, existing_doc.id)
             return doc
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="The URL or document data is invalid")
+        except Exception:
+            logger.exception("Failed to ingest URL for project %s", project_id)
+            raise HTTPException(status_code=502, detail="Unable to ingest the requested URL")
 
     @router.get("/{project_id}/sources/{source_id}", response_model=SourceDocument)
     async def get_project_source(project_id: str, source_id: str):
@@ -368,21 +461,25 @@ def create_projects_router(
                     doi=doc.metadata.get("doi") if doc.metadata else None,
                     title=doc.filename
                 )
-                if existing_doc and existing_doc.id != doc.id:
-                    if existing_doc.char_count >= doc.char_count:
-                        ingested_docs.append(existing_doc)
-                        continue
-                    store.delete_document(existing_doc.id)
-                    vector_store.delete_document_chunks(existing_doc.id)
+                if (
+                    existing_doc
+                    and existing_doc.id != doc.id
+                    and existing_doc.char_count >= doc.char_count
+                ):
+                    ingested_docs.append(existing_doc)
+                    continue
 
                 chunks = chunker.chunk(doc)
-                store.add_document(doc, chunks)
-                vector_store.delete_document_chunks(doc.id)
-                vector_store.add_chunks(chunks)
+                _persist_document_with_rollback(store, vector_store, doc, chunks)
+                if existing_doc and existing_doc.id != doc.id:
+                    _delete_indexed_document(store, vector_store, existing_doc.id)
                 ingested_docs.append(doc)
-            except Exception as e:
+            except Exception:
                 # Continue ingesting other papers even if one fails
-                pass
+                logger.exception(
+                    "Failed to ingest discovery result for project %s",
+                    project_id,
+                )
 
         return ingested_docs
 
