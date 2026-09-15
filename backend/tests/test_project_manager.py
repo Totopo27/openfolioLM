@@ -2,7 +2,7 @@ import os
 import shutil
 import tempfile
 import pytest
-from app.adapters.project_manager import ProjectManager
+from app.adapters.project_manager import InvalidProjectIdError, ProjectManager
 
 
 @pytest.fixture
@@ -52,3 +52,16 @@ def test_ensure_default_project_creates_one_if_empty(temp_manager):
     assert default_proj is not None
     assert len(temp_manager.list_projects()) == 1
     assert default_proj.name == "Proyecto Principal"
+
+
+@pytest.mark.parametrize(
+    "project_id",
+    ["..", "../outside", "/tmp/outside", "proj_ok/../../outside", "not_a_project"],
+)
+def test_project_paths_cannot_escape_projects_root(tmp_path, project_id):
+    manager = ProjectManager(projects_root=str(tmp_path / "projects"), legacy_db_path=None)
+
+    with pytest.raises(InvalidProjectIdError):
+        manager._get_project_dir(project_id)
+
+    assert tmp_path.exists()
