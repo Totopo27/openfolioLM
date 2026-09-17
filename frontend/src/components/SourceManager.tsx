@@ -307,10 +307,8 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
               stage={activeUploadTask.stage}
               size="xs"
             />
-            <span className="truncate max-w-[120px]">
-              {activeUploadTask.stage === 'processing'
-                ? 'Indexando...'
-                : `${activeUploadTask.progress}%`}
+            <span className="truncate max-w-[120px] font-mono">
+              {`${activeUploadTask.progress}%`}
             </span>
           </>
         ) : (
@@ -733,8 +731,10 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
           </div>
           <p className="font-semibold text-slate-200 text-sm">
             {isUploading && activeUploadTask
-              ? activeUploadTask.stage === 'processing'
-                ? `Extrayendo páginas y esquemas de ${activeUploadTask.name}...`
+              ? activeUploadTask.statusText
+                ? `${activeUploadTask.statusText} (${activeUploadTask.progress}%)`
+                : activeUploadTask.stage === 'processing'
+                ? `Procesando e indexando ${activeUploadTask.name} (${activeUploadTask.progress}%)...`
                 : `Subiendo ${activeUploadTask.name} (${activeUploadTask.progress}%)...`
               : isDragging
               ? '¡Soltá los archivos acá para procesarlos!'
@@ -778,7 +778,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   progress={task.progress}
                   stage={task.stage}
                   size="md"
-                  showText={task.stage === 'uploading'}
+                  showText={task.stage === 'uploading' || task.stage === 'processing'}
                 />
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex items-center gap-2">
@@ -789,28 +789,24 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                       task.stage === 'error'
                         ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                         : task.stage === 'processing'
-                        ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30 animate-pulse'
+                        ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
                         : task.stage === 'done'
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                     }`}>
-                      {task.stage === 'uploading'
-                        ? `${task.progress}%`
-                        : task.stage === 'processing'
-                        ? 'Indexando IA...'
+                      {task.stage === 'error'
+                        ? 'Error'
                         : task.stage === 'done'
                         ? 'Listo'
-                        : 'Error'}
+                        : `${task.progress}%`}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 truncate">
-                    {task.stage === 'uploading'
-                      ? `Subiendo libro a OpenFolioLM (${(task.size / (1024 * 1024)).toFixed(1)} MB)...`
-                      : task.stage === 'processing'
-                      ? 'Extrayendo páginas, tablas y transcribiendo diagramas...'
-                      : task.stage === 'done'
-                      ? 'Indexado exitosamente en LanceDB'
-                      : task.error || 'Error en la carga'}
+                    {task.stage === 'done'
+                      ? 'Indexado exitosamente en la base de conocimiento'
+                      : task.stage === 'error'
+                      ? (task.error || 'Error en la carga')
+                      : (task.statusText || (task.stage === 'processing' ? 'Extrayendo páginas, tablas y transcribiendo diagramas...' : `Subiendo libro a OpenFolioLM (${(task.size / (1024 * 1024)).toFixed(1)} MB)...`))}
                   </p>
                 </div>
               </div>

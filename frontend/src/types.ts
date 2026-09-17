@@ -44,6 +44,7 @@ export interface ActiveUploadTask {
   size: number;
   progress: number; // 0 to 100
   stage: 'uploading' | 'processing' | 'done' | 'error';
+  statusText?: string;
   error?: string;
   startedAt: number;
 }

@@ -308,24 +308,64 @@ export const App: React.FC = () => {
 
     setUploadTasks((prev) => [newTask, ...prev]);
 
+    let tickerInterval: any = null;
+
+    const startProcessingTicker = () => {
+      if (tickerInterval) return;
+      let current = 32;
+      tickerInterval = setInterval(() => {
+        if (current < 95) {
+          current += Math.floor(Math.random() * 2) + 1;
+          if (current > 95) current = 95;
+
+          let stepDesc = 'Extrayendo páginas y tablas...';
+          if (current >= 50 && current < 72) {
+            stepDesc = 'Analizando esquemas y figuras visuales...';
+          } else if (current >= 72 && current < 88) {
+            stepDesc = 'Generando embeddings semánticos...';
+          } else if (current >= 88) {
+            stepDesc = 'Indexando vectores y base de conocimiento...';
+          }
+
+          setUploadTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId && t.stage === 'processing'
+                ? {
+                    ...t,
+                    progress: current,
+                    statusText: stepDesc,
+                  }
+                : t
+            )
+          );
+        }
+      }, 900);
+    };
+
     try {
       const newDoc = await uploadProjectSource(
         activeProject.id,
         file,
-        (percent) => {
+        (percent, stage, statusText) => {
+          if (stage === 'processing') {
+            startProcessingTicker();
+          }
           setUploadTasks((prev) =>
             prev.map((t) =>
               t.id === taskId
                 ? {
                     ...t,
-                    progress: percent,
-                    stage: percent >= 100 ? 'processing' : 'uploading',
+                    progress: stage === 'processing' ? Math.max(t.progress, percent) : percent,
+                    stage,
+                    statusText: statusText || t.statusText,
                   }
                 : t
             )
           );
         }
       );
+
+      if (tickerInterval) clearInterval(tickerInterval);
 
       setSources((prev) => [newDoc, ...prev]);
       setActiveSourceIds((prev) => [...prev, newDoc.id]);
@@ -338,7 +378,16 @@ export const App: React.FC = () => {
 
       // Mark task as done
       setUploadTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, progress: 100, stage: 'done' } : t))
+        prev.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                progress: 100,
+                stage: 'done',
+                statusText: '¡Libro indexado y listo!',
+              }
+            : t
+        )
       );
 
       // Auto dismiss done task after 3 seconds
@@ -346,6 +395,7 @@ export const App: React.FC = () => {
         setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
       }, 3000);
     } catch (err: any) {
+      if (tickerInterval) clearInterval(tickerInterval);
       console.error('Upload error:', err);
       setUploadTasks((prev) =>
         prev.map((t) =>
@@ -862,9 +912,9 @@ export const App: React.FC = () => {
                   stage={uploadTasks[0].stage}
                   size="xs"
                 />
-                <span className="truncate max-w-[100px] sm:max-w-[150px] font-medium">
-                  {uploadTasks[0].stage === 'processing'
-                    ? `Indexando ${uploadTasks[0].name}`
+                <span className="truncate max-w-[120px] sm:max-w-[200px] font-medium font-mono">
+                  {uploadTasks[0].stage === 'done'
+                    ? `¡Listo! ${uploadTasks[0].name}`
                     : `${uploadTasks[0].progress}% ${uploadTasks[0].name}`}
                 </span>
                 {uploadTasks.length > 1 && (

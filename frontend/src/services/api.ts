@@ -55,7 +55,7 @@ export async function fetchProjectSources(projectId: string): Promise<SourceDocu
 export function uploadProjectSource(
   projectId: string,
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number, stage: 'uploading' | 'processing', statusText?: string) => void
 ): Promise<SourceDocument> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -64,16 +64,31 @@ export function uploadProjectSource(
 
     xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload`);
 
+    // Byte transfer phase: represents 0% to 30% of total ingestion
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
-        const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
-        onProgress(percent);
+        const fraction = event.loaded / event.total;
+        const uploadPercent = Math.min(30, Math.max(1, Math.round(fraction * 30)));
+        const loadedMb = (event.loaded / (1024 * 1024)).toFixed(1);
+        const totalMb = (event.total / (1024 * 1024)).toFixed(1);
+        onProgress(
+          uploadPercent,
+          'uploading',
+          `Transfiriendo archivo: ${loadedMb} / ${totalMb} MB (${Math.round(fraction * 100)}%)`
+        );
+      }
+    };
+
+    // When network payload is completely received by the server
+    xhr.upload.onload = () => {
+      if (onProgress) {
+        onProgress(32, 'processing', 'Archivo en servidor. Extrayendo páginas y tablas...');
       }
     };
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        if (onProgress) onProgress(100);
+        if (onProgress) onProgress(100, 'processing', '¡Documento indexado con éxito!');
         try {
           const doc: SourceDocument = JSON.parse(xhr.responseText);
           resolve(doc);

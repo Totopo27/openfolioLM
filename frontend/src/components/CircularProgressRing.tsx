@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, AlertCircle, Sparkles } from 'lucide-react';
+import { Check, AlertCircle } from 'lucide-react';
 
 export interface CircularProgressRingProps {
   progress: number; // 0 to 100
@@ -72,7 +72,7 @@ export const CircularProgressRing: React.FC<CircularProgressRingProps> = ({
         width={config.dim}
         height={config.dim}
         viewBox={`0 0 ${config.dim} ${config.dim}`}
-        className={`-rotate-90 transform ${stage === 'processing' ? 'animate-spin' : ''}`}
+        className="-rotate-90 transform"
       >
         {/* Background Track Circle */}
         <circle
@@ -94,9 +94,9 @@ export const CircularProgressRing: React.FC<CircularProgressRingProps> = ({
           stroke="currentColor"
           strokeWidth={stroke}
           strokeDasharray={circumference}
-          strokeDashoffset={stage === 'processing' ? circumference * 0.25 : offset}
+          strokeDashoffset={offset}
           strokeLinecap="round"
-          className={`transition-all duration-300 ease-out ${
+          className={`transition-all duration-500 ease-out ${
             stage === 'processing'
               ? 'text-teal-400'
               : clampedProgress > 75
@@ -107,16 +107,18 @@ export const CircularProgressRing: React.FC<CircularProgressRingProps> = ({
       </svg>
 
       {/* Center content or text */}
-      {stage === 'processing' ? (
-        <div className="absolute inset-0 flex items-center justify-center text-teal-300 animate-pulse">
-          <Sparkles className={size === 'xs' || size === 'sm' ? 'w-2 h-2' : 'w-3 h-3'} />
-        </div>
-      ) : showText && size !== 'xs' ? (
+      {showText && size !== 'xs' ? (
         <span
-          className={`absolute font-mono font-bold leading-none text-slate-200 ${config.textSize}`}
+          className={`absolute font-mono font-bold leading-none ${
+            stage === 'processing' ? 'text-teal-300' : 'text-slate-200'
+          } ${config.textSize}`}
         >
           {clampedProgress}%
         </span>
+      ) : stage === 'processing' && size === 'xs' ? (
+        <div className="absolute inset-0 flex items-center justify-center text-teal-300 animate-pulse">
+          <div className="w-1 h-1 rounded-full bg-teal-400" />
+        </div>
       ) : null}
     </div>
   );
