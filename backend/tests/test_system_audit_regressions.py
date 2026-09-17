@@ -7,7 +7,7 @@ from app.core.models import DocumentChunk, GroundedQuery, SourceDocument
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.grounded_synthesizer import GroundedSynthesizer
 from app.adapters.lancedb_store import LanceDBVectorStore
-from app.adapters.llm_client import OpenAICompatibleLLMClient
+from app.adapters.llm_client import LLMProviderError, OpenAICompatibleLLMClient
 from app.adapters.project_manager import ProjectManager
 from app.adapters.timeline_builder import TimelineBuilder
 
@@ -121,9 +121,9 @@ def test_llm_client_resilience_on_empty_choices_and_none_content(monkeypatch):
     import httpx
     monkeypatch.setattr(httpx.Client, "post", lambda *args, **kwargs: mock_resp)
 
-    # Must not crash with AttributeError: 'NoneType' has no attribute 'strip'
-    res = client.generate("system", "user")
-    assert "Error al consultar el proveedor de IA" in res or isinstance(res, str)
+    # A provider refusal is a typed failure, never ordinary answer content.
+    with pytest.raises(LLMProviderError, match="null content"):
+        client.generate("system", "user")
 
 
 def test_grounded_synthesizer_with_mock_callable_without_code_attr():

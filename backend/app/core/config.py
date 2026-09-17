@@ -1,4 +1,5 @@
 import os
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -53,8 +54,8 @@ class Settings(BaseSettings):
     semantic_scholar_api_key: str = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
     semantic_scholar_api_url: str = os.getenv("SEMANTIC_SCHOLAR_API_URL", "https://api.semanticscholar.org/graph/v1")
 
-    # Upload size limit in MB (0 = unlimited for large books, treatises, and scans)
-    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "0"))
+    # A finite limit is mandatory because uploads are processed and persisted locally.
+    max_upload_size_mb: int = Field(default=100, ge=1, le=1024)
 
     @property
     def effective_llm_base_url(self) -> str:

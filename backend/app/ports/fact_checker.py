@@ -1,18 +1,19 @@
 """Port definition for factual consistency checking and hallucination detection."""
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Literal, Optional, Protocol, Sequence
 from app.core.models import DocumentChunk
 
 
 @dataclass
 class FactAuditResult:
-    factual_score: float  # 0.0 to 1.0
-    hallucination_risk: str  # "low" | "medium" | "high"
-    entailment_prob: float
-    contradiction_prob: float
-    neutral_prob: float
+    factual_score: Optional[float]  # 0.0 to 1.0 when an audit ran
+    hallucination_risk: Optional[str]  # "low" | "medium" | "high"
+    entailment_prob: Optional[float]
+    contradiction_prob: Optional[float]
+    neutral_prob: Optional[float]
     claims_audited: int
+    audit_status: Literal["verified", "not_applicable", "unavailable"] = "verified"
 
 
 class FactCheckerPort(Protocol):

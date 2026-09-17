@@ -49,18 +49,10 @@ from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.citation_network import CitationNetworkBuilder
 from app.adapters.timeline_builder import TimelineBuilder
 from app.core.fusion import reciprocal_rank_fusion
+from app.api.upload_utils import save_upload_with_limit
 
 
 logger = logging.getLogger(__name__)
-# Max upload size: 0 or negative means unlimited (for large books, scores, and treatises)
-MAX_UPLOAD_BYTES = (
-    settings.max_upload_size_mb * 1024 * 1024
-    if settings.max_upload_size_mb > 0
-    else None
-)
-UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
-
-
 class BatchIngestRequest(BaseModel):
     dois: list[str] = Field(default_factory=list)
 
@@ -78,24 +70,6 @@ def _safe_upload_filename(filename: Optional[str]) -> str:
     # Leave room for the UUID prefix used for the on-disk filename so the
     # complete path component remains below common 255-byte filesystem limits.
     return basename[:200]
-
-
-async def _save_upload_with_limit(file: UploadFile, destination: str) -> None:
-    total_bytes = 0
-    try:
-        with open(destination, "xb") as output:
-            while chunk := await file.read(UPLOAD_READ_CHUNK_BYTES):
-                total_bytes += len(chunk)
-                if MAX_UPLOAD_BYTES is not None and total_bytes > MAX_UPLOAD_BYTES:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"Upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
-                    )
-                output.write(chunk)
-    except Exception:
-        if os.path.exists(destination):
-            os.remove(destination)
-        raise
 
 
 def _persist_document_with_rollback(
@@ -216,7 +190,7 @@ def create_projects_router(
         filename = _safe_upload_filename(file.filename)
         stored_filename = f"{uuid.uuid4().hex}_{filename}"
         file_path = os.path.join(uploads_dir, stored_filename)
-        await _save_upload_with_limit(file, file_path)
+        await save_upload_with_limit(file, file_path)
         file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
         def _process_and_persist(progress_reporter=None):
@@ -985,4 +959,3 @@ def create_projects_router(
         return FileResponse(asset_path, media_type=media_type)
 
     return router
-

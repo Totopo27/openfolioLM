@@ -1,7 +1,11 @@
+import io
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.adapters.project_manager import ProjectManager
 from app.adapters.sqlite_store import SQLiteDocumentStore
@@ -10,8 +14,10 @@ from app.api.routes_projects import (
     _persist_document_with_rollback,
     _safe_upload_filename,
 )
+from app.api import upload_utils
+from app.core.config import Settings
 from app.core.models import DocumentChunk, SourceDocument
-from app.main import create_app
+from app.main import API_DEFAULT_PORT, API_LOOPBACK_HOST, create_app, run_api
 
 
 class InMemoryVectorStore:
@@ -128,3 +134,34 @@ def test_invalid_project_identifier_returns_not_found(tmp_path):
     response = client.get("/api/projects/not_a_project")
 
     assert response.status_code == 404
+
+
+def test_upload_limit_cannot_be_disabled():
+    with pytest.raises(ValidationError):
+        Settings(max_upload_size_mb=0, _env_file=None)
+
+
+@pytest.mark.asyncio
+async def test_upload_limit_removes_partial_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(upload_utils, "MAX_UPLOAD_BYTES", 4)
+    destination = tmp_path / "oversized.bin"
+    upload = UploadFile(filename="oversized.bin", file=io.BytesIO(b"12345"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await upload_utils.save_upload_with_limit(upload, str(destination))
+
+    assert exc_info.value.status_code == 413
+    assert not destination.exists()
+
+
+def test_direct_api_runner_binds_only_to_loopback():
+    with patch("app.main.uvicorn.run") as run:
+        run_api()
+
+    run.assert_called_once_with(
+        "app.main:app",
+        host=API_LOOPBACK_HOST,
+        port=API_DEFAULT_PORT,
+        reload=False,
+    )
+    assert API_LOOPBACK_HOST == "127.0.0.1"
