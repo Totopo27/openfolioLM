@@ -31,10 +31,12 @@ class MarkItDownAdapter(IngestionPort):
     def __init__(
         self,
         markitdown_instance: Optional[MarkItDown] = None,
-        stealth_scraper: Optional[Any] = None
+        stealth_scraper: Optional[Any] = None,
+        vision_transcriber: Optional[Any] = None,
     ):
         self._md = markitdown_instance or MarkItDown()
         self._stealth_scraper = stealth_scraper
+        self._vision_transcriber = vision_transcriber
 
     def convert(
         self,
@@ -63,6 +65,7 @@ class MarkItDownAdapter(IngestionPort):
                     extract_figures=bool(assets_dir),
                     assets_dir=assets_dir,
                     asset_url_prefix=asset_url_prefix,
+                    vision_transcriber=self._vision_transcriber,
                 )
                 page_result = extractor.extract(file_path)
                 if page_result.raw_markdown and page_result.raw_markdown.strip():

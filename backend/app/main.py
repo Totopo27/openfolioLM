@@ -25,6 +25,7 @@ from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.nli_fact_checker import NLIFactChecker
 from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.llm_client import OpenAICompatibleLLMClient, health_registry
+from app.adapters.vision_transcriber import VisionTranscriber
 from app.adapters.project_manager import InvalidProjectIdError, ProjectManager
 from app.api.routes_sources import create_sources_router
 from app.api.routes_chat import create_chat_router
@@ -93,15 +94,6 @@ def create_app(
     )
     default_proj = active_pm.ensure_default_project()
 
-    active_store = store or active_pm.get_store(default_proj.id)
-    active_resolver = academic_resolver or CompositeAcademicResolver()
-    active_ingester = ingester or HybridDocumentIngester(academic_resolver=active_resolver)
-    active_chunker = chunker or PositionalChunker()
-    active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
-    active_fact_checker = fact_checker or (
-        NLIFactChecker(model_name=settings.nli_model) if settings.enable_fact_checker else None
-    )
-
     providers = {}
     if settings.gemini_api_key:
         providers["gemini"] = OpenAICompatibleLLMClient(
@@ -116,6 +108,43 @@ def create_app(
         api_key=settings.ollama_api_key,
         model=settings.ollama_model,
         provider_name="ollama",
+    )
+
+    # Multimodal Vision (VLM) Transcriber
+    vision_client = None
+    if settings.enable_vision_transcription:
+        if settings.vision_provider == "ollama":
+            vision_client = OpenAICompatibleLLMClient(
+                base_url=settings.ollama_base_url,
+                api_key=settings.ollama_api_key,
+                model=settings.vision_model,
+                provider_name="ollama",
+                timeout=90.0,
+            )
+        elif settings.vision_provider == "gemini" and settings.gemini_api_key:
+            vision_client = OpenAICompatibleLLMClient(
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+                api_key=settings.gemini_api_key,
+                model=settings.gemini_model,
+                provider_name="gemini",
+                timeout=60.0,
+            )
+
+    active_vision_transcriber = VisionTranscriber(
+        llm_client=vision_client,
+        enabled=settings.enable_vision_transcription and (vision_client is not None),
+    )
+
+    active_store = store or active_pm.get_store(default_proj.id)
+    active_resolver = academic_resolver or CompositeAcademicResolver()
+    active_ingester = ingester or HybridDocumentIngester(
+        academic_resolver=active_resolver,
+        vision_transcriber=active_vision_transcriber,
+    )
+    active_chunker = chunker or PositionalChunker()
+    active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
+    active_fact_checker = fact_checker or (
+        NLIFactChecker(model_name=settings.nli_model) if settings.enable_fact_checker else None
     )
 
     if synthesizer is None:

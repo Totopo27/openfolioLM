@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     ollama_api_key: str = os.getenv("OLLAMA_API_KEY", "ollama")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
+    # Multimodal Vision (VLM) settings for diagram, chart and figure transcription
+    vision_provider: str = os.getenv("VISION_PROVIDER", "ollama")
+    vision_model: str = os.getenv("VISION_MODEL", "minicpm-v4.6")
+    enable_vision_transcription: bool = os.getenv("ENABLE_VISION_TRANSCRIPTION", "true").lower() in ("true", "1", "yes")
+
     # Generic overrides
     llm_base_url: str = os.getenv("LLM_BASE_URL", "")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")

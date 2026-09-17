@@ -34,9 +34,11 @@ class HybridDocumentIngester(IngestionPort):
         markitdown_adapter: Optional[MarkItDownAdapter] = None,
         academic_resolver: Optional[AcademicResolverPort] = None,
         youtube_ingester: Optional[YouTubeIngester] = None,
-        enable_docling: Optional[bool] = None
+        enable_docling: Optional[bool] = None,
+        vision_transcriber: Optional[Any] = None,
     ):
-        self._markitdown = markitdown_adapter or MarkItDownAdapter()
+        self._vision_transcriber = vision_transcriber
+        self._markitdown = markitdown_adapter or MarkItDownAdapter(vision_transcriber=vision_transcriber)
         self._docling = docling_adapter or DoclingAdapter(fallback_ingester=self._markitdown)
         self._academic_resolver = academic_resolver or CompositeAcademicResolver()
         self._youtube_ingester = youtube_ingester or YouTubeIngester()

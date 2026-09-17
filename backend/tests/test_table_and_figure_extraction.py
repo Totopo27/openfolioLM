@@ -173,3 +173,25 @@ def test_api_project_assets_endpoint():
         assert resp_404.status_code == 404
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_minicpm_vlm_config_and_wiring():
+    from app.core.config import settings
+    from app.adapters.hybrid_ingester import HybridDocumentIngester
+    from app.adapters.markitdown_adapter import MarkItDownAdapter
+
+    # Check defaults
+    assert settings.vision_model == "minicpm-v4.6"
+    assert settings.vision_provider == "ollama"
+    assert settings.enable_vision_transcription is True
+
+    # Check wiring from HybridDocumentIngester down to MarkItDownAdapter
+    mock_transcriber = MagicMock()
+    hybrid = HybridDocumentIngester(vision_transcriber=mock_transcriber)
+    assert hybrid._vision_transcriber is mock_transcriber
+    assert hybrid._markitdown._vision_transcriber is mock_transcriber
+
+    # Check MarkItDownAdapter holds vision_transcriber
+    md = MarkItDownAdapter(vision_transcriber=mock_transcriber)
+    assert md._vision_transcriber is mock_transcriber
+
