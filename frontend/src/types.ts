@@ -7,6 +7,20 @@ export interface Project {
   message_count: number;
 }
 
+export interface SourceMetadata {
+  category?: string;
+  tags?: string[];
+  author?: string;
+  year_or_era?: string;
+  summary?: string;
+  doi?: string;
+  page_count?: number;
+  source_url?: string;
+  is_code?: boolean;
+  is_repo?: boolean;
+  [key: string]: any;
+}
+
 export interface SourceDocument {
   id: string;
   filename: string;
@@ -14,7 +28,7 @@ export interface SourceDocument {
   raw_markdown: string;
   char_count: number;
   created_at: string;
-  metadata?: Record<string, any>;
+  metadata?: SourceMetadata;
 }
 
 export interface Citation {
@@ -57,12 +71,17 @@ export interface HighlightTarget {
   quote_snippet: string;
 }
 
+export type ModelHealthStatus = 'healthy' | 'high_demand' | 'offline' | 'unknown';
+
 export interface ModelEngine {
   id: string;
   provider: 'gemini' | 'ollama' | string;
   model: string;
   name: string;
   is_available: boolean;
+  status?: ModelHealthStatus;
+  latency_ms?: number | null;
+  last_error?: string | null;
 }
 
 export type DocumentTypeEnum =
@@ -222,4 +241,39 @@ export interface ProjectTimeline {
   eras: TimelineEra[];
   narrative_arc?: string | null;
 }
+
+// ================= Source Taxonomy, Categories & Tags =================
+
+export interface TaxonomyItem {
+  name: string;
+  count: number;
+}
+
+export interface ProjectTaxonomySummary {
+  categories: TaxonomyItem[];
+  tags: TaxonomyItem[];
+  total_sources: number;
+}
+
+export interface TaxonomyClassificationResult {
+  category: string;
+  tags: string[];
+  author?: string | null;
+  year_or_era?: string | null;
+  thematic_summary?: string | null;
+  confidence: number;
+}
+
+// ================= Shared Conversations & Export =================
+
+export interface SharedConversationSnapshot {
+  share_id: string;
+  project_id: string;
+  project_name: string;
+  title: string;
+  created_at: string;
+  messages: ChatMessage[];
+  source_count: number;
+}
+
 

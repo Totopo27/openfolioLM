@@ -21,6 +21,13 @@ from app.core.models import (
     ProjectNoteCreate,
     ProjectNoteUpdate,
     DocumentChunk,
+    DocumentMetadataUpdate,
+    TaxonomyClassificationResult,
+    ProjectTaxonomySummary,
+    Citation,
+    SharedConversationSnapshot,
+    ShareConversationRequest,
+    ImportConversationRequest,
 )
 from app.core.exporter import export_project_bibtex, export_project_markdown
 from app.adapters.project_manager import ProjectManager
@@ -44,7 +51,12 @@ from app.core.fusion import reciprocal_rank_fusion
 
 
 logger = logging.getLogger(__name__)
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# Max upload size: 0 or negative means unlimited (for large books, scores, and treatises)
+MAX_UPLOAD_BYTES = (
+    settings.max_upload_size_mb * 1024 * 1024
+    if settings.max_upload_size_mb > 0
+    else None
+)
 UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 
 
@@ -73,7 +85,7 @@ async def _save_upload_with_limit(file: UploadFile, destination: str) -> None:
         with open(destination, "xb") as output:
             while chunk := await file.read(UPLOAD_READ_CHUNK_BYTES):
                 total_bytes += len(chunk)
-                if total_bytes > MAX_UPLOAD_BYTES:
+                if MAX_UPLOAD_BYTES is not None and total_bytes > MAX_UPLOAD_BYTES:
                     raise HTTPException(
                         status_code=413,
                         detail=f"Upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
@@ -325,6 +337,104 @@ def create_projects_router(
         store.save_dossier(updated_dossier)
         return updated_dossier
 
+    # --- Source Document Taxonomy, Categorization & Metadata ---
+
+    @router.patch("/{project_id}/sources/{source_id}/metadata", response_model=SourceDocument)
+    async def update_project_source_metadata(project_id: str, source_id: str, payload: DocumentMetadataUpdate):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        updated = store.update_document_metadata(
+            source_id,
+            payload.model_dump(exclude_unset=True)
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Source document not found in project")
+        return updated
+
+    @router.post("/{project_id}/sources/{source_id}/autoclassify", response_model=TaxonomyClassificationResult)
+    async def autoclassify_project_source(project_id: str, source_id: str, provider: Optional[str] = None):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        doc = store.get_document(source_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Source document not found in project")
+
+        chunks = store.get_document_chunks(source_id)
+
+        # Retrieve existing project categories to foster taxonomic alignment
+        taxonomy = store.get_project_taxonomy()
+        existing_categories = [c["name"] for c in taxonomy.get("categories", [])]
+
+        result = active_analyzer.classify_document_taxonomy(
+            document=doc,
+            chunks=chunks,
+            existing_categories=existing_categories,
+            provider=provider
+        )
+
+        # Persist extracted category and tags into the document
+        store.update_document_metadata(source_id, {
+            "category": result.category,
+            "tags": result.tags,
+            "author": result.author,
+            "year_or_era": result.year_or_era,
+            "summary": result.thematic_summary,
+        })
+        return result
+
+    @router.post("/{project_id}/sources/autoclassify-all")
+    async def autoclassify_all_project_sources(project_id: str, provider: Optional[str] = None):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        docs = store.list_documents()
+        results = []
+
+        for doc in docs:
+            chunks = store.get_document_chunks(doc.id)
+            taxonomy = store.get_project_taxonomy()
+            existing_categories = [c["name"] for c in taxonomy.get("categories", [])]
+
+            res = active_analyzer.classify_document_taxonomy(
+                document=doc,
+                chunks=chunks,
+                existing_categories=existing_categories,
+                provider=provider
+            )
+
+            store.update_document_metadata(doc.id, {
+                "category": res.category,
+                "tags": res.tags,
+                "author": res.author,
+                "year_or_era": res.year_or_era,
+                "summary": res.thematic_summary,
+            })
+            results.append({"source_id": doc.id, "filename": doc.filename, "classification": res})
+
+        return {"classified_count": len(results), "results": results}
+
+    @router.get("/{project_id}/taxonomy", response_model=ProjectTaxonomySummary)
+    async def get_project_taxonomy_summary(project_id: str):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        store = project_manager.get_store(project_id)
+        tax = store.get_project_taxonomy()
+        return ProjectTaxonomySummary(
+            categories=tax.get("categories", []),
+            tags=tax.get("tags", []),
+            total_sources=tax.get("total_sources", 0)
+        )
+
     # --- Project Persistent Chat Messages ---
 
     @router.get("/{project_id}/messages", response_model=list[ChatMessageRecord])
@@ -337,6 +447,83 @@ def create_projects_router(
         store = project_manager.get_store(project_id)
         store.clear_messages("default")
         return {"status": "cleared", "project_id": project_id}
+
+    @router.post("/{project_id}/chat/share", response_model=SharedConversationSnapshot)
+    async def share_project_chat(project_id: str, req: ShareConversationRequest):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        messages = store.get_messages("default")
+        if not messages:
+            raise HTTPException(status_code=400, detail="No hay mensajes en esta conversación para compartir.")
+
+        snapshot = project_manager.save_shared_conversation(
+            project_id=project_id,
+            title=req.title,
+            messages=messages,
+            project_name=project.name
+        )
+        return snapshot
+
+    @router.post("/{project_id}/chat/import")
+    async def import_project_chat(project_id: str, req: ImportConversationRequest):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+
+        records = []
+        for raw in req.messages:
+            raw_citations = raw.get("citations") or []
+            citations = []
+            for c in raw_citations:
+                try:
+                    citations.append(Citation(**c) if isinstance(c, dict) else c)
+                except Exception:
+                    pass
+
+            c_at = raw.get("created_at")
+            if isinstance(c_at, str):
+                try:
+                    c_date = datetime.fromisoformat(c_at.replace("Z", "+00:00"))
+                except Exception:
+                    c_date = datetime.now(timezone.utc)
+            else:
+                c_date = datetime.now(timezone.utc)
+
+            records.append(
+                ChatMessageRecord(
+                    id=raw.get("id") or f"msg_{uuid.uuid4().hex[:12]}",
+                    conversation_id=req.conversation_id,
+                    sender=raw.get("sender", "user"),
+                    text=raw.get("text", ""),
+                    citations=citations,
+                    evidence_found=raw.get("evidence_found"),
+                    active_sources_consulted=raw.get("active_sources_consulted") or [],
+                    factual_score=raw.get("factual_score"),
+                    hallucination_risk=raw.get("hallucination_risk"),
+                    created_at=c_date
+                )
+            )
+
+        imported_count = store.import_messages(records)
+        return {"status": "imported", "count": imported_count, "project_id": project_id}
+
+    @router.get("/{project_id}/chat/export")
+    async def export_project_chat(project_id: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        store = project_manager.get_store(project_id)
+        messages = store.get_messages("default")
+        return {
+            "project_id": project.id,
+            "project_name": project.name,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "message_count": len(messages),
+            "messages": [m.model_dump() for m in messages]
+        }
 
     @router.post("/{project_id}/chat", response_model=GroundedResponse)
     async def project_grounded_chat(project_id: str, query: GroundedQuery):

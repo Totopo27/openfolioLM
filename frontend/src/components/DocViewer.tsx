@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, Bookmark, GraduationCap } from 'lucide-react';
+import { FileText, Bookmark, GraduationCap, Tags, X } from 'lucide-react';
 import { SourceDocument, HighlightTarget } from '../types';
 import { CodeViewer } from './CodeViewer';
 import { DossierViewer } from './DossierViewer';
+import { TaxonomyViewer } from './TaxonomyViewer';
 
 interface DocViewerProps {
   document: SourceDocument | null;
@@ -10,9 +11,11 @@ interface DocViewerProps {
   onClearHighlight?: () => void;
   projectId?: string;
   selectedEngine?: string;
-  activeTab?: 'reading' | 'dossier';
-  onTabChange?: (tab: 'reading' | 'dossier') => void;
+  allSources?: SourceDocument[];
+  activeTab?: 'reading' | 'dossier' | 'taxonomy';
+  onTabChange?: (tab: 'reading' | 'dossier' | 'taxonomy') => void;
   onExploreTopic?: (query: string) => void;
+  onMetadataUpdated?: (updatedDoc: SourceDocument) => void;
 }
 
 export const DocViewer: React.FC<DocViewerProps> = ({
@@ -21,15 +24,17 @@ export const DocViewer: React.FC<DocViewerProps> = ({
   onClearHighlight,
   projectId,
   selectedEngine,
+  allSources = [],
   activeTab: controlledActiveTab,
   onTabChange,
   onExploreTopic,
+  onMetadataUpdated,
 }) => {
   const highlightRef = useRef<HTMLDivElement>(null);
-  const [internalActiveTab, setInternalActiveTab] = useState<'reading' | 'dossier'>('reading');
+  const [internalActiveTab, setInternalActiveTab] = useState<'reading' | 'dossier' | 'taxonomy'>('reading');
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
 
-  const handleTabSelect = (tab: 'reading' | 'dossier') => {
+  const handleTabSelect = (tab: 'reading' | 'dossier' | 'taxonomy') => {
     setInternalActiveTab(tab);
     onTabChange?.(tab);
   };
@@ -82,28 +87,29 @@ export const DocViewer: React.FC<DocViewerProps> = ({
   return (
     <div className="h-full flex flex-col bg-slate-900/60 border-r border-slate-800/80 overflow-hidden">
       {/* Document Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20 shrink-0">
-            <FileText className="w-5 h-5" />
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur gap-3 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20 shrink-0">
+            <FileText className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-slate-200 truncate" title={document.filename}>
+            <h2 className="text-sm font-semibold text-slate-200 truncate max-w-[130px] sm:max-w-[180px] lg:max-w-[240px]" title={document.filename}>
               {document.filename}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] text-slate-400 truncate">
               {document.metadata?.page_count ? `${document.metadata.page_count} págs • ` : ''}
               {document.char_count.toLocaleString()} chars &bull; {document.mime_type}
             </p>
           </div>
         </div>
 
-        {/* View Mode Switcher: Reading vs. Dossier */}
-        <div className="flex items-center gap-3">
+        {/* View Mode Switcher: Reading vs. Dossier vs. Taxonomy */}
+        <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-lg border border-slate-700/60 shrink-0">
             <button
               onClick={() => handleTabSelect('reading')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+              title="Lectura del texto y fuentes indexadas"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                 activeTab === 'reading'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
@@ -114,38 +120,55 @@ export const DocViewer: React.FC<DocViewerProps> = ({
             </button>
             <button
               onClick={() => handleTabSelect('dossier')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+              title="Estructura, Resumen y Guía de Estudio"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                 activeTab === 'dossier'
                   ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <GraduationCap className="w-3.5 h-3.5 text-amber-300" />
-              <span>Estructura & Guía de Estudio</span>
+              <span>Guía de Estudio</span>
+            </button>
+            <button
+              onClick={() => handleTabSelect('taxonomy')}
+              title="Categorías, Etiquetas, Época y Metadatos"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                activeTab === 'taxonomy'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Tags className="w-3.5 h-3.5 text-teal-300" />
+              <span>Categorías & Tags</span>
             </button>
           </div>
 
           {isHighlightedForThisDoc && activeTab === 'reading' && (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                <Bookmark className="w-3 h-3" /> Cita Activa
-              </span>
-              {onClearHighlight && (
-                <button
-                  onClick={onClearHighlight}
-                  className="text-xs text-slate-400 hover:text-slate-200 underline ml-1 cursor-pointer"
-                >
-                  Limpiar
-                </button>
-              )}
-            </div>
+            <button
+              onClick={onClearHighlight}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition cursor-pointer shrink-0 shadow-sm"
+              title="Cita activa en el texto. Clic para deseleccionar"
+            >
+              <Bookmark className="w-3 h-3 text-amber-400" />
+              <span>Cita Activa</span>
+              <X className="w-3 h-3 ml-0.5 text-amber-400/80 hover:text-white" />
+            </button>
           )}
         </div>
       </div>
 
       {/* Main Content Pane */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'dossier' ? (
+        {activeTab === 'taxonomy' ? (
+          <TaxonomyViewer
+            projectId={projectId || 'default'}
+            document={document}
+            allSources={allSources}
+            selectedEngine={selectedEngine}
+            onMetadataUpdated={onMetadataUpdated}
+          />
+        ) : activeTab === 'dossier' ? (
           <DossierViewer
             projectId={projectId || 'default'}
             document={document}

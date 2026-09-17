@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Upload,
   Trash2,
@@ -14,9 +14,20 @@ import {
   BookOpen,
   Compass,
   FileText,
+  Search,
+  Sparkles,
+  Tags,
+  FolderTree,
+  Hash,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  MessageSquare,
+  ArrowRight,
 } from 'lucide-react';
 import { SourceDocument } from '../types';
 import { LiteratureDiscoveryModal } from './LiteratureDiscoveryModal';
+import { autoclassifyAllSources } from '../services/api';
 
 interface SourceManagerProps {
   projectId?: string;
@@ -32,6 +43,12 @@ interface SourceManagerProps {
   onOpenDossier?: (doc: SourceDocument) => void;
   onOpenDiscovery?: () => void;
   onDelete: (id: string) => Promise<void>;
+  onOpenTaxonomy?: (doc: SourceDocument) => void;
+  onRefreshSources?: () => Promise<void>;
+  selectedEngine?: string;
+  onToggleBatchActive?: (ids: string[], activate: boolean) => void;
+  isFullView?: boolean;
+  onNavigateToChat?: () => void;
 }
 
 export const SourceManager: React.FC<SourceManagerProps> = ({
@@ -48,6 +65,12 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onOpenDossier,
   onOpenDiscovery,
   onDelete,
+  onOpenTaxonomy,
+  onRefreshSources,
+  selectedEngine,
+  onToggleBatchActive,
+  isFullView = false,
+  onNavigateToChat,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState('');
@@ -58,8 +81,42 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   const [titleInput, setTitleInput] = useState('');
   const [isIngestingUrl, setIsIngestingUrl] = useState(false);
   const [urlError, setUrlError] = useState('');
+
+  // Search & Taxonomy Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [isAutoclassifyingAll, setIsAutoclassifyingAll] = useState(false);
+  const [autoclassifyStatus, setAutoclassifyStatus] = useState('');
+
+  // Collapsible drawer state & add menu state
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('openfolio_sources_collapsed');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
+        setIsAddMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('openfolio_sources_collapsed', String(next));
+      return next;
+    });
+  };
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,14 +206,206 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
 
   const allActive = sources.length > 0 && activeSourceIds.length === sources.length;
 
+  // Extract categories with counts
+  const categoriesMap = new Map<string, number>();
+  let uncategorizedCount = 0;
+  sources.forEach((s) => {
+    const cat = s.metadata?.category?.trim();
+    if (cat) {
+      categoriesMap.set(cat, (categoriesMap.get(cat) || 0) + 1);
+    } else {
+      uncategorizedCount++;
+    }
+  });
+  const uniqueCategories = Array.from(categoriesMap.entries()).map(([name, count]) => ({ name, count }));
+
+  // Extract tags with counts
+  const tagsMap = new Map<string, number>();
+  sources.forEach((s) => {
+    if (Array.isArray(s.metadata?.tags)) {
+      s.metadata.tags.forEach((t: string) => {
+        if (t && t.trim()) {
+          const tag = t.trim();
+          tagsMap.set(tag, (tagsMap.get(tag) || 0) + 1);
+        }
+      });
+    }
+  });
+  const topTags = Array.from(tagsMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }));
+
+  // Filter sources by search query, category, and tag
+  const filteredSources = sources.filter((doc) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = doc.filename.toLowerCase().includes(q);
+      const matchCat = doc.metadata?.category?.toLowerCase().includes(q);
+      const matchAuthor = doc.metadata?.author?.toLowerCase().includes(q);
+      const matchTags = Array.isArray(doc.metadata?.tags) && doc.metadata.tags.some((t: string) => t.toLowerCase().includes(q));
+      if (!matchName && !matchCat && !matchAuthor && !matchTags) return false;
+    }
+    if (selectedCategory !== null) {
+      if (selectedCategory === '__uncategorized__') {
+        if (doc.metadata?.category?.trim()) return false;
+      } else {
+        if (doc.metadata?.category?.trim() !== selectedCategory) return false;
+      }
+    }
+    if (selectedTag !== null) {
+      if (!Array.isArray(doc.metadata?.tags) || !doc.metadata.tags.includes(selectedTag)) return false;
+    }
+    return true;
+  });
+
+  const categoryDocIds = filteredSources.map((d) => d.id);
+  const isCategoryFullyActive = categoryDocIds.length > 0 && categoryDocIds.every((id) => activeSourceIds.includes(id));
+
+  const handleToggleCategoryContext = () => {
+    if (onToggleBatchActive) {
+      onToggleBatchActive(categoryDocIds, !isCategoryFullyActive);
+    } else {
+      categoryDocIds.forEach((id) => {
+        if (isCategoryFullyActive && activeSourceIds.includes(id)) {
+          onToggleActive(id);
+        } else if (!isCategoryFullyActive && !activeSourceIds.includes(id)) {
+          onToggleActive(id);
+        }
+      });
+    }
+  };
+
+  const handleAutoclassifyAll = async () => {
+    if (!projectId) return;
+    try {
+      setIsAutoclassifyingAll(true);
+      setAutoclassifyStatus('Analizando y clasificando todo el compendio con IA...');
+      const res = await autoclassifyAllSources(projectId, selectedEngine);
+      setAutoclassifyStatus(`¡${res.classified_count} obras clasificadas con éxito!`);
+      if (onRefreshSources) {
+        await onRefreshSources();
+      }
+      setTimeout(() => setAutoclassifyStatus(''), 4000);
+    } catch (err: any) {
+      setAutoclassifyStatus(err.message || 'Error al autoclasificar compendio');
+      setTimeout(() => setAutoclassifyStatus(''), 4000);
+    } finally {
+      setIsAutoclassifyingAll(false);
+    }
+  };
+
+  const renderAddDropdown = () => (
+    <div className="relative" ref={addMenuRef}>
+      <button
+        type="button"
+        onClick={() => setIsAddMenuOpen((prev) => !prev)}
+        disabled={isUploading || isIngestingUrl || isAutoclassifyingAll}
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 cursor-pointer shrink-0"
+        title="Añadir nuevas fuentes al proyecto"
+      >
+        {isUploading ? (
+          <>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span className="truncate max-w-[120px]">
+              {uploadProgressText || 'Subiendo...'}
+            </span>
+          </>
+        ) : (
+          <>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Agregar</span>
+            <ChevronDown className="w-3 h-3 ml-0.5 opacity-80" />
+          </>
+        )}
+      </button>
+
+      {isAddMenuOpen && (
+        <div className="absolute right-0 top-full mt-1.5 w-60 bg-slate-900 border border-slate-750 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-800/60">
+          <div className="p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddMenuOpen(false);
+                fileInputRef.current?.click();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800/80 rounded-lg transition cursor-pointer text-left"
+            >
+              <div className="p-1.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                <Upload className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-200">Subir Archivo Local</div>
+                <div className="text-[10px] text-slate-400">PDF, Word, TXT, MD, ZIP, Código</div>
+              </div>
+            </button>
+
+            {onIngestUrl && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddMenuOpen(false);
+                  setUrlError('');
+                  setIsUrlModalOpen(true);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800/80 rounded-lg transition cursor-pointer text-left"
+              >
+                <div className="p-1.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                  <Globe className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="font-medium text-slate-200">Enlace Web / DOI</div>
+                  <div className="text-[10px] text-slate-400">Páginas web, Wikipedia, papers DOI</div>
+                </div>
+              </button>
+            )}
+
+            {projectId && (onOpenDiscovery || onSourcesAdded) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddMenuOpen(false);
+                  onOpenDiscovery ? onOpenDiscovery() : setIsDiscoveryOpen(true);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-950/40 rounded-lg transition cursor-pointer text-left"
+              >
+                <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                  <Compass className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="font-medium text-emerald-300">Explorar Literatura</div>
+                  <div className="text-[10px] text-emerald-500/80">Buscar papers en OpenAlex</div>
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="relative bg-slate-900/90 border-b border-slate-800 p-4 transition-colors"
+      className={`relative ${
+        isFullView
+          ? 'flex-1 flex flex-col h-full bg-slate-950 overflow-hidden'
+          : 'bg-slate-900/90 border-b border-slate-800 transition-colors shrink-0'
+      }`}
     >
+      {/* Hidden File Input accessible everywhere */}
+      <input
+        type="file"
+        multiple
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml"
+      />
+
       {/* Drag overlay when dragging files over container with existing sources */}
       {isDragging && sources.length > 0 && (
         <div className="absolute inset-0 bg-indigo-950/90 border-2 border-dashed border-indigo-400 rounded-lg flex flex-col items-center justify-center z-30 backdrop-blur-sm pointer-events-none animate-in fade-in duration-100 m-2">
@@ -168,89 +417,295 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Fuentes ({sources.length})
-          </h3>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
-            {activeSourceIds.length} Activas en Contexto
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {sources.length > 0 && (
+      {/* COMPACT MODE (Collapsible Drawer for maximum Chat Real Estate) */}
+      {!isFullView && isCollapsed && sources.length > 0 ? (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-slate-900/90">
+          <div className="flex items-center gap-2 min-w-0 overflow-hidden">
             <button
-              onClick={onToggleAll}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 cursor-pointer"
-              title="Toggle all sources"
+              type="button"
+              onClick={toggleCollapse}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-200 hover:text-indigo-300 transition cursor-pointer shrink-0"
+              title="Clic para expandir filtros, categorías y gestión completa de fuentes"
             >
-              {allActive ? (
-                <>
-                  <CheckSquare className="w-3.5 h-3.5 text-indigo-400" /> Deseleccionar todo
-                </>
-              ) : (
-                <>
-                  <Square className="w-3.5 h-3.5 text-slate-500" /> Seleccionar todo
-                </>
+              <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Fuentes ({sources.length})</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">
+                {activeSourceIds.length} activas
+              </span>
+            </button>
+
+            {/* Quick horizontal active source pills with checkbox */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+              {sources.slice(0, 3).map((doc) => {
+                const isActive = activeSourceIds.includes(doc.id);
+                return (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    onClick={() => onToggleActive(doc.id)}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition cursor-pointer shrink-0 max-w-[140px] truncate ${
+                      isActive
+                        ? 'bg-indigo-950/60 border-indigo-500/40 text-indigo-200'
+                        : 'bg-slate-800/40 border-slate-800 text-slate-500 hover:text-slate-400'
+                    }`}
+                    title={`${doc.filename} - Clic para ${isActive ? 'desactivar del chat' : 'activar en el chat'}`}
+                  >
+                    {isActive ? (
+                      <CheckSquare className="w-3 h-3 text-indigo-400 shrink-0" />
+                    ) : (
+                      <Square className="w-3 h-3 text-slate-600 shrink-0" />
+                    )}
+                    <span className="truncate">{doc.filename}</span>
+                  </button>
+                );
+              })}
+              {sources.length > 3 && (
+                <button
+                  type="button"
+                  onClick={toggleCollapse}
+                  className="text-[10px] text-slate-400 hover:text-indigo-300 shrink-0 cursor-pointer"
+                  title="Ver todas las fuentes"
+                >
+                  +{sources.length - 3} más...
+                </button>
               )}
-            </button>
-          )}
+            </div>
+          </div>
 
-          <input
-            type="file"
-            multiple
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-            accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml"
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            {renderAddDropdown()}
 
-          {onIngestUrl && (
             <button
               type="button"
-              onClick={() => {
-                setUrlError('');
-                setIsUrlModalOpen(true);
-              }}
-              disabled={isUploading || isIngestingUrl}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-              title="Añadir página web o artículo online por URL o DOI"
+              onClick={toggleCollapse}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-lg transition cursor-pointer"
+              title="Expandir búsqueda, filtros por categoría y gestión de fuentes"
             >
-              <Globe className="w-3.5 h-3.5 text-indigo-400" /> Enlace Web / DOI
+              <Search className="w-3 h-3 text-indigo-400" />
+              <span>Gestionar</span>
+              <ChevronDown className="w-3 h-3 ml-0.5 text-slate-400" />
             </button>
-          )}
-
-          {projectId && (onOpenDiscovery || onSourcesAdded) && (
-            <button
-              type="button"
-              onClick={() => onOpenDiscovery ? onOpenDiscovery() : setIsDiscoveryOpen(true)}
-              disabled={isUploading || isIngestingUrl}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-              title="Buscar literatura científica en OpenAlex e indexar a un clic"
-            >
-              <Compass className="w-3.5 h-3.5 text-emerald-400" /> Explorar Literatura
-            </button>
-          )}
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || isIngestingUrl}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />{' '}
-                {uploadProgressText ? `Procesando ${uploadProgressText}...` : 'Procesando...'}
-              </>
-            ) : (
-              <>
-                <Upload className="w-3.5 h-3.5" /> Agregar Fuentes
-              </>
-            )}
-          </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={isFullView ? "flex-1 flex flex-col h-full p-4 overflow-hidden" : "p-3.5 space-y-2.5"}>
+          {/* EXPANDED HEADER */}
+          <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <FolderTree className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                {isFullView ? 'Compendio Bibliográfico' : 'Fuentes'} ({sources.length})
+              </h3>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium font-mono">
+                {activeSourceIds.length} Activas para Chat
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {onNavigateToChat && (
+                <button
+                  type="button"
+                  onClick={onNavigateToChat}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition cursor-pointer"
+                  title="Ir al chat con las fuentes activas"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Ir al Chat ({activeSourceIds.length})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {sources.length > 0 && (
+                <button
+                  onClick={onToggleAll}
+                  className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 cursor-pointer"
+                  title="Toggle all sources"
+                >
+                  {allActive ? (
+                    <>
+                      <CheckSquare className="w-3.5 h-3.5 text-indigo-400" /> Deseleccionar todo
+                    </>
+                  ) : (
+                    <>
+                      <Square className="w-3.5 h-3.5 text-slate-500" /> Seleccionar todo
+                    </>
+                  )}
+                </button>
+              )}
+
+              {renderAddDropdown()}
+
+              {!isFullView && sources.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleCollapse}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 rounded-lg transition cursor-pointer"
+                  title="Contraer panel de fuentes para maximizar el espacio del chat"
+                >
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Contraer</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+      {/* Real-time Search, Categories & Tags Toolbar */}
+      {sources.length > 0 && (
+        <div className="space-y-2 mb-3 pt-2 border-t border-slate-800/70">
+          {/* Search Input Bar */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar fuentes por título, autor, categoría o #etiqueta..."
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-950/80 border border-slate-750 focus:border-indigo-500 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-200 p-0.5"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {(searchQuery || selectedCategory !== null || selectedTag !== null) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory(null);
+                  setSelectedTag(null);
+                }}
+                className="text-[11px] text-slate-400 hover:text-indigo-300 underline shrink-0 cursor-pointer"
+              >
+                Limpiar filtros ({filteredSources.length}/{sources.length})
+              </button>
+            )}
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-thin">
+            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1 shrink-0 mr-1">
+              <FolderTree className="w-3 h-3 text-indigo-400" /> Categorías:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition cursor-pointer shrink-0 border ${
+                selectedCategory === null
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 border-slate-700'
+              }`}
+            >
+              Todas ({sources.length})
+            </button>
+
+            {uniqueCategories.map((c) => (
+              <button
+                key={c.name}
+                type="button"
+                onClick={() => setSelectedCategory(selectedCategory === c.name ? null : c.name)}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition cursor-pointer shrink-0 border flex items-center gap-1.5 ${
+                  selectedCategory === c.name
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+              >
+                <span>{c.name}</span>
+                <span className="text-[10px] px-1 py-0.2 rounded-full bg-slate-900/80 text-indigo-300 font-mono">
+                  {c.count}
+                </span>
+              </button>
+            ))}
+
+            {uncategorizedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedCategory(selectedCategory === '__uncategorized__' ? null : '__uncategorized__')}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition cursor-pointer shrink-0 border ${
+                  selectedCategory === '__uncategorized__'
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 border-slate-700'
+                }`}
+              >
+                Sin categoría ({uncategorizedCount})
+              </button>
+            )}
+
+            {/* Batch toggle for the selected category */}
+            {selectedCategory !== null && categoryDocIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleCategoryContext}
+                className="px-2 py-0.5 text-[11px] rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 transition cursor-pointer flex items-center gap-1 shrink-0 font-medium"
+                title={isCategoryFullyActive ? 'Quitar esta categoría del contexto del chat' : 'Activar toda esta categoría para el chat'}
+              >
+                {isCategoryFullyActive ? <CheckSquare className="w-3 h-3 text-indigo-400" /> : <Square className="w-3 h-3 text-slate-400" />}
+                <span>{isCategoryFullyActive ? 'Desactivar del Chat' : 'Activar Categoría en Chat'}</span>
+              </button>
+            )}
+
+            {/* Autoclassify all sources with IA button */}
+            {projectId && sources.length > 0 && (
+              <button
+                type="button"
+                onClick={handleAutoclassifyAll}
+                disabled={isUploading || isIngestingUrl || isAutoclassifyingAll}
+                className="ml-auto flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-medium bg-gradient-to-r from-teal-900/60 to-emerald-900/60 hover:from-teal-800/80 hover:to-emerald-800/80 text-teal-200 border border-teal-500/40 rounded-lg transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                title="Clasificar automáticamente con IA todos los libros por categoría y tags"
+              >
+                {isAutoclassifyingAll ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" /> Clasificando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 text-amber-300" /> Autoclasificar con IA
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Tags Filter Row */}
+          {topTags.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs pt-0.5 scrollbar-thin">
+              <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1 shrink-0 mr-1">
+                <Hash className="w-3 h-3 text-teal-400" /> Tags:
+              </span>
+              {topTags.map((t) => (
+                <button
+                  key={t.name}
+                  type="button"
+                  onClick={() => setSelectedTag(selectedTag === t.name ? null : t.name)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition cursor-pointer shrink-0 border ${
+                    selectedTag === t.name
+                      ? 'bg-teal-600 text-white border-teal-500'
+                      : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 border-slate-800 hover:text-slate-300'
+                  }`}
+                >
+                  {t.name} ({t.count})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {autoclassifyStatus && (
+            <div className="text-[11px] text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5 animate-in fade-in">
+              <Sparkles className="w-3 h-3 text-amber-300 shrink-0" />
+              <span>{autoclassifyStatus}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sources horizontal / compact list */}
       {sources.length === 0 ? (
@@ -280,11 +735,138 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
             o hacé clic para explorar desde tu equipo &bull; Soporta Documentos (PDF, Word, PPTX, Excel, Markdown, TXT) y Código (.zip, repositorios, .py, .ts, .go, .rs...)
           </p>
         </div>
+      ) : filteredSources.length === 0 ? (
+        <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center text-xs text-slate-400">
+          No se encontraron fuentes con los filtros aplicados.
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setSelectedCategory(null);
+              setSelectedTag(null);
+            }}
+            className="text-indigo-400 hover:text-indigo-300 underline ml-2 cursor-pointer"
+          >
+            Restablecer filtros
+          </button>
+        </div>
       ) : (
-        <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
-          {sources.map((doc) => {
+        <div className={isFullView ? "flex-1 overflow-y-auto space-y-2 pr-1 min-h-[300px]" : "flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1"}>
+          {filteredSources.map((doc) => {
             const isActive = activeSourceIds.includes(doc.id);
             const isSelected = selectedDocId === doc.id;
+
+            if (isFullView) {
+              return (
+                <div
+                  key={doc.id}
+                  className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs transition-all ${
+                    isActive
+                      ? 'bg-slate-900/90 border-indigo-500/40 text-slate-200 shadow-sm'
+                      : 'bg-slate-950/60 border-slate-800/80 text-slate-400 hover:text-slate-300'
+                  } ${isSelected ? 'ring-2 ring-indigo-500/50' : ''}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => onToggleActive(doc.id)}
+                      className="hover:scale-110 transition-transform cursor-pointer shrink-0"
+                      title={isActive ? 'Desactivar de consultas RAG' : 'Activar en consultas RAG'}
+                    >
+                      {isActive ? (
+                        <CheckSquare className="w-4 h-4 text-indigo-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-600" />
+                      )}
+                    </button>
+
+                    <div className="shrink-0">
+                      {doc.metadata?.doi ? (
+                        <BookOpen className="w-4 h-4 text-emerald-400" />
+                      ) : doc.metadata?.is_repo ? (
+                        <Package className="w-4 h-4 text-cyan-400" />
+                      ) : doc.metadata?.is_code ? (
+                        <Code2 className="w-4 h-4 text-cyan-400" />
+                      ) : doc.metadata?.source_url || doc.mime_type === 'text/html' ? (
+                        <Globe className="w-4 h-4 text-indigo-400" />
+                      ) : (
+                        <FileText className="w-4 h-4 text-indigo-300" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          onClick={() => onSelectDoc(doc)}
+                          className="font-semibold text-slate-200 hover:text-indigo-300 cursor-pointer text-xs transition-colors"
+                          title={doc.filename}
+                        >
+                          {doc.filename}
+                        </span>
+                        {doc.metadata?.category && (
+                          <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                            {doc.metadata.category}
+                          </span>
+                        )}
+                        {Array.isArray(doc.metadata?.tags) && doc.metadata.tags.map((t: string) => (
+                          <span key={t} className="px-1.5 py-0.2 text-[9px] rounded bg-slate-800 text-teal-300 border border-teal-500/20 font-mono">
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
+                        {doc.metadata?.author && <span className="text-slate-400 font-medium">{doc.metadata.author}</span>}
+                        {doc.metadata?.page_count && <span>• {doc.metadata.page_count} páginas</span>}
+                        <span>• {(doc.char_count || 0).toLocaleString()} caracteres</span>
+                        {doc.metadata?.file_size_bytes && (
+                          <span>• {(doc.metadata.file_size_bytes / (1024 * 1024)).toFixed(1)} MB</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => onSelectDoc(doc)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/50 transition cursor-pointer flex items-center gap-1 font-medium"
+                      title="Abrir y leer en el visor"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Leer</span>
+                    </button>
+                    {onOpenDossier && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenDossier(doc)}
+                        className="p-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 hover:text-amber-400 text-slate-400 border border-slate-700/60 transition cursor-pointer"
+                        title="Estructura & Guía de Estudio"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {onOpenTaxonomy && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenTaxonomy(doc)}
+                        className="p-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 hover:text-teal-400 text-slate-400 border border-slate-700/60 transition cursor-pointer"
+                        title="Categorías & Etiquetas"
+                      >
+                        <Tags className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onDelete(doc.id)}
+                      className="p-1.5 rounded-lg bg-slate-800/60 hover:bg-rose-950/40 hover:text-rose-400 text-slate-500 border border-slate-700/60 transition cursor-pointer"
+                      title="Eliminar fuente"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div
@@ -328,11 +910,31 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
 
                 <span
                   onClick={() => onSelectDoc(doc)}
-                  className="cursor-pointer max-w-[140px] truncate font-medium hover:text-indigo-300"
-                  title={`${doc.filename} (${doc.char_count.toLocaleString()} chars)`}
+                  className="cursor-pointer max-w-[130px] truncate font-medium hover:text-indigo-300"
+                  title={`${doc.filename} (${doc.char_count.toLocaleString()} chars)${doc.metadata?.author ? ` - ${doc.metadata.author}` : ''}`}
                 >
                   {doc.filename}
                 </span>
+
+                {/* Category Badge */}
+                {doc.metadata?.category && (
+                  <span
+                    className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 truncate max-w-[85px] shrink-0"
+                    title={`Categoría: ${doc.metadata.category}`}
+                  >
+                    {doc.metadata.category}
+                  </span>
+                )}
+
+                {/* Tag Badge */}
+                {Array.isArray(doc.metadata?.tags) && doc.metadata.tags.length > 0 && (
+                  <span
+                    className="px-1 py-0.2 text-[9px] font-mono rounded bg-slate-800 text-teal-300 border border-teal-500/20 truncate max-w-[65px] shrink-0"
+                    title={`Tag: ${doc.metadata.tags[0]}`}
+                  >
+                    {doc.metadata.tags[0]}
+                  </span>
+                )}
 
                 <button
                   type="button"
@@ -354,6 +956,17 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   </button>
                 )}
 
+                {onOpenTaxonomy && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTaxonomy(doc)}
+                    className="p-1 hover:text-teal-400 text-slate-400 transition-colors cursor-pointer"
+                    title="Categorías & Etiquetas"
+                  >
+                    <Tags className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => onDelete(doc.id)}
@@ -367,6 +980,9 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
           })}
         </div>
       )}
+        </div>
+      )}
+
 
       {/* Add Web URL / Academic DOI Modal */}
       {isUrlModalOpen && (() => {

@@ -1,4 +1,18 @@
-import { SourceDocument, GroundedResponse, Project, ChatMessage, ModelEngine, DocumentDossier, ProjectNote, NetworkGraph, ProjectTimeline, SuggestedTopic } from '../types';
+import {
+  SourceDocument,
+  GroundedResponse,
+  Project,
+  ChatMessage,
+  ModelEngine,
+  DocumentDossier,
+  ProjectNote,
+  NetworkGraph,
+  ProjectTimeline,
+  SuggestedTopic,
+  ProjectTaxonomySummary,
+  TaxonomyClassificationResult,
+  SharedConversationSnapshot,
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -140,6 +154,21 @@ export async function fetchAvailableModels(): Promise<ModelEngine[]> {
   if (!res.ok) throw new Error('Failed to fetch models');
   const data = await res.json();
   return data.models || [];
+}
+
+export async function fetchModelHealth(): Promise<Record<string, { status: string; latency_ms?: number; last_error?: string; in_cooldown?: boolean }>> {
+  const res = await fetch(`${API_BASE}/models/health`);
+  if (!res.ok) throw new Error('Failed to fetch model health');
+  const data = await res.json();
+  return data.statuses || {};
+}
+
+export async function pingModelEngine(modelId: string): Promise<{ status: string; latency_ms?: number; last_error?: string }> {
+  const res = await fetch(`${API_BASE}/models/ping?model_id=${encodeURIComponent(modelId)}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to ping model');
+  return res.json();
 }
 
 // ================= Structured Document Dossier APIs =================
@@ -327,6 +356,120 @@ export async function generateTimelineNarrative(
   const data = await res.json();
   return data.narrative_arc || '';
 }
+
+// ================= Source Taxonomy, Categories & Metadata APIs =================
+
+export async function updateSourceMetadata(
+  projectId: string,
+  sourceId: string,
+  metadata: {
+    category?: string;
+    tags?: string[];
+    author?: string;
+    year_or_era?: string;
+    summary?: string;
+  }
+): Promise<SourceDocument> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/${sourceId}/metadata`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(metadata),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update metadata' }));
+    throw new Error(err.detail || 'Failed to update metadata');
+  }
+  return res.json();
+}
+
+export async function autoclassifySource(
+  projectId: string,
+  sourceId: string,
+  provider?: string
+): Promise<TaxonomyClassificationResult> {
+  const url = provider
+    ? `${API_BASE}/projects/${projectId}/sources/${sourceId}/autoclassify?provider=${encodeURIComponent(provider)}`
+    : `${API_BASE}/projects/${projectId}/sources/${sourceId}/autoclassify`;
+
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to autoclassify source' }));
+    throw new Error(err.detail || 'Failed to autoclassify source');
+  }
+  return res.json();
+}
+
+export async function autoclassifyAllSources(
+  projectId: string,
+  provider?: string
+): Promise<{ classified_count: number; results: any[] }> {
+  const url = provider
+    ? `${API_BASE}/projects/${projectId}/sources/autoclassify-all?provider=${encodeURIComponent(provider)}`
+    : `${API_BASE}/projects/${projectId}/sources/autoclassify-all`;
+
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to autoclassify all sources' }));
+    throw new Error(err.detail || 'Failed to autoclassify all sources');
+  }
+  return res.json();
+}
+
+export async function fetchProjectTaxonomy(projectId: string): Promise<ProjectTaxonomySummary> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/taxonomy`);
+  if (!res.ok) throw new Error('Failed to fetch project taxonomy');
+  return res.json();
+}
+
+// ================= Shared Conversations, Export & Import =================
+
+export async function shareProjectChat(
+  projectId: string,
+  title?: string
+): Promise<SharedConversationSnapshot> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/chat/share`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to share chat' }));
+    throw new Error(err.detail || 'Failed to share chat');
+  }
+  return res.json();
+}
+
+export async function getSharedChat(shareId: string): Promise<SharedConversationSnapshot> {
+  const res = await fetch(`${API_BASE}/chat/shared/${shareId}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to load shared chat' }));
+    throw new Error(err.detail || 'Shared conversation not found');
+  }
+  return res.json();
+}
+
+export async function importProjectChat(
+  projectId: string,
+  messages: any[]
+): Promise<{ status: string; count: number; project_id: string }> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/chat/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to import chat' }));
+    throw new Error(err.detail || 'Failed to import chat');
+  }
+  return res.json();
+}
+
+export async function exportProjectChat(projectId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/chat/export`);
+  if (!res.ok) throw new Error('Failed to export chat');
+  return res.json();
+}
+
 
 
 

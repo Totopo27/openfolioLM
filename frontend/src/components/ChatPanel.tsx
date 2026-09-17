@@ -1,6 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, AlertCircle, Bookmark, CheckCircle2, Loader2, Trash2, ShieldCheck, BookOpen } from 'lucide-react';
+import {
+  Send,
+  Sparkles,
+  AlertCircle,
+  Bookmark,
+  CheckCircle2,
+  Loader2,
+  Trash2,
+  ShieldCheck,
+  BookOpen,
+  Share2,
+  Upload,
+} from 'lucide-react';
 import { ChatMessage, Citation } from '../types';
+import { shareProjectChat } from '../services/api';
+import { ShareChatModal } from './ShareChatModal';
+import { ImportChatModal } from './ImportChatModal';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -18,6 +33,11 @@ interface ChatPanelProps {
   ) => void | Promise<void>;
   targetMessageId?: string | null;
   onClearTargetMessage?: () => void;
+  projectId?: string;
+  projectName?: string;
+  onMessagesImported?: (newMsgs: ChatMessage[]) => void;
+  totalSourcesCount?: number;
+  onOpenBibliography?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -30,10 +50,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSaveToNotebook,
   targetMessageId,
   onClearTargetMessage,
+  projectId,
+  projectName,
+  onMessagesImported,
+  totalSourcesCount,
+  onOpenBibliography,
 }) => {
   const [input, setInput] = useState('');
   const [savingMsgId, setSavingMsgId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareModalData, setShareModalData] = useState<{ shareId: string; shareUrl: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleSaveMessageToNotebook = async (m: ChatMessage, msgIndex: number) => {
@@ -92,10 +121,70 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setInput('');
   };
 
+  const handleOpenShare = async () => {
+    if (messages.length === 0 || isSharing) return;
+    setIsSharing(true);
+    try {
+      const firstUserMsg = messages.find((m) => m.sender === 'user');
+      const title = firstUserMsg ? firstUserMsg.text.slice(0, 80) : 'Conversación de Investigación';
+
+      let currentShareId = '';
+      let currentShareUrl = '';
+
+      if (projectId) {
+        try {
+          const snapshot = await shareProjectChat(projectId, title);
+          currentShareId = snapshot.share_id;
+          currentShareUrl = `${window.location.origin}${window.location.pathname}?share=${snapshot.share_id}`;
+        } catch (apiErr) {
+          console.warn('Backend share snapshot error, using local fallback:', apiErr);
+          currentShareId = `share_${Date.now()}`;
+          currentShareUrl = `${window.location.origin}${window.location.pathname}?share=${currentShareId}`;
+        }
+      } else {
+        currentShareId = `share_${Date.now()}`;
+        currentShareUrl = `${window.location.origin}${window.location.pathname}?share=${currentShareId}`;
+      }
+
+      setShareModalData({
+        shareId: currentShareId,
+        shareUrl: currentShareUrl,
+      });
+      setIsShareModalOpen(true);
+    } catch (err: any) {
+      alert(`No se pudo generar el enlace para compartir: ${err.message}`);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   // Helper to render message text with clickable citation badges
   const renderMessageWithCitations = (message: ChatMessage) => {
     if (message.sender === 'user') {
       return <p className="whitespace-pre-wrap">{message.text}</p>;
+    }
+
+    const isHighDemandError =
+      message.text.includes('Error al consultar el proveedor de IA') &&
+      (message.text.includes('503') || message.text.toLowerCase().includes('high demand'));
+
+    if (isHighDemandError) {
+      return (
+        <div className="space-y-2 text-xs">
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
+            <div className="flex items-center gap-2 font-semibold text-amber-300">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Alta Demanda en el Proveedor de IA (HTTP 503)</span>
+            </div>
+            <p className="text-[11px] text-amber-200/90 leading-relaxed">
+              Google Cloud está experimentando picos momentáneos de congestión en este modelo. Los picos suelen ser transitorios y durar pocos segundos.
+            </p>
+            <div className="text-[10px] text-amber-300/80 font-mono bg-amber-950/40 p-2 rounded border border-amber-500/20">
+              Sugerencia: Podés pulsar el botón de ping (icono de pulso) arriba para chequear la latencia, reintentar la pregunta en un instante, o seleccionar otro modelo en la barra superior.
+            </div>
+          </div>
+        </div>
+      );
     }
 
     const citationMap = new Map<number, Citation>();
@@ -213,23 +302,78 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden">
-      {/* Optional Chat Header Bar */}
-      {messages.length > 0 && onClearChat && (
-        <div className="flex items-center justify-between px-6 py-2 border-b border-slate-900 bg-slate-900/40 text-xs text-slate-400 shrink-0">
+      {/* Action & History Header Bar */}
+      <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-900 bg-slate-900/50 text-xs text-slate-400 shrink-0">
+        <div className="flex items-center gap-3">
           <span className="font-mono text-[11px] text-slate-500">
-            Historial del proyecto ({messages.length} mensajes)
+            {messages.length > 0 ? `Historial (${messages.length})` : 'Conversación'}
           </span>
+
+          {onOpenBibliography && (
+            <button
+              type="button"
+              onClick={onOpenBibliography}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700/60 text-xs transition cursor-pointer group"
+              title="Ver y gestionar toda la bibliografía y compendio de fuentes"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300" />
+              <span className="font-medium">Bibliografía</span>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
+                {activeSourceCount}{totalSourcesCount !== undefined ? ` / ${totalSourcesCount}` : ''} activas
+              </span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Share Button */}
           <button
             type="button"
-            onClick={onClearChat}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer text-[11px] px-2 py-0.5 rounded hover:bg-slate-800"
-            title="Borrar historial de chat"
+            onClick={handleOpenShare}
+            disabled={messages.length === 0 || isSharing}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Compartir conversación (enlace público, JSON o Markdown con citas)"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Borrar historial</span>
+            {isSharing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Generando...</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Compartir</span>
+              </>
+            )}
           </button>
+
+          {/* Import Button */}
+          {projectId && (
+            <button
+              type="button"
+              onClick={() => setIsImportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 transition-all cursor-pointer"
+              title="Importar conversación de colega (.json)"
+            >
+              <Upload className="w-3.5 h-3.5 text-slate-400" />
+              <span>Importar</span>
+            </button>
+          )}
+
+          {/* Clear History Button */}
+          {messages.length > 0 && onClearChat && (
+            <button
+              type="button"
+              onClick={onClearChat}
+              className="inline-flex items-center gap-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer text-xs px-2 py-1 rounded-lg hover:bg-rose-500/10 hover:border-rose-500/20 border border-transparent"
+              title="Borrar historial de chat"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Borrar</span>
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -240,6 +384,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <p className="text-xs text-slate-500 mt-1 max-w-sm">
               Ask questions about your selected documents. All answers include verifiable citations and zero out-of-context hallucinations.
             </p>
+            {activeSourceCount === 0 && onOpenBibliography && (
+              <button
+                type="button"
+                onClick={onOpenBibliography}
+                className="mt-4 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-950 transition cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Abrir Bibliografía y seleccionar fuentes</span>
+              </button>
+            )}
           </div>
         ) : (
           messages.map((m, idx) => {
@@ -331,6 +485,30 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </button>
         </div>
       </form>
+      {/* Share Modal */}
+      {isShareModalOpen && shareModalData && (
+        <ShareChatModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          shareId={shareModalData.shareId}
+          shareUrl={shareModalData.shareUrl}
+          projectName={projectName || 'Investigación'}
+          messages={messages}
+        />
+      )}
+
+      {/* Import Modal */}
+      {isImportModalOpen && projectId && (
+        <ImportChatModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          projectId={projectId}
+          projectName={projectName || 'Investigación'}
+          onMessagesImported={(newMsgs) => {
+            onMessagesImported?.(newMsgs);
+          }}
+        />
+      )}
     </div>
   );
 };

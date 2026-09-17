@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Share2,
   History,
+  Activity,
 } from 'lucide-react';
 import {
   SourceDocument,
@@ -33,6 +34,7 @@ import {
   sendProjectGroundedChat,
   fetchAvailableModels,
   createProjectNote,
+  pingModelEngine,
 } from './services/api';
 import { DocViewer } from './components/DocViewer';
 import { SourceManager } from './components/SourceManager';
@@ -41,8 +43,15 @@ import { StudioNotebook } from './components/StudioNotebook';
 import { NetworkGraphViewer } from './components/NetworkGraphViewer';
 import { TimelineViewer } from './components/TimelineViewer';
 import { LiteratureDiscoveryModal } from './components/LiteratureDiscoveryModal';
+import { SharedConversationView } from './components/SharedConversationView';
+import { ResizableSplitter } from './components/ResizableSplitter';
 
 export const App: React.FC = () => {
+  // Public shared conversation viewer (?share=share_xxxx)
+  const [shareId, setShareId] = useState<string | null>(() => {
+    return new URLSearchParams(window.location.search).get('share');
+  });
+
   // Project State
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
@@ -60,11 +69,28 @@ export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<ModelEngine[]>([]);
-  const [selectedEngine, setSelectedEngine] = useState<string>('gemini:gemini-3.5-flash');
+  const [selectedEngine, setSelectedEngine] = useState<string>('gemini:gemini-2.5-flash');
+  const [isPinging, setIsPinging] = useState(false);
 
   // Studio & Tab State
-  const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier'>('reading');
-  const [rightPaneMode, setRightPaneMode] = useState<'chat' | 'notebook' | 'network' | 'timeline'>('chat');
+  const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier' | 'taxonomy'>('reading');
+  const [rightPaneMode, setRightPaneMode] = useState<'sources' | 'chat' | 'notebook' | 'network' | 'timeline'>('chat');
+  const [splitRatio, setSplitRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('openfolio_split_ratio');
+    if (saved) {
+      const parsed = parseFloat(saved);
+      if (!isNaN(parsed) && parsed >= 15 && parsed <= 85) return parsed;
+    }
+    const legacy = localStorage.getItem('openfolio_split_layout');
+    return legacy === 'chat_focused' ? 35 : 50;
+  });
+
+  const mainContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleSplitRatioChange = (ratio: number) => {
+    setSplitRatio(ratio);
+    localStorage.setItem('openfolio_split_ratio', ratio.toString());
+  };
   const [notesCount, setNotesCount] = useState<number>(0);
   const [draftNote, setDraftNote] = useState<{
     title: string;
@@ -133,6 +159,12 @@ export const App: React.FC = () => {
   useEffect(() => {
     initProjects();
     initModels();
+
+    // Periodic model health refresh every 30 seconds
+    const healthInterval = setInterval(() => {
+      initModels();
+    }, 30000);
+    return () => clearInterval(healthInterval);
   }, []);
 
   const initModels = async () => {
@@ -151,6 +183,19 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load available models:', err);
+    }
+  };
+
+  const handlePingActiveModel = async () => {
+    if (!selectedEngine) return;
+    try {
+      setIsPinging(true);
+      await pingModelEngine(selectedEngine);
+      await initModels();
+    } catch (err) {
+      console.error('Failed to ping model:', err);
+    } finally {
+      setIsPinging(false);
     }
   };
 
@@ -306,6 +351,36 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleToggleBatchActive = (ids: string[], activate: boolean) => {
+    setActiveSourceIds((prev) => {
+      if (activate) {
+        return Array.from(new Set([...prev, ...ids]));
+      }
+      return prev.filter((id) => !ids.includes(id));
+    });
+  };
+
+  const handleMetadataUpdated = (updatedDoc: SourceDocument) => {
+    setSources((prev) => prev.map((s) => (s.id === updatedDoc.id ? updatedDoc : s)));
+    if (selectedDoc?.id === updatedDoc.id) {
+      setSelectedDoc(updatedDoc);
+    }
+  };
+
+  const handleRefreshSources = async () => {
+    if (!activeProject) return;
+    try {
+      const docs = await fetchProjectSources(activeProject.id);
+      setSources(docs);
+      if (selectedDoc) {
+        const refreshedSelected = docs.find((d) => d.id === selectedDoc.id);
+        if (refreshedSelected) setSelectedDoc(refreshedSelected);
+      }
+    } catch (err) {
+      console.error('Failed to refresh sources:', err);
+    }
+  };
+
   const handleCitationClick = (citation: Citation) => {
     const targetDoc = sources.find((s) => s.id === citation.source_id);
     if (targetDoc) {
@@ -367,6 +442,7 @@ export const App: React.FC = () => {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      initModels();
     }
   };
 
@@ -397,6 +473,20 @@ export const App: React.FC = () => {
       );
     }
   };
+
+  const activeModel = models.find((m) => m.id === selectedEngine);
+
+  if (shareId) {
+    return (
+      <SharedConversationView
+        shareId={shareId}
+        onBackToWorkspace={() => {
+          window.history.replaceState({}, '', window.location.pathname);
+          setShareId(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-slate-950 text-slate-100">
@@ -506,8 +596,8 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Dynamic Engine Switcher */}
-        <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+        {/* Dynamic Engine Switcher & Health Monitor */}
+        <div className="flex items-center gap-3 text-xs text-slate-400 font-medium">
           <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80">
             <span className="text-[11px] text-slate-400 font-mono">Engine:</span>
             <select
@@ -516,10 +606,10 @@ export const App: React.FC = () => {
                 setSelectedEngine(e.target.value);
                 localStorage.setItem('openfolio_selected_engine', e.target.value);
               }}
-              className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer max-w-[220px] truncate"
+              className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer max-w-[200px] truncate"
             >
               {models.length === 0 ? (
-                <option value="gemini:gemini-3.5-flash" className="bg-slate-900 text-slate-200">
+                <option value="gemini:gemini-2.5-flash" className="bg-slate-900 text-slate-200">
                   Cargando modelos...
                 </option>
               ) : (
@@ -536,6 +626,56 @@ export const App: React.FC = () => {
                 ))
               )}
             </select>
+
+            {/* Active Model Health / Demand Status Badge */}
+            {activeModel && (
+              <div
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono border transition-all ${
+                  activeModel.status === 'high_demand'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                    : activeModel.status === 'offline'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                }`}
+                title={
+                  activeModel.status === 'high_demand'
+                    ? `Picos de alta demanda en Google Cloud (${activeModel.last_error || 'HTTP 503'}). Reintentos con backoff y fallback activos.`
+                    : activeModel.status === 'offline'
+                    ? `Modelo offline: ${activeModel.last_error || 'Sin conexión'}`
+                    : `Modelo operativo y disponible${activeModel.latency_ms ? ` · Latencia: ${activeModel.latency_ms}ms` : ''}`
+                }
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    activeModel.status === 'high_demand'
+                      ? 'bg-amber-400'
+                      : activeModel.status === 'offline'
+                      ? 'bg-rose-400'
+                      : 'bg-emerald-400'
+                  }`}
+                />
+                <span>
+                  {activeModel.status === 'high_demand'
+                    ? 'Alta Demanda'
+                    : activeModel.status === 'offline'
+                    ? 'Offline'
+                    : activeModel.latency_ms
+                    ? `${activeModel.latency_ms}ms`
+                    : 'Operativo'}
+                </span>
+              </div>
+            )}
+
+            {/* Ping button to check latency/demand on demand */}
+            <button
+              type="button"
+              onClick={handlePingActiveModel}
+              disabled={isPinging || !selectedEngine}
+              className="text-slate-400 hover:text-indigo-300 transition-colors p-0.5 cursor-pointer disabled:opacity-40 ml-0.5"
+              title="Comprobar demanda y latencia en tiempo real (Ping)"
+            >
+              <Activity className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin text-indigo-400' : ''}`} />
+            </button>
           </div>
 
           <span className="hidden sm:flex items-center gap-1.5">
@@ -546,30 +686,62 @@ export const App: React.FC = () => {
       </header>
 
       {/* Main Dual-Pane Split Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div ref={mainContainerRef} className="flex-1 flex overflow-hidden relative">
         {/* Left Pane: Synchronized Document Viewer & Dossier */}
-        <div className="w-1/2 h-full">
+        <div
+          style={{ width: `${splitRatio}%` }}
+          className="h-full shrink-0 overflow-hidden"
+        >
           <DocViewer
             document={selectedDoc}
             highlightTarget={highlightTarget}
             onClearHighlight={() => setHighlightTarget(null)}
             projectId={activeProject?.id}
             selectedEngine={selectedEngine}
+            allSources={sources}
             activeTab={docViewerTab}
             onTabChange={setDocViewerTab}
             onExploreTopic={handleOpenDiscovery}
+            onMetadataUpdated={handleMetadataUpdated}
           />
         </div>
 
-        {/* Right Pane: Multi-lane Studio (Chat & Grounding vs Cuaderno de Síntesis) */}
-        <div className="w-1/2 h-full flex flex-col bg-slate-950 overflow-hidden">
+        {/* Resizable Draggable Splitter with col-resize */}
+        <ResizableSplitter
+          splitPercent={splitRatio}
+          onSplitChange={handleSplitRatioChange}
+          onReset={() => handleSplitRatioChange(50)}
+          containerRef={mainContainerRef}
+        />
+
+        {/* Right Pane: Multi-lane Studio (Chat & Grounding vs Cuaderno de Síntesis vs Bibliografía) */}
+        <div
+          style={{ width: `${100 - splitRatio}%` }}
+          className="h-full flex flex-col bg-slate-950 overflow-hidden shrink-0"
+        >
           {/* Lane Switcher Navigation */}
-          <div className="flex items-center justify-between px-4 py-2 bg-slate-900/60 border-b border-slate-800 shrink-0">
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80">
+          <div className="flex items-center justify-between px-4 py-2 bg-slate-900/60 border-b border-slate-800 shrink-0 gap-2">
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 overflow-x-auto scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setRightPaneMode('sources')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
+                  rightPaneMode === 'sources'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Ver compendio completo de bibliografía y fuentes"
+              >
+                <Layers className="w-3.5 h-3.5 text-indigo-300" />
+                <span>Bibliografía</span>
+                <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800 text-slate-300 font-mono">
+                  {sources.length}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setRightPaneMode('chat')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
                   rightPaneMode === 'chat'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -581,7 +753,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setRightPaneMode('notebook')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
                   rightPaneMode === 'notebook'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -598,66 +770,118 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setRightPaneMode('network')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
                   rightPaneMode === 'network'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Share2 className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Red Semántica & Grafo</span>
+                <span>Red Semántica</span>
               </button>
               <button
                 type="button"
                 onClick={() => setRightPaneMode('timeline')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
                   rightPaneMode === 'timeline'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <History className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Cronología & Linaje</span>
+                <span>Cronología</span>
+              </button>
+            </div>
+
+            {/* Split Layout Presets */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSplitRatioChange(50)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded transition cursor-pointer ${
+                  Math.abs(splitRatio - 50) < 2
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Distribución Equilibrada: 50% Visor / 50% Estudio (Doble clic en el divisor también centra)"
+              >
+                50:50
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSplitRatioChange(30)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded transition cursor-pointer ${
+                  Math.abs(splitRatio - 30) < 4
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Foco Chat: 30% Visor / 70% Chat y Estudio"
+              >
+                Foco Chat
               </button>
             </div>
           </div>
 
-          {rightPaneMode === 'chat' ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <SourceManager
-                projectId={activeProject?.id}
-                sources={sources}
-                activeSourceIds={activeSourceIds}
-                selectedDocId={selectedDoc?.id || null}
-                onToggleActive={handleToggleActive}
-                onToggleAll={handleToggleAll}
-                onSelectDoc={(doc) => {
-                  setSelectedDoc(doc);
-                  setHighlightTarget(null);
-                  setDocViewerTab('reading');
-                }}
-                onOpenDossier={(doc) => {
-                  setSelectedDoc(doc);
-                  setDocViewerTab('dossier');
-                }}
-                onUpload={handleUpload}
-                onIngestUrl={handleIngestUrl}
-                onSourcesAdded={handleSourcesAdded}
-                onOpenDiscovery={() => handleOpenDiscovery()}
-                onDelete={handleDeleteSource}
-              />
-              <ChatPanel
-                messages={messages}
-                isLoading={isLoading}
-                activeSourceCount={activeSourceIds.length}
-                onSendMessage={handleSendMessage}
-                onCitationClick={handleCitationClick}
-                onClearChat={handleClearChat}
-                onSaveToNotebook={handleSaveToNotebook}
-                targetMessageId={targetMessageId}
-                onClearTargetMessage={() => setTargetMessageId(null)}
-              />
-            </div>
+          {rightPaneMode === 'sources' ? (
+            <SourceManager
+              projectId={activeProject?.id}
+              sources={sources}
+              activeSourceIds={activeSourceIds}
+              selectedDocId={selectedDoc?.id || null}
+              onToggleActive={handleToggleActive}
+              onToggleAll={handleToggleAll}
+              onToggleBatchActive={handleToggleBatchActive}
+              onSelectDoc={(doc) => {
+                setSelectedDoc(doc);
+                setHighlightTarget(null);
+                setDocViewerTab('reading');
+              }}
+              onOpenDossier={(doc) => {
+                setSelectedDoc(doc);
+                setDocViewerTab('dossier');
+              }}
+              onOpenTaxonomy={(doc) => {
+                setSelectedDoc(doc);
+                setDocViewerTab('taxonomy');
+              }}
+              onUpload={handleUpload}
+              onIngestUrl={handleIngestUrl}
+              onSourcesAdded={handleSourcesAdded}
+              onOpenDiscovery={() => handleOpenDiscovery()}
+              onDelete={handleDeleteSource}
+              onRefreshSources={handleRefreshSources}
+              selectedEngine={selectedEngine}
+              isFullView={true}
+              onNavigateToChat={() => setRightPaneMode('chat')}
+            />
+          ) : rightPaneMode === 'chat' ? (
+            <ChatPanel
+              projectId={activeProject?.id}
+              projectName={activeProject?.name}
+              messages={messages}
+              isLoading={isLoading}
+              activeSourceCount={activeSourceIds.length}
+              totalSourcesCount={sources.length}
+              onOpenBibliography={() => setRightPaneMode('sources')}
+              onSendMessage={handleSendMessage}
+              onCitationClick={handleCitationClick}
+              onClearChat={handleClearChat}
+              onSaveToNotebook={handleSaveToNotebook}
+              targetMessageId={targetMessageId}
+              onClearTargetMessage={() => setTargetMessageId(null)}
+              onMessagesImported={(newMsgs) => {
+                setMessages((prev) => [...prev, ...newMsgs]);
+                if (activeProject) {
+                  setProjects((prev) =>
+                    prev.map((p) =>
+                      p.id === activeProject.id
+                        ? { ...p, message_count: (p.message_count || 0) + newMsgs.length }
+                        : p
+                    )
+                  );
+                }
+              }}
+            />
           ) : rightPaneMode === 'notebook' ? (
             <StudioNotebook
               projectId={activeProject?.id || 'default'}
