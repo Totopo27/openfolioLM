@@ -1,3 +1,4 @@
+import base64
 import time
 import httpx
 from dataclasses import dataclass, field
@@ -242,3 +243,93 @@ class OpenAICompatibleLLMClient:
 
         # If all candidate models and retries exhausted, return clear diagnostic
         return f"Error al consultar el proveedor de IA: {last_error}"
+
+    def generate_with_image(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_bytes: bytes,
+        mime_type: str = "image/png",
+        model_override: Optional[str] = None
+    ) -> str:
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{mime_type};base64,{b64_image}"
+
+        active_model = model_override or self.model
+        models_to_try = [active_model] + [m for m in self.fallback_models if m != active_model]
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        last_error = ""
+
+        for mod in models_to_try:
+            payload = {
+                "model": mod,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_prompt},
+                            {"type": "image_url", "image_url": {"url": data_uri}},
+                        ],
+                    },
+                ],
+                "temperature": 0.0,
+            }
+
+            for attempt in range(self.max_retries + 1):
+                t0 = time.perf_counter()
+                try:
+                    with httpx.Client(timeout=self.timeout) as client:
+                        resp = client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+                        latency_ms = int((time.perf_counter() - t0) * 1000)
+
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            choices = data.get("choices") or []
+                            if choices:
+                                msg = choices[0].get("message") or {}
+                                content = msg.get("content")
+                                if content is not None:
+                                    self.health_registry.record_success(mod, self.provider_name, latency_ms)
+                                    return content
+                            last_error = f"Model {mod} returned empty choices or null content"
+                            break
+
+                        if resp.status_code in (503, 429):
+                            last_error = f"HTTP {resp.status_code} on model {mod}: {resp.text[:200]}"
+                            self.health_registry.record_high_demand(mod, self.provider_name, last_error)
+                            if attempt < self.max_retries:
+                                sleep_time = self.retry_delay * (2 ** attempt)
+                                time.sleep(sleep_time)
+                                continue
+                            break
+
+                        if resp.status_code in (404, 401):
+                            last_error = f"HTTP {resp.status_code} on model {mod}: {resp.text[:200]}"
+                            self.health_registry.record_offline(mod, self.provider_name, last_error)
+                            break
+
+                        resp.raise_for_status()
+
+                except httpx.HTTPStatusError as e:
+                    last_error = f"HTTP error {e.response.status_code}: {e.response.text[:200]}"
+                    if e.response.status_code in (503, 429):
+                        self.health_registry.record_high_demand(mod, self.provider_name, last_error)
+                        if attempt < self.max_retries:
+                            time.sleep(self.retry_delay * (2 ** attempt))
+                            continue
+                    else:
+                        self.health_registry.record_offline(mod, self.provider_name, last_error)
+                    break
+
+                except Exception as e:
+                    last_error = f"Connection error: {str(e)}"
+                    self.health_registry.record_offline(mod, self.provider_name, last_error)
+                    break
+
+        return f"Error al consultar modelo de visión: {last_error}"
+

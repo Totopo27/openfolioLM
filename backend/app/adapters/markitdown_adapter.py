@@ -42,14 +42,30 @@ class MarkItDownAdapter(IngestionPort):
         filename: str,
         source_id: Optional[str] = None
     ) -> SourceDocument:
+        doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
         ext = os.path.splitext(filename)[1].lower()
         if ext == ".pdf":
             try:
                 from app.adapters.pdf_page_extractor import PageAwarePDFExtractor
-                extractor = PageAwarePDFExtractor()
+
+                # Auto-detect project asset directory if file is inside a project upload folder
+                assets_dir = None
+                asset_url_prefix = ""
+                parent = os.path.dirname(os.path.abspath(file_path))
+                grandparent = os.path.dirname(parent)
+                if os.path.basename(parent) == "uploads":
+                    project_id = os.path.basename(grandparent)
+                    assets_dir = os.path.join(grandparent, "assets", doc_id)
+                    asset_url_prefix = f"/api/projects/{project_id}/assets/{doc_id}"
+
+                extractor = PageAwarePDFExtractor(
+                    extract_tables=True,
+                    extract_figures=bool(assets_dir),
+                    assets_dir=assets_dir,
+                    asset_url_prefix=asset_url_prefix,
+                )
                 page_result = extractor.extract(file_path)
                 if page_result.raw_markdown and page_result.raw_markdown.strip():
-                    doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
                     mime_type, _ = mimetypes.guess_type(filename)
                     return SourceDocument(
                         id=doc_id,
@@ -62,7 +78,9 @@ class MarkItDownAdapter(IngestionPort):
                             "file_size_bytes": os.path.getsize(file_path),
                             "page_count": page_result.page_count,
                             "page_offsets": page_result.page_offsets,
-                            "has_page_markers": True
+                            "has_page_markers": True,
+                            "has_tables": True,
+                            "has_figures": bool(assets_dir and os.path.exists(assets_dir) and os.listdir(assets_dir)),
                         }
                     )
             except Exception:

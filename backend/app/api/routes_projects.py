@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, FileResponse
 from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.models import (
@@ -883,4 +883,26 @@ def create_projects_router(
         )
         return {"narrative_arc": narrative}
 
+    # --- Project Visual Assets (Figures, Schemas, Diagrams) ---
+
+    @router.get("/{project_id}/assets/{doc_id}/{filename}")
+    async def get_project_asset(project_id: str, doc_id: str, filename: str):
+        project = project_manager.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        clean_doc_id = os.path.basename(doc_id)
+        clean_filename = os.path.basename(filename)
+
+        proj_dir = project_manager._get_project_dir(project_id)
+        asset_path = os.path.join(proj_dir, "assets", clean_doc_id, clean_filename)
+
+        if not os.path.exists(asset_path):
+            raise HTTPException(status_code=404, detail="Asset not found")
+
+        ext = os.path.splitext(clean_filename)[1].lower()
+        media_type = "image/png" if ext == ".png" else "image/jpeg" if ext in (".jpg", ".jpeg") else "application/octet-stream"
+        return FileResponse(asset_path, media_type=media_type)
+
     return router
+
