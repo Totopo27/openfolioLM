@@ -322,11 +322,12 @@ export const App: React.FC = () => {
     }
   };
 
-  // Polling loop for active background ingestion tasks
+  // Polling loop for active background ingestion tasks with adaptive intervals
   useEffect(() => {
     if (!activeProject) return;
 
     let isMounted = true;
+    let timerId: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
       try {
@@ -336,6 +337,7 @@ export const App: React.FC = () => {
         let hasNewCompleted = false;
 
         setUploadTasks((prev) => {
+          let hasChanges = false;
           const updated = [...prev];
 
           for (const bt of backendTasks) {
@@ -357,19 +359,30 @@ export const App: React.FC = () => {
               if (prevTask.stage !== 'done' && bt.stage === 'done') {
                 hasNewCompleted = true;
               }
-              // Update with latest backend progress/stage
-              updated[existingIdx] = {
-                ...prevTask,
-                ...mappedTask,
-              };
+              if (
+                prevTask.progress !== bt.progress ||
+                prevTask.stage !== bt.stage ||
+                prevTask.statusText !== bt.status_text ||
+                prevTask.error !== (bt.error || undefined)
+              ) {
+                hasChanges = true;
+                updated[existingIdx] = {
+                  ...prevTask,
+                  ...mappedTask,
+                };
+              }
             } else {
-              // Task found on server not yet in local state (e.g. after refresh or concurrent tab)
               if (bt.stage !== 'done' || (bt.completed_at && Date.now() - bt.completed_at * 1000 < 8000)) {
+                hasChanges = true;
                 updated.push(mappedTask);
               }
             }
           }
 
+          // If nothing changed, return prev reference so React skips re-render
+          if (!hasChanges) {
+            return prev;
+          }
           return updated;
         });
 
@@ -381,15 +394,27 @@ export const App: React.FC = () => {
             prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: freshDocs.length } : p))
           );
         }
+
+        // Adaptive interval: 2.5s if active tasks, 15s when idle
+        const hasActiveTasks = backendTasks.some(
+          (t) => t.stage !== 'done' && t.stage !== 'error'
+        );
+        const nextInterval = hasActiveTasks ? 2500 : 15000;
+        if (isMounted) {
+          timerId = setTimeout(poll, nextInterval);
+        }
       } catch (err) {
-        // Quietly ignore polling failures on network blip
+        if (isMounted) {
+          timerId = setTimeout(poll, 15000);
+        }
       }
     };
 
-    const interval = setInterval(poll, 2500);
+    poll();
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      clearTimeout(timerId);
     };
   }, [activeProject?.id]);
 
