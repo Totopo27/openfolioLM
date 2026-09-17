@@ -255,3 +255,95 @@ class ProjectManager:
                     return doc
 
         return None
+
+    def _get_shared_dir(self) -> str:
+        d = os.path.join(self.projects_root, "shared_conversations")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def save_shared_conversation(
+        self,
+        project_id: str,
+        title: Optional[str],
+        messages: list[Any],
+        project_name: str
+    ) -> dict[str, Any]:
+        share_id = f"share_{uuid.uuid4().hex[:12]}"
+        now = datetime.now(timezone.utc).isoformat()
+        clean_title = (title or "").strip()
+        if not clean_title and messages:
+            first_user_msg = next((m for m in messages if getattr(m, "sender", None) == "user" or (isinstance(m, dict) and m.get("sender") == "user")), None)
+            if first_user_msg:
+                t = getattr(first_user_msg, "text", None) or (first_user_msg.get("text") if isinstance(first_user_msg, dict) else "")
+                clean_title = t[:60].strip() + ("..." if len(t) > 60 else "")
+        if not clean_title:
+            clean_title = f"Conversación de {project_name}"
+
+        # Serialize messages
+        serialized_messages = []
+        source_ids = set()
+        for m in messages:
+            if hasattr(m, "model_dump"):
+                m_dict = m.model_dump()
+            elif isinstance(m, dict):
+                m_dict = m
+            else:
+                m_dict = dict(m)
+            if "created_at" in m_dict and isinstance(m_dict["created_at"], datetime):
+                m_dict["created_at"] = m_dict["created_at"].isoformat()
+            serialized_messages.append(m_dict)
+            for c in m_dict.get("citations", []):
+                if isinstance(c, dict) and c.get("source_id"):
+                    source_ids.add(c["source_id"])
+
+        snapshot = {
+            "share_id": share_id,
+            "project_id": project_id,
+            "project_name": project_name,
+            "title": clean_title,
+            "created_at": now,
+            "messages": serialized_messages,
+            "source_count": len(source_ids)
+        }
+
+        # 1. Save in standalone file for high-speed public access
+        file_path = os.path.join(self._get_shared_dir(), f"{share_id}.json")
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, indent=2, ensure_ascii=False)
+
+        # 2. Also persist in project's SQLite store
+        try:
+            store = self.get_store(project_id)
+            store.save_shared_conversation(
+                share_id=share_id,
+                project_id=project_id,
+                title=clean_title,
+                snapshot_json=json.dumps(snapshot, ensure_ascii=False),
+                created_at=now
+            )
+        except Exception:
+            pass
+
+        return snapshot
+
+    def get_shared_conversation(self, share_id: str) -> Optional[dict[str, Any]]:
+        # 1. Check standalone shared files
+        file_path = os.path.join(self._get_shared_dir(), f"{share_id}.json")
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
+        # 2. Fallback: check project stores
+        for proj in self.list_projects():
+            try:
+                store = self.get_store(proj.id)
+                found = store.get_shared_conversation(share_id)
+                if found:
+                    return found.get("snapshot")
+            except Exception:
+                continue
+
+        return None

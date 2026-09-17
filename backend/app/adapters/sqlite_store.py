@@ -105,6 +105,14 @@ class SQLiteDocumentStore(DocumentStorePort):
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS shared_conversations (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    snapshot_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
             """)
 
             # Dynamic migrations for existing databases
@@ -222,6 +230,42 @@ class SQLiteDocumentStore(DocumentStorePort):
             conn.execute("DELETE FROM chunks_fts WHERE source_id = ?", (source_id,))
             conn.execute("DELETE FROM dossiers WHERE source_id = ?", (source_id,))
             return cursor.rowcount > 0
+
+    def update_document_metadata(self, source_id: str, metadata_updates: dict) -> Optional[SourceDocument]:
+        doc = self.get_document(source_id)
+        if not doc:
+            return None
+        doc.metadata.update({k: v for k, v in metadata_updates.items() if v is not None})
+        with self._get_connection() as conn:
+            conn.execute(
+                "UPDATE documents SET metadata_json = ? WHERE id = ?",
+                (json.dumps(doc.metadata), source_id)
+            )
+        return doc
+
+    def get_project_taxonomy(self) -> dict:
+        categories_count: dict[str, int] = {}
+        tags_count: dict[str, int] = {}
+        docs = self.list_documents()
+        for d in docs:
+            cat = d.metadata.get("category")
+            if cat and str(cat).strip():
+                clean_cat = str(cat).strip()
+                categories_count[clean_cat] = categories_count.get(clean_cat, 0) + 1
+            raw_tags = d.metadata.get("tags") or []
+            if isinstance(raw_tags, list):
+                for t in raw_tags:
+                    if t and str(t).strip():
+                        cleaned_tag = str(t).strip()
+                        if not cleaned_tag.startswith("#"):
+                            cleaned_tag = f"#{cleaned_tag}"
+                        tags_count[cleaned_tag] = tags_count.get(cleaned_tag, 0) + 1
+        return {
+            "categories": [{"name": k, "count": v} for k, v in sorted(categories_count.items(), key=lambda x: -x[1])],
+            "tags": [{"name": k, "count": v} for k, v in sorted(tags_count.items(), key=lambda x: -x[1])],
+            "total_sources": len(docs)
+        }
+
 
     STOPWORDS = {
         "de", "la", "que", "el", "en", "y", "a", "los", "del", "se", "las", "por", "un", "para", "con", "no", "una",
@@ -378,6 +422,58 @@ class SQLiteDocumentStore(DocumentStorePort):
     def clear_messages(self, conversation_id: str = "default") -> None:
         with self._get_connection() as conn:
             conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+
+    def import_messages(self, messages: list[ChatMessageRecord]) -> int:
+        """Batch insert or replace chat messages into store."""
+        count = 0
+        with self._get_connection() as conn:
+            for message in messages:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO messages
+                    (id, conversation_id, sender, text, citations_json, evidence_found, active_sources_json, created_at, factual_score, hallucination_risk)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        message.id,
+                        message.conversation_id,
+                        message.sender,
+                        message.text,
+                        json.dumps([c.model_dump() for c in message.citations]),
+                        1 if message.evidence_found else (0 if message.evidence_found is False else None),
+                        json.dumps(message.active_sources_consulted),
+                        message.created_at.isoformat(),
+                        message.factual_score,
+                        message.hallucination_risk
+                    )
+                )
+                count += 1
+        return count
+
+    def save_shared_conversation(self, share_id: str, project_id: str, title: str, snapshot_json: str, created_at: Optional[str] = None) -> None:
+        c_at = created_at or datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO shared_conversations (id, project_id, title, snapshot_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (share_id, project_id, title, snapshot_json, c_at)
+            )
+
+    def get_shared_conversation(self, share_id: str) -> Optional[dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM shared_conversations WHERE id = ?", (share_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "id": row["id"],
+                "project_id": row["project_id"],
+                "title": row["title"],
+                "snapshot": json.loads(row["snapshot_json"]),
+                "created_at": row["created_at"]
+            }
 
     def count_messages(self) -> int:
         with self._get_connection() as conn:

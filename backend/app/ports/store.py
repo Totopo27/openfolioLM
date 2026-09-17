@@ -21,6 +21,14 @@ class DocumentStorePort(Protocol):
         """Delete a document and all its chunks."""
         ...
 
+    def update_document_metadata(self, source_id: str, metadata_updates: dict) -> Optional[SourceDocument]:
+        """Update arbitrary metadata for an existing document."""
+        ...
+
+    def get_project_taxonomy(self) -> dict:
+        """Aggregate categories and tags for documents in store."""
+        ...
+
     def search_chunks(
         self,
         query: str,
