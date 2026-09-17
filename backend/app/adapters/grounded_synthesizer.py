@@ -262,13 +262,22 @@ class GroundedSynthesizer(SynthesizerPort):
         client, model_override = self._parse_provider_and_model(query.provider)
         if client:
             try:
-                # Pass model_override if client supports it
-                if hasattr(client, "generate") and "model_override" in client.generate.__code__.co_varnames:
-                    raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt, model_override=model_override)
+                if hasattr(client, "generate"):
+                    if model_override:
+                        raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt, model_override=model_override)
+                    else:
+                        raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
+                elif callable(client):
+                    raw_answer = client(self.SYSTEM_PROMPT, user_prompt)
                 else:
+                    raw_answer = "The provided active documents do not contain information to answer this query."
+            except (TypeError, AttributeError):
+                if hasattr(client, "generate"):
                     raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
-            except TypeError:
-                raw_answer = client.generate(self.SYSTEM_PROMPT, user_prompt)
+                elif callable(client):
+                    raw_answer = client(self.SYSTEM_PROMPT, user_prompt)
+                else:
+                    raw_answer = "The provided active documents do not contain information to answer this query."
         else:
             raw_answer = "The provided active documents do not contain information to answer this query."
 

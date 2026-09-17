@@ -57,7 +57,15 @@ class CitationNetworkBuilder(NetworkBuilderPort):
             elif not isinstance(authors, list):
                 authors = []
 
-            year = meta.get("publication_year") or meta.get("year")
+            year_raw = meta.get("publication_year") or meta.get("year") or meta.get("year_or_era")
+            year = None
+            if year_raw is not None:
+                try:
+                    year = int(str(year_raw).strip())
+                except ValueError:
+                    m_year = re.search(r"\b(19\d{2}|20\d{2})\b", str(year_raw))
+                    if m_year:
+                        year = int(m_year.group(1))
             citations_count = meta.get("citations_count") or meta.get("cited_by_count") or 0
             doc_type = meta.get("doc_type") or "research_paper" if (meta.get("doi") or authors) else "general"
 

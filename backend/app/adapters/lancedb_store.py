@@ -66,6 +66,7 @@ class LanceDBVectorStore(VectorStorePort):
             pa.field("end_char", pa.int64()),
             pa.field("content", pa.string()),
             pa.field("token_estimate", pa.int64()),
+            pa.field("page_number", pa.int64(), nullable=True),
             pa.field("vector", pa.list_(pa.float32(), dim)),
         ])
 
@@ -94,6 +95,7 @@ class LanceDBVectorStore(VectorStorePort):
                 "end_char": c.end_char,
                 "content": c.content,
                 "token_estimate": c.token_estimate,
+                "page_number": c.page_number,
                 "vector": v
             }
             for c, v in zip(chunks, vectors_list)
@@ -192,6 +194,7 @@ class LanceDBVectorStore(VectorStorePort):
 
         output: list[tuple[DocumentChunk, float]] = []
         for row in results:
+            p_num = row.get("page_number")
             chunk = DocumentChunk(
                 id=row["chunk_id"],
                 source_id=row["source_id"],
@@ -199,7 +202,8 @@ class LanceDBVectorStore(VectorStorePort):
                 start_char=int(row["start_char"]),
                 end_char=int(row["end_char"]),
                 content=row["content"],
-                token_estimate=int(row["token_estimate"])
+                token_estimate=int(row["token_estimate"]),
+                page_number=int(p_num) if p_num is not None else None
             )
             distance = float(row.get("_distance", 0.0))
             output.append((chunk, distance))

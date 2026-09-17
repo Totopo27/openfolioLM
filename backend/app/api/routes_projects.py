@@ -527,6 +527,10 @@ def create_projects_router(
 
     @router.post("/{project_id}/chat", response_model=GroundedResponse)
     async def project_grounded_chat(project_id: str, query: GroundedQuery):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+
         store = project_manager.get_store(project_id)
         vector_store = project_manager.get_vector_store(project_id)
 

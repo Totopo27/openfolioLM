@@ -193,8 +193,15 @@ class OpenAICompatibleLLMClient:
 
                         if resp.status_code == 200:
                             data = resp.json()
-                            self.health_registry.record_success(mod, self.provider_name, latency_ms)
-                            return data["choices"][0]["message"]["content"]
+                            choices = data.get("choices") or []
+                            if choices:
+                                msg = choices[0].get("message") or {}
+                                content = msg.get("content")
+                                if content is not None:
+                                    self.health_registry.record_success(mod, self.provider_name, latency_ms)
+                                    return content
+                            last_error = f"Model {mod} returned empty choices or null content"
+                            break
 
                         # Handle 503 (High Demand) and 429 (Rate Limit) with backoff retry
                         if resp.status_code in (503, 429):

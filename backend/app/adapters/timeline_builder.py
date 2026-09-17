@@ -1,4 +1,4 @@
-﻿import re
+import re
 import logging
 from collections import defaultdict
 from typing import Optional
@@ -70,12 +70,17 @@ class TimelineBuilder(TimelineBuilderPort):
             title = meta.get("title") or doc.filename
             doc_title_map[doc.id] = title
 
-            # Extract year
-            year = meta.get("publication_year") or meta.get("year")
+            # Extract year safely
+            year_raw = meta.get("publication_year") or meta.get("year") or meta.get("year_or_era")
+            year = None
+            if year_raw is not None:
+                try:
+                    year = int(str(year_raw).strip())
+                except ValueError:
+                    year = _extract_year_from_text(str(year_raw))
             if not year:
                 year = _extract_year_from_text(doc.filename) or doc.created_at.year
-            year = int(year)
-            doc_year_map[doc.id] = year
+            doc_year_map[doc.id] = int(year)
 
         for doc in docs:
             meta = doc.metadata or {}

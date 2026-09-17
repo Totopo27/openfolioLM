@@ -810,7 +810,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                         )}
                         {Array.isArray(doc.metadata?.tags) && doc.metadata.tags.map((t: string) => (
                           <span key={t} className="px-1.5 py-0.2 text-[9px] rounded bg-slate-800 text-teal-300 border border-teal-500/20 font-mono">
-                            #{t}
+                            {t.startsWith('#') ? t : `#${t}`}
                           </span>
                         ))}
                       </div>
