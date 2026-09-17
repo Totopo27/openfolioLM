@@ -14,6 +14,7 @@ from app.ports.academic_resolver import AcademicResolverPort
 from app.adapters.docling_adapter import DoclingAdapter
 from app.adapters.markitdown_adapter import MarkItDownAdapter
 from app.adapters.academic_resolver import CompositeAcademicResolver
+from app.adapters.youtube_ingester import YouTubeIngester
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ DOCLING_EXTENSIONS = {".pdf", ".docx"}
 class HybridDocumentIngester(IngestionPort):
     """
     Composite ingester routing rich multi-column documents (PDF, DOCX) through IBM Docling,
-    academic DOIs through the Academic Resolver, and web URLs / code through MarkItDown.
+    academic DOIs through the Academic Resolver, YouTube videos through YouTubeIngester,
+    and web URLs / code through MarkItDown.
     """
 
     def __init__(
@@ -31,11 +33,13 @@ class HybridDocumentIngester(IngestionPort):
         docling_adapter: Optional[DoclingAdapter] = None,
         markitdown_adapter: Optional[MarkItDownAdapter] = None,
         academic_resolver: Optional[AcademicResolverPort] = None,
+        youtube_ingester: Optional[YouTubeIngester] = None,
         enable_docling: Optional[bool] = None
     ):
         self._markitdown = markitdown_adapter or MarkItDownAdapter()
         self._docling = docling_adapter or DoclingAdapter(fallback_ingester=self._markitdown)
         self._academic_resolver = academic_resolver or CompositeAcademicResolver()
+        self._youtube_ingester = youtube_ingester or YouTubeIngester()
         self.enable_docling = enable_docling if enable_docling is not None else settings.enable_docling
 
     def convert(
@@ -144,5 +148,17 @@ class HybridDocumentIngester(IngestionPort):
             except Exception as e:
                 logger.warning(f"Academic resolver failed for query '{url}': {e}. Falling back to standard URL scraper.")
 
-        # Tier 2: Standard Web Ingestion via MarkItDown
+        # Tier 2: Check if the input is a YouTube video / lecture URL
+        if self._youtube_ingester and self._youtube_ingester.is_youtube_url(url):
+            try:
+                return self._youtube_ingester.ingest(
+                    url=url,
+                    source_id=source_id,
+                    title_override=title_override
+                )
+            except Exception as yt_err:
+                logger.error(f"YouTube ingestion failed for '{url}': {yt_err}")
+                raise yt_err
+
+        # Tier 3: Standard Web Ingestion via MarkItDown
         return self._markitdown.ingest_url(url, source_id=source_id, title_override=title_override)

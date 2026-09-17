@@ -29,6 +29,12 @@ import { SourceDocument } from '../types';
 import { LiteratureDiscoveryModal } from './LiteratureDiscoveryModal';
 import { autoclassifyAllSources } from '../services/api';
 
+export const YouTubeIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+  </svg>
+);
+
 interface SourceManagerProps {
   projectId?: string;
   sources: SourceDocument[];
@@ -354,8 +360,8 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   <Globe className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <div className="font-medium text-slate-200">Enlace Web / DOI</div>
-                  <div className="text-[10px] text-slate-400">Páginas web, Wikipedia, papers DOI</div>
+                  <div className="font-medium text-slate-200">Enlace Web / DOI / YouTube</div>
+                  <div className="text-[10px] text-slate-400">Páginas web, papers DOI, charlas YouTube</div>
                 </div>
               </button>
             )}
@@ -781,7 +787,9 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                     </button>
 
                     <div className="shrink-0">
-                      {doc.metadata?.doi ? (
+                      {doc.metadata?.is_youtube ? (
+                        <YouTubeIcon className="w-4 h-4 text-red-500" />
+                      ) : doc.metadata?.doi ? (
                         <BookOpen className="w-4 h-4 text-emerald-400" />
                       ) : doc.metadata?.is_repo ? (
                         <Package className="w-4 h-4 text-cyan-400" />
@@ -890,7 +898,11 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   )}
                 </button>
 
-                {doc.metadata?.doi ? (
+                {doc.metadata?.is_youtube ? (
+                  <span title={`Video de YouTube${doc.metadata.channel ? ` (${doc.metadata.channel})` : ''}`} className="flex items-center shrink-0">
+                    <YouTubeIcon className="w-3.5 h-3.5 text-red-500" />
+                  </span>
+                ) : doc.metadata?.doi ? (
                   <span title={`Artículo Científico (DOI: ${doc.metadata.doi})`} className="flex items-center shrink-0">
                     <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
                   </span>
@@ -983,21 +995,29 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         </div>
       )}
 
-
-      {/* Add Web URL / Academic DOI Modal */}
+      {/* Add Web URL / Academic DOI / YouTube Modal */}
       {isUrlModalOpen && (() => {
         const isDoi = /10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+/i.test(urlInput);
+        const isYouTube = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/i.test(urlInput.trim());
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                  {isDoi ? (
+                  {isYouTube ? (
+                    <YouTubeIcon className="w-4 h-4 text-red-500" />
+                  ) : isDoi ? (
                     <BookOpen className="w-4 h-4 text-emerald-400" />
                   ) : (
                     <Globe className="w-4 h-4 text-indigo-400" />
                   )}
-                  <span>{isDoi ? 'Resolver e Indexar Artículo por DOI' : 'Agregar Fuente desde Enlace Web o DOI'}</span>
+                  <span>
+                    {isYouTube
+                      ? 'Transcribir e Indexar Video de YouTube'
+                      : isDoi
+                      ? 'Resolver e Indexar Artículo por DOI'
+                      : 'Agregar Fuente desde Enlace Web, DOI o YouTube'}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -1011,11 +1031,17 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
               <form onSubmit={handleUrlSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    {isDoi ? 'Identificador DOI Académico' : 'URL de la Página Web o Identificador DOI'}{' '}
+                    {isYouTube
+                      ? 'Enlace del Video de YouTube'
+                      : isDoi
+                      ? 'Identificador DOI Académico'
+                      : 'URL de la Página Web, DOI o YouTube'}{' '}
                     <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
-                    {isDoi ? (
+                    {isYouTube ? (
+                      <YouTubeIcon className="w-4 h-4 text-red-500 absolute left-3 top-3" />
+                    ) : isDoi ? (
                       <BookOpen className="w-4 h-4 text-emerald-500 absolute left-3 top-3" />
                     ) : (
                       <Link2 className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
@@ -1024,25 +1050,36 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                       type="text"
                       required
                       autoFocus
-                      placeholder="https://... o DOI (ej: 10.1353/pnm.2010.0009)"
+                      placeholder={
+                        isYouTube
+                          ? 'https://www.youtube.com/watch?v=... o youtu.be/...'
+                          : 'https://... o DOI (ej: 10.1353/pnm.2010.0009)'
+                      }
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
                       disabled={isIngestingUrl}
                       className={`w-full bg-slate-950 border rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition-all disabled:opacity-50 ${
-                        isDoi
+                        isYouTube
+                          ? 'border-red-500/50 focus:ring-2 focus:ring-red-500'
+                          : isDoi
                           ? 'border-emerald-500/50 focus:ring-2 focus:ring-emerald-500'
                           : 'border-slate-800 focus:ring-2 focus:ring-indigo-500'
                       }`}
                     />
                   </div>
-                  {isDoi ? (
+                  {isYouTube ? (
+                    <p className="mt-1.5 text-[11px] text-red-400/90 flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                      Video de YouTube detectado: Se transcribirán charlas y clases con marcas de tiempo (timestamps) para citación y reproducción sincronizada.
+                    </p>
+                  ) : isDoi ? (
                     <p className="mt-1.5 text-[11px] text-emerald-400/90 flex items-center gap-1.5">
                       <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                       DOI Académico detectado: Se resolverán metadatos y enlaces Open Access vía OpenAlex, Europe PMC y CrossRef.
                     </p>
                   ) : (
                     <p className="mt-1.5 text-[10px] text-slate-500">
-                      Podés ingresar una URL web o un identificador DOI (ej. <code className="text-slate-400">10.1353/pnm.2010.0009</code>).
+                      Podés ingresar una URL web, un video de YouTube o un DOI académico (ej. <code className="text-slate-400">10.1353/pnm.2010.0009</code>).
                     </p>
                   )}
                 </div>
@@ -1080,7 +1117,9 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                     type="submit"
                     disabled={!urlInput.trim() || isIngestingUrl}
                     className={`flex items-center gap-1.5 px-4 py-2 text-white text-xs font-semibold rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50 ${
-                      isDoi
+                      isYouTube
+                        ? 'bg-red-600 hover:bg-red-500 shadow-red-900/30'
+                        : isDoi
                         ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/30'
                         : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/30'
                     }`}
@@ -1088,16 +1127,18 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                     {isIngestingUrl ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />{' '}
-                        {isDoi ? 'Resolviendo Paper...' : 'Descargando y Extrayendo...'}
+                        {isYouTube
+                          ? 'Transcribiendo Video...'
+                          : isDoi
+                          ? 'Resolviendo Paper...'
+                          : 'Descargando y Extrayendo...'}
                       </>
+                    ) : isYouTube ? (
+                      'Transcribir e Indexar Video'
                     ) : isDoi ? (
-                      <>
-                        <BookOpen className="w-3.5 h-3.5" /> Resolver e Indexar Paper
-                      </>
+                      'Resolver Paper DOI'
                     ) : (
-                      <>
-                        <Globe className="w-3.5 h-3.5" /> Extraer e Indexar
-                      </>
+                      'Agregar Fuente'
                     )}
                   </button>
                 </div>

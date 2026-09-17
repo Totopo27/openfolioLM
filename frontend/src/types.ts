@@ -18,6 +18,13 @@ export interface SourceMetadata {
   source_url?: string;
   is_code?: boolean;
   is_repo?: boolean;
+  is_youtube?: boolean;
+  video_id?: string;
+  video_url?: string;
+  channel?: string;
+  channel_url?: string;
+  thumbnail_url?: string;
+  duration_seconds?: number;
   [key: string]: any;
 }
 
