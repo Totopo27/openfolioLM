@@ -63,6 +63,7 @@ export function uploadProjectSource(
     formData.append('file', file);
 
     xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload`);
+    xhr.timeout = 0; // Allow sufficient time for deep OCR, VLM transcriptions and LanceDB embedding
 
     // Byte transfer phase: represents 0% to 30% of total ingestion
     xhr.upload.onprogress = (event) => {
@@ -524,6 +525,21 @@ export async function importProjectChat(
 export async function exportProjectChat(projectId: string): Promise<any> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/chat/export`);
   if (!res.ok) throw new Error('Failed to export chat');
+  return res.json();
+}
+
+export interface SystemLogsResponse {
+  lines: string[];
+  log_file: string;
+  total_lines?: number;
+  status?: string;
+}
+
+export async function fetchSystemLogs(lines: number = 200): Promise<SystemLogsResponse> {
+  const res = await fetch(`${API_BASE}/system/logs?lines=${lines}`);
+  if (!res.ok) {
+    throw new Error('Error al obtener los logs del servidor');
+  }
   return res.json();
 }
 

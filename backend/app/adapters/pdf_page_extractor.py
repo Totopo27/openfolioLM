@@ -208,6 +208,7 @@ class PageAwarePDFExtractor:
 
                                     if should_transcribe:
                                         try:
+                                            logger.info("Transcribiendo figura técnica %d de la página %d con VLM...", fig_counter, physical_num)
                                             img_bytes_io = io.BytesIO()
                                             cropped.save(img_bytes_io, format="PNG")
                                             transcription = self.vision_transcriber.transcribe(
@@ -216,7 +217,10 @@ class PageAwarePDFExtractor:
                                                 figure_index=fig_counter
                                             )
                                             if transcription:
+                                                logger.info("Figura técnica de pág. %d transcrita con éxito (%d caracteres)", physical_num, len(transcription))
                                                 fig_md += f"\n> **[Análisis Visual de Figura - Pág. {physical_num}]**:\n> {transcription}\n"
+                                            else:
+                                                logger.warning("VLM no devolvió texto estructurado para la figura de pág. %d", physical_num)
                                             vlm_figures_processed += 1
                                         except Exception as vlm_err:
                                             logger.warning("VLM transcription error on page %d: %s", physical_num, vlm_err)

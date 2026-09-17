@@ -128,7 +128,20 @@ class LanceDBVectorStore(VectorStorePort):
                 schema = self._get_schema(dim)
                 db.create_table("chunks", schema=schema, data=records)
             else:
-                tbl.add(records)
+                existing_fields = set(tbl.schema.names)
+                if "page_number" not in existing_fields:
+                    try:
+                        logger.info("Migrating LanceDB table 'chunks': adding missing column 'page_number'")
+                        tbl.add_columns({"page_number": "cast(null as bigint)"})
+                        existing_fields = set(tbl.schema.names)
+                    except Exception as col_err:
+                        logger.warning("Could not add 'page_number' column to 'chunks': %s", col_err)
+
+                safe_records = [
+                    {k: v for k, v in r.items() if k in existing_fields}
+                    for r in records
+                ]
+                tbl.add(safe_records)
 
     def delete_document_chunks(self, source_id: str) -> None:
         db = self._get_db()

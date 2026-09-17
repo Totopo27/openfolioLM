@@ -177,3 +177,53 @@ def test_e5_prefix_formatting(tmp_vector_dir):
     # Should not duplicate prefix
     assert store._format_text("query: ya tiene prefijo", is_query=True) == "query: ya tiene prefijo"
 
+
+def test_schema_evolution_page_number(tmp_vector_dir):
+    import pyarrow as pa
+    import lancedb
+
+    # Manually create table with old schema (no page_number)
+    db = lancedb.connect(tmp_vector_dir)
+    old_schema = pa.schema([
+        pa.field("chunk_id", pa.string()),
+        pa.field("source_id", pa.string()),
+        pa.field("heading_hierarchy_json", pa.string()),
+        pa.field("start_char", pa.int64()),
+        pa.field("end_char", pa.int64()),
+        pa.field("content", pa.string()),
+        pa.field("token_estimate", pa.int64()),
+        pa.field("vector", pa.list_(pa.float32(), 4)),
+    ])
+    initial_data = [{
+        "chunk_id": "old_1",
+        "source_id": "doc_old",
+        "heading_hierarchy_json": "[]",
+        "start_char": 0,
+        "end_char": 10,
+        "content": "Python old",
+        "token_estimate": 2,
+        "vector": [1.0, 0.0, 0.0, 0.0]
+    }]
+    db.create_table("chunks", schema=old_schema, data=initial_data)
+
+    store = LanceDBVectorStore(db_dir=tmp_vector_dir, embedding_model=MockEmbeddingModel())
+    new_chunk = DocumentChunk(
+        id="new_1",
+        source_id="doc_new",
+        heading_hierarchy=["# Page 5"],
+        start_char=100,
+        end_char=200,
+        content="Python new content",
+        token_estimate=5,
+        page_number=5,
+    )
+
+    # This should seamlessly evolve schema and not crash
+    store.add_chunks([new_chunk])
+
+    res = store.search_vectors("Python", active_source_ids=["doc_new"])
+    assert len(res) == 1
+    assert res[0][0].id == "new_1"
+    assert res[0][0].page_number == 5
+
+

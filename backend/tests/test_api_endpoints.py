@@ -83,3 +83,12 @@ def test_grounded_chat_flow(client):
     chat_data_empty = chat_res_empty.json()
     assert chat_data_empty["evidence_found"] is False
     assert len(chat_data_empty["citations"]) == 0
+
+
+def test_system_logs_endpoint(client):
+    res = client.get("/api/system/logs?lines=50")
+    assert res.status_code == 200
+    data = res.json()
+    assert "lines" in data
+    assert "log_file" in data
+    assert isinstance(data["lines"], list)

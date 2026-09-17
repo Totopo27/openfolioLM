@@ -58,6 +58,7 @@ interface SourceManagerProps {
   onNavigateToChat?: () => void;
   uploadTasks?: ActiveUploadTask[];
   onDismissUploadTask?: (taskId: string) => void;
+  onOpenLogs?: () => void;
 }
 
 export const SourceManager: React.FC<SourceManagerProps> = ({
@@ -82,6 +83,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onNavigateToChat,
   uploadTasks = [],
   onDismissUploadTask,
+  onOpenLogs,
 }) => {
   const isUploading = uploadTasks.some((t) => t.stage === 'uploading' || t.stage === 'processing');
   const activeUploadTask = uploadTasks.find((t) => t.stage === 'uploading' || t.stage === 'processing');
@@ -810,14 +812,38 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   </p>
                 </div>
               </div>
-              {task.stage === 'error' && onDismissUploadTask && (
+              {task.stage === 'error' && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {onOpenLogs && (
+                    <button
+                      type="button"
+                      onClick={onOpenLogs}
+                      className="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 text-[10px] font-medium transition cursor-pointer"
+                      title="Ver diagnóstico y logs del servidor"
+                    >
+                      Ver Logs
+                    </button>
+                  )}
+                  {onDismissUploadTask && (
+                    <button
+                      type="button"
+                      onClick={() => onDismissUploadTask(task.id)}
+                      className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition cursor-pointer"
+                      title="Descartar aviso de error"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {task.stage === 'processing' && onOpenLogs && (
                 <button
                   type="button"
-                  onClick={() => onDismissUploadTask(task.id)}
-                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition cursor-pointer"
-                  title="Descartar aviso de error"
+                  onClick={onOpenLogs}
+                  className="px-2 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 text-[10px] font-medium transition cursor-pointer shrink-0"
+                  title="Ver logs de extracción en vivo"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  Ver Logs
                 </button>
               )}
             </div>

@@ -12,6 +12,7 @@ import {
   Share2,
   History,
   Activity,
+  Terminal,
 } from 'lucide-react';
 import {
   SourceDocument,
@@ -47,6 +48,7 @@ import { TimelineViewer } from './components/TimelineViewer';
 import { LiteratureDiscoveryModal } from './components/LiteratureDiscoveryModal';
 import { SharedConversationView } from './components/SharedConversationView';
 import { ResizableSplitter } from './components/ResizableSplitter';
+import { SystemLogsModal } from './components/SystemLogsModal';
 
 export const App: React.FC = () => {
   // Public shared conversation viewer (?share=share_xxxx)
@@ -102,6 +104,7 @@ export const App: React.FC = () => {
   } | null>(null);
   const [targetNoteId, setTargetNoteId] = useState<string | null>(null);
   const [targetMessageId, setTargetMessageId] = useState<string | null>(null);
+  const [isLogsModalOpen, setIsLogsModalOpen] = useState<boolean>(false);
 
   const handleSaveToNotebook = async (
     text: string,
@@ -313,18 +316,25 @@ export const App: React.FC = () => {
     const startProcessingTicker = () => {
       if (tickerInterval) return;
       let current = 32;
+      const fileSizeMB = file.size / (1024 * 1024);
+      // Pacing: larger documents take longer for layout parsing, VLM figures and dense embeddings
+      const targetDurationMs = Math.max(15000, Math.min(240000, fileSizeMB * 3000));
+      const stepIntervalMs = Math.max(800, Math.round(targetDurationMs / 60));
+
       tickerInterval = setInterval(() => {
-        if (current < 95) {
-          current += Math.floor(Math.random() * 2) + 1;
-          if (current > 95) current = 95;
+        if (current < 97) {
+          // Progressively decelerate as it nears completion
+          const increment = current < 80 ? 1 : Math.random() > 0.4 ? 1 : 0;
+          current += increment;
+          if (current > 97) current = 97;
 
           let stepDesc = 'Extrayendo páginas y tablas...';
-          if (current >= 50 && current < 72) {
-            stepDesc = 'Analizando esquemas y figuras visuales...';
-          } else if (current >= 72 && current < 88) {
+          if (current >= 45 && current < 70) {
+            stepDesc = 'Analizando esquemas y figuras visuales con IA...';
+          } else if (current >= 70 && current < 88) {
             stepDesc = 'Generando embeddings semánticos...';
           } else if (current >= 88) {
-            stepDesc = 'Indexando vectores y base de conocimiento...';
+            stepDesc = 'Indexando vectores y base de conocimiento (casi listo)...';
           }
 
           setUploadTasks((prev) =>
@@ -339,7 +349,7 @@ export const App: React.FC = () => {
             )
           );
         }
-      }, 900);
+      }, stepIntervalMs);
     };
 
     try {
@@ -789,6 +799,17 @@ export const App: React.FC = () => {
             <Layers className="w-3.5 h-3.5 text-indigo-400" />
             Hexagonal Core
           </span>
+
+          {/* Server Logs Console Button */}
+          <button
+            type="button"
+            onClick={() => setIsLogsModalOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 transition-all text-xs font-medium cursor-pointer shadow-sm shrink-0"
+            title="Abrir consola de logs en tiempo real del servidor (openfolio.log)"
+          >
+            <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">Logs</span>
+          </button>
         </div>
       </header>
 
@@ -988,6 +1009,7 @@ export const App: React.FC = () => {
               onNavigateToChat={() => setRightPaneMode('chat')}
               uploadTasks={uploadTasks}
               onDismissUploadTask={handleDismissUploadTask}
+              onOpenLogs={() => setIsLogsModalOpen(true)}
             />
           </div>
 
@@ -1147,6 +1169,11 @@ export const App: React.FC = () => {
           onSourcesAdded={handleSourcesAdded}
         />
       )}
+      {/* Real-time System Diagnostics & Logs Modal */}
+      <SystemLogsModal
+        isOpen={isLogsModalOpen}
+        onClose={() => setIsLogsModalOpen(false)}
+      />
     </div>
   );
 };

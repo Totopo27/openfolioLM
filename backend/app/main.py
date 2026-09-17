@@ -30,6 +30,7 @@ from app.adapters.project_manager import InvalidProjectIdError, ProjectManager
 from app.api.routes_sources import create_sources_router
 from app.api.routes_chat import create_chat_router
 from app.api.routes_projects import create_projects_router
+from app.core.logging_config import setup_logging
 
 
 DEFAULT_CORS_ORIGINS = (
@@ -63,6 +64,7 @@ def create_app(
     fact_checker: Optional[FactCheckerPort] = None,
     academic_resolver: Optional[AcademicResolverPort] = None,
 ) -> FastAPI:
+    setup_logging()
     app = FastAPI(
         title="OpenFolioLM API",
         description="High-Precision Grounded Document Analysis & Research Assistant",
@@ -315,6 +317,33 @@ def create_app(
             raise HTTPException(status_code=400, detail=f"Provider '{prov}' does not support pinging")
         rec = client.ping(m_name)
         return rec.to_dict()
+
+    @app.get("/api/system/logs")
+    async def get_system_logs(lines: int = 150):
+        """Returns the latest N lines of server logs for diagnostic inspection."""
+        log_path = os.path.join(settings.data_dir, "openfolio.log")
+        if not os.path.exists(log_path):
+            return {
+                "lines": [],
+                "log_file": os.path.abspath(log_path),
+                "total_lines": 0,
+                "status": "No log file found yet",
+            }
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                all_lines = f.readlines()
+                tail = all_lines[-lines:]
+                return {
+                    "lines": [line.rstrip("\r\n") for line in tail],
+                    "log_file": os.path.abspath(log_path),
+                    "total_lines": len(all_lines),
+                }
+        except Exception as e:
+            return {
+                "lines": [f"Error al leer archivo de logs: {e}"],
+                "log_file": os.path.abspath(log_path),
+                "total_lines": 0,
+            }
 
     return app
 

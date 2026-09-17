@@ -215,10 +215,12 @@ def create_projects_router(
         await _save_upload_with_limit(file, file_path)
 
         def _process_and_persist():
+            logger.info("Iniciando procesamiento e indexación para '%s' en proyecto '%s'", filename, project_id)
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
 
             if active_repo_ingester.is_code_or_repo(filename):
+                logger.info("Detectado código o repositorio para '%s'", filename)
                 with open(file_path, "rb") as f_in:
                     file_bytes = f_in.read()
 
@@ -229,10 +231,14 @@ def create_projects_router(
 
                 chunks = active_code_chunker.chunk(doc)
             else:
+                logger.info("Extrayendo texto, tablas y diagramas para '%s'...", filename)
                 doc = ingester.convert(file_path=file_path, filename=filename)
+                logger.info("Documento '%s' convertido (%d caracteres). Generando chunks...", filename, doc.char_count)
                 chunks = chunker.chunk(doc)
 
+            logger.info("Persistiendo '%s' (%d chunks) en SQLite y generando embeddings en LanceDB...", filename, len(chunks))
             _persist_document_with_rollback(store, vector_store, doc, chunks)
+            logger.info("¡Documento '%s' indexado exitosamente! (id=%s)", filename, doc.id)
             return doc
 
         try:
