@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # Gemini settings
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
     # Ollama settings
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -43,6 +43,9 @@ class Settings(BaseSettings):
 
     # Document Layout & Table Parser (IBM Docling) settings
     enable_docling: bool = os.getenv("ENABLE_DOCLING", "true").lower() in ("true", "1", "yes")
+
+    # Upload size limit in MB (0 = unlimited for large books, treatises, and scans)
+    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "0"))
 
     @property
     def effective_llm_base_url(self) -> str:
