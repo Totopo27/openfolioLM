@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -135,11 +135,16 @@ class URLIngestRequest(BaseModel):
 
 
 class ModelEngine(BaseModel):
-    id: str = Field(..., description="Unique engine identifier, e.g. 'gemini:gemini-3.5-flash' or 'ollama:qwen2.5:3b'")
+    id: str = Field(..., description="Unique engine identifier, e.g. 'gemini:gemini-2.5-flash' or 'ollama:qwen2.5:3b'")
     provider: str = Field(..., description="'gemini' or 'ollama'")
     model: str = Field(..., description="Underlying model name")
     name: str = Field(..., description="Human-friendly display name")
     is_available: bool = Field(default=True, description="Whether endpoint responded successfully")
+    status: Literal["healthy", "high_demand", "offline", "unknown"] = Field(
+        default="healthy", description="Operational health status: healthy, high_demand, offline, or unknown"
+    )
+    latency_ms: Optional[int] = Field(default=None, description="Recent round-trip latency in ms")
+    last_error: Optional[str] = Field(default=None, description="Recent diagnostic or error description")
 
 
 class ModelsListResponse(BaseModel):
@@ -230,3 +235,50 @@ class ProjectNoteUpdate(BaseModel):
     tags: Optional[list[str]] = None
     origin_prompt: Optional[str] = None
     source_message_id: Optional[str] = None
+
+
+class DocumentMetadataUpdate(BaseModel):
+    """Payload to update a source document's metadata (category, tags, author, etc.)."""
+    category: Optional[str] = Field(default=None, description="Primary thematic category")
+    tags: Optional[list[str]] = Field(default=None, description="List of semantic tags")
+    author: Optional[str] = Field(default=None, description="Author or creator")
+    year_or_era: Optional[str] = Field(default=None, description="Publication year, era or trend")
+    summary: Optional[str] = Field(default=None, description="Concise thematic summary")
+
+
+class TaxonomyClassificationResult(BaseModel):
+    """LLM taxonomy and categorization output for a document."""
+    category: str = Field(..., description="Suggested thematic category")
+    tags: list[str] = Field(default_factory=list, description="Extracted semantic tags with #")
+    author: Optional[str] = Field(default=None, description="Identified author or creator")
+    year_or_era: Optional[str] = Field(default=None, description="Identified era, year, or historical trend")
+    thematic_summary: Optional[str] = Field(default=None, description="One-sentence thematic focus")
+    confidence: float = Field(default=0.9, ge=0.0, le=1.0)
+
+
+class ProjectTaxonomySummary(BaseModel):
+    """Aggregated categories and tags with document frequencies for a project."""
+    categories: list[dict[str, Any]] = Field(default_factory=list, description="List of {name, count}")
+    tags: list[dict[str, Any]] = Field(default_factory=list, description="List of {name, count}")
+    total_sources: int = Field(default=0)
+
+
+class SharedConversationSnapshot(BaseModel):
+    """Self-contained snapshot of a project chat conversation for sharing or importing."""
+    share_id: str = Field(..., description="Unique share identifier")
+    project_id: str = Field(..., description="Source project identifier")
+    project_name: str = Field(..., description="Source project name")
+    title: str = Field(..., description="Conversation title or summary")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    messages: list[ChatMessageRecord] = Field(default_factory=list, description="List of messages with citations and evidence")
+    source_count: int = Field(default=0, description="Number of distinct sources referenced")
+
+
+class ShareConversationRequest(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=200, description="Optional custom title for the shared conversation")
+
+
+class ImportConversationRequest(BaseModel):
+    messages: list[dict[str, Any]] = Field(..., description="List of chat message dictionaries to import")
+    conversation_id: str = Field(default="default", description="Target conversation ID")
+

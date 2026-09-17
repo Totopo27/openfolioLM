@@ -9,6 +9,7 @@ from app.core.models import (
     DocumentTypeEnum,
     ThematicModule,
     StudyGuide,
+    TaxonomyClassificationResult,
 )
 from app.ports.document_analyzer import DocumentAnalyzerPort
 
@@ -165,3 +166,99 @@ class StructuredDocumentAnalyzer(DocumentAnalyzerPort):
                 verdict="Se sugiere revisar la obra mediante consultas directas en el chat.",
                 confidence_score=0.3
             )
+
+    def classify_document_taxonomy(
+        self,
+        document: SourceDocument,
+        chunks: list[DocumentChunk],
+        existing_categories: Optional[list[str]] = None,
+        provider: Optional[str] = None
+    ) -> TaxonomyClassificationResult:
+        """
+        Extracts ontological categorization, tags, author, and essence for a source document using LLM.
+        Reuses existing project categories when appropriate to avoid ontology fragmentation.
+        """
+        rep_chunks = self._select_representative_chunks(chunks)
+        if not rep_chunks and document.raw_markdown:
+            content_sample = document.raw_markdown[:3000]
+        else:
+            content_sample = "\n\n---\n\n".join(
+                f"[Fragmento {i+1}]\n{c.content}" for i, c in enumerate(rep_chunks)
+            )
+
+        categories_hint = ""
+        if existing_categories:
+            clean_cats = [c for c in existing_categories if c and str(c).strip()]
+            if clean_cats:
+                categories_hint = (
+                    "\n\nCATEGORÍAS YA EXISTENTES EN EL PROYECTO (si alguna es adecuada, reutilízala para mantener consistencia):\n- "
+                    + "\n- ".join(clean_cats)
+                )
+
+        user_prompt = (
+            f"DOCUMENTO: {document.filename}\n{categories_hint}\n\n"
+            f"CONTENIDO DE LA OBRA:\n{content_sample}\n\n"
+            f"Genera la clasificación taxonómica en JSON:"
+        )
+
+        client = self._get_client(provider)
+        try:
+            raw = client.generate(
+                system_prompt=TAXONOMY_SYSTEM_PROMPT,
+                user_prompt=user_prompt
+            )
+            cleaned = self._clean_json_str(raw)
+            data = json.loads(cleaned)
+
+            category = str(data.get("category", "General")).strip() or "General"
+            raw_tags = data.get("tags", [])
+            cleaned_tags = []
+            if isinstance(raw_tags, list):
+                for t in raw_tags:
+                    if t and str(t).strip():
+                        tag_str = str(t).strip()
+                        if not tag_str.startswith("#"):
+                            tag_str = f"#{tag_str}"
+                        cleaned_tags.append(tag_str)
+
+            return TaxonomyClassificationResult(
+                category=category,
+                tags=cleaned_tags or ["#General"],
+                author=data.get("author") or document.metadata.get("author"),
+                year_or_era=data.get("year_or_era"),
+                thematic_summary=data.get("thematic_summary"),
+                confidence=float(data.get("confidence", 0.9))
+            )
+        except Exception:
+            # Fallback heuristic
+            fallback_category = "Código & Software" if (document.metadata.get("is_code") or document.metadata.get("is_repo")) else "General"
+            return TaxonomyClassificationResult(
+                category=fallback_category,
+                tags=["#Documento", f"#{document.filename.split('.')[-1].upper()}"],
+                author=document.metadata.get("author"),
+                thematic_summary=f"Obra: {document.filename}",
+                confidence=0.4
+            )
+
+
+TAXONOMY_SYSTEM_PROMPT = """Eres un Especialista Senior en Ontología, Curaduría Científica y Taxonomía del Conocimiento (OpenFolioLM).
+Tu tarea es examinar la obra o documento proporcionado (libro, artículo, monografía, manual o código) y definir su clasificación taxonómica y ontológica en el proyecto.
+
+Debes extraer:
+1. "category": Categoría principal concisa (2 a 4 palabras, ej. "Hardware & Eurorack", "Teoría & Afinación", "Historia & Pioneros", "Ciencia Cognitiva", "Algoritmos & Código", etc.).
+2. "tags": Lista de 3 a 6 etiquetas conceptuales, metodológicas o de autor clave. Cada etiqueta DEBE iniciar con '#' (ej. ["#Eurorack", "#Microtonal", "#Síntesis-Modular"]).
+3. "author": Autor principal, compositor, investigador o entidad responsable (o null si no es evidente).
+4. "year_or_era": Año de publicación, época o tendencia histórica (ej. "Años 70", "Pioneros siglo XX", "Contemporáneo", o null).
+5. "thematic_summary": Breve síntesis de una frase (máx 150 caracteres) que defina la tesis o foco central de la obra.
+
+Responde ÚNICAMENTE con un JSON válido con este formato:
+{
+  "category": "Nombre de la Categoría",
+  "tags": ["#tag1", "#tag2", "#tag3"],
+  "author": "Nombre del autor o entidad",
+  "year_or_era": "Época o año",
+  "thematic_summary": "Resumen conceptual de una frase",
+  "confidence": 0.95
+}
+"""
+
