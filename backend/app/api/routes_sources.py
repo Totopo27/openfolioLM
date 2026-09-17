@@ -1,8 +1,8 @@
 import os
-import shutil
 import tempfile
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.core.models import SourceDocument
+from app.api.upload_utils import save_upload_with_limit
 from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
 from app.ports.store import DocumentStorePort
@@ -19,10 +19,10 @@ def create_sources_router(
     async def upload_source(file: UploadFile = File(...)):
         suffix = os.path.splitext(file.filename)[1] if file.filename else ".tmp"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            shutil.copyfileobj(file.file, temp_file)
             temp_path = temp_file.name
 
         try:
+            await save_upload_with_limit(file, temp_path)
             doc = ingester.convert(file_path=temp_path, filename=file.filename or "uploaded_file")
             chunks = chunker.chunk(doc)
             store.add_document(doc, chunks)

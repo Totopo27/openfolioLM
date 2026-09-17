@@ -64,6 +64,21 @@ def test_mock_fact_checker_conformance():
     assert res_bad.hallucination_risk == "high"
 
 
+def test_fact_checker_reports_unavailable_without_fabricated_score(monkeypatch):
+    checker = NLIFactChecker()
+    monkeypatch.setattr(checker, "_ensure_loaded", lambda: False)
+
+    result = checker.audit(
+        [_make_chunk("An unrelated premise used for the audit.")],
+        "A sufficiently long unsupported factual assertion.",
+    )
+
+    assert result.audit_status == "unavailable"
+    assert result.factual_score is None
+    assert result.hallucination_risk is None
+    assert result.claims_audited == 0
+
+
 def test_real_nli_fact_checker_spanish():
     """Real ONNX multilingual NLI evaluation on Spanish premises and hypotheses."""
     checker = NLIFactChecker()

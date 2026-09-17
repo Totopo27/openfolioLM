@@ -14,6 +14,7 @@ from app.adapters.academic_resolver import (
     reconstruct_abstract,
 )
 from app.adapters.hybrid_ingester import HybridDocumentIngester
+from app.adapters.markitdown_adapter import MarkItDownAdapter, UnsafeURLError
 from app.adapters.project_manager import ProjectManager
 from app.core.models import SourceDocument
 
@@ -166,10 +167,18 @@ def test_hybrid_ingester_oa_routes_to_docling():
 
     mock_pdf_resp = MagicMock()
     mock_pdf_resp.status_code = 200
-    mock_pdf_resp.content = b"%PDF-1.4 mock binary content" * 100
+    pdf_bytes = b"%PDF-1.4 mock binary content" * 100
     mock_pdf_resp.raise_for_status = MagicMock()
+    mock_pdf_resp.headers = {"content-length": str(len(pdf_bytes))}
+    mock_pdf_resp.iter_bytes.return_value = [pdf_bytes]
+    mock_pdf_resp.url = "https://journals.plos.org/plosone/article/file?id=test&type=printable"
+    mock_stream = MagicMock()
+    mock_stream.__enter__.return_value = mock_pdf_resp
 
-    with patch("httpx.Client.get", return_value=mock_pdf_resp):
+    with (
+        patch.object(MarkItDownAdapter, "_validate_public_url"),
+        patch("httpx.Client.stream", return_value=mock_stream),
+    ):
         doc = ingester.ingest_url("10.1371/journal.pone.0246282")
 
         assert doc.metadata["doi"] == "10.1371/journal.pone.0246282"
@@ -177,6 +186,57 @@ def test_hybrid_ingester_oa_routes_to_docling():
         assert "Deep parsed tables and text from Docling" in doc.raw_markdown
         assert "# PLOS ONE Water Startups" in doc.raw_markdown
         assert mock_docling.convert.called
+
+
+def test_hybrid_ingester_rejects_private_academic_pdf_url():
+    ingester = HybridDocumentIngester()
+
+    with patch("httpx.Client.stream") as mock_stream:
+        with pytest.raises(UnsafeURLError):
+            ingester._download_public_pdf("http://127.0.0.1/private.pdf", {})
+
+    mock_stream.assert_not_called()
+
+
+def test_hybrid_ingester_validates_academic_pdf_redirects():
+    ingester = HybridDocumentIngester()
+    redirect_response = MagicMock()
+    redirect_response.status_code = 302
+    redirect_response.headers = {"location": "http://127.0.0.1/private.pdf"}
+    redirect_response.url = "https://example.com/paper.pdf"
+    redirect_response.request = MagicMock()
+    mock_stream = MagicMock()
+    mock_stream.__enter__.return_value = redirect_response
+
+    def validate(url):
+        if url.startswith("http://127.0.0.1"):
+            raise UnsafeURLError("private target")
+
+    with (
+        patch.object(MarkItDownAdapter, "_validate_public_url", side_effect=validate),
+        patch("httpx.Client.stream", return_value=mock_stream),
+        pytest.raises(UnsafeURLError),
+    ):
+        ingester._download_public_pdf("https://example.com/paper.pdf", {})
+
+
+def test_hybrid_ingester_limits_streamed_academic_pdf(monkeypatch):
+    ingester = HybridDocumentIngester()
+    response = MagicMock()
+    response.status_code = 200
+    response.headers = {}
+    response.url = "https://example.com/paper.pdf"
+    response.iter_bytes.return_value = [b"%PDF", b"overflow"]
+    mock_stream = MagicMock()
+    mock_stream.__enter__.return_value = response
+    monkeypatch.setattr("app.adapters.hybrid_ingester.MAX_ACADEMIC_PDF_BYTES", 4)
+
+    with (
+        patch.object(MarkItDownAdapter, "_validate_public_url"),
+        patch("httpx.Client.stream", return_value=mock_stream),
+        pytest.raises(ValueError, match="exceeds the allowed size"),
+    ):
+        ingester._download_public_pdf("https://example.com/paper.pdf", {})
 
 
 def test_hybrid_ingester_closed_access_synthesizes_markdown():
@@ -355,4 +415,3 @@ def test_api_discovery_search_and_batch_ingest():
         assert store.count_documents() == 1
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
-

@@ -4,7 +4,8 @@ import logging
 import os
 import tempfile
 import uuid
-from typing import Optional
+from typing import Any, Optional
+from urllib.parse import urljoin
 import httpx
 
 from app.core.config import settings
@@ -19,6 +20,7 @@ from app.adapters.youtube_ingester import YouTubeIngester
 logger = logging.getLogger(__name__)
 
 DOCLING_EXTENSIONS = {".pdf", ".docx"}
+MAX_ACADEMIC_PDF_BYTES = 50 * 1024 * 1024
 
 
 class HybridDocumentIngester(IngestionPort):
@@ -43,6 +45,53 @@ class HybridDocumentIngester(IngestionPort):
         self._academic_resolver = academic_resolver or CompositeAcademicResolver()
         self._youtube_ingester = youtube_ingester or YouTubeIngester()
         self.enable_docling = enable_docling if enable_docling is not None else settings.enable_docling
+
+    def _download_public_pdf(self, url: str, headers: dict[str, str]) -> bytes:
+        """Download a public PDF with validated redirects and a strict size cap."""
+        current_url = url
+        with httpx.Client(timeout=30.0, follow_redirects=False, headers=headers) as client:
+            for redirect_count in range(self._markitdown.MAX_REDIRECTS + 1):
+                self._markitdown._validate_public_url(current_url)
+                with client.stream("GET", current_url) as response:
+                    if response.status_code in self._markitdown.REDIRECT_STATUS_CODES:
+                        location = response.headers.get("location")
+                        if not location:
+                            response.raise_for_status()
+                        if redirect_count >= self._markitdown.MAX_REDIRECTS:
+                            raise httpx.TooManyRedirects(
+                                "Academic PDF exceeded the redirect limit",
+                                request=response.request,
+                            )
+                        current_url = urljoin(str(response.url), location)
+                        self._markitdown._validate_public_url(current_url)
+                        continue
+
+                    response.raise_for_status()
+                    content_length = response.headers.get("content-length")
+                    declared_length = None
+                    if content_length:
+                        try:
+                            declared_length = int(content_length)
+                        except ValueError:
+                            declared_length = None
+                    if (
+                        declared_length is not None
+                        and declared_length > MAX_ACADEMIC_PDF_BYTES
+                    ):
+                        raise ValueError("Academic PDF exceeds the allowed size")
+
+                    body = bytearray()
+                    for chunk in response.iter_bytes():
+                        if len(body) + len(chunk) > MAX_ACADEMIC_PDF_BYTES:
+                            raise ValueError("Academic PDF exceeds the allowed size")
+                        body.extend(chunk)
+
+                    pdf_bytes = bytes(body)
+                    if not pdf_bytes.startswith(b"%PDF"):
+                        raise ValueError("Academic download did not return a PDF")
+                    return pdf_bytes
+
+        raise RuntimeError("Academic PDF redirect handling ended unexpectedly")
 
     def convert(
         self,
@@ -74,13 +123,10 @@ class HybridDocumentIngester(IngestionPort):
                             headers = {
                                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                             }
-                            with httpx.Client(timeout=30.0, follow_redirects=True, headers=headers) as client:
-                                resp = client.get(paper.pdf_url)
-                                resp.raise_for_status()
-                                pdf_bytes = resp.content
+                            pdf_bytes = self._download_public_pdf(paper.pdf_url, headers)
 
                             # Verify valid PDF payload
-                            if pdf_bytes.startswith(b"%PDF") or len(pdf_bytes) > 2048:
+                            if pdf_bytes.startswith(b"%PDF"):
                                 temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
                                 temp_path = temp_file.name
                                 try:

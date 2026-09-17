@@ -8,6 +8,16 @@ from typing import Optional, Literal
 ModelStatus = Literal["healthy", "high_demand", "offline", "unknown"]
 
 
+class LLMProviderError(RuntimeError):
+    """Raised when every configured model attempt for a provider fails."""
+
+    def __init__(self, provider: str, model: str, detail: str):
+        self.provider = provider
+        self.model = model
+        self.detail = detail
+        super().__init__(f"{provider} provider failed for model '{model}': {detail}")
+
+
 @dataclass
 class ModelHealthRecord:
     model: str
@@ -174,8 +184,10 @@ class OpenAICompatibleLLMClient:
         }
 
         last_error = ""
+        last_model = active_model
 
         for mod in models_to_try:
+            last_model = mod
             payload = {
                 "model": mod,
                 "messages": [
@@ -241,8 +253,11 @@ class OpenAICompatibleLLMClient:
                     self.health_registry.record_offline(mod, self.provider_name, last_error)
                     break
 
-        # If all candidate models and retries exhausted, return clear diagnostic
-        return f"Error al consultar el proveedor de IA: {last_error}"
+        raise LLMProviderError(
+            provider=self.provider_name,
+            model=last_model,
+            detail=last_error or "No model returned a usable response",
+        )
 
     def generate_with_image(
         self,
@@ -263,8 +278,10 @@ class OpenAICompatibleLLMClient:
         }
 
         last_error = ""
+        last_model = active_model
 
         for mod in models_to_try:
+            last_model = mod
             payload = {
                 "model": mod,
                 "messages": [
@@ -331,5 +348,8 @@ class OpenAICompatibleLLMClient:
                     self.health_registry.record_offline(mod, self.provider_name, last_error)
                     break
 
-        return f"Error al consultar modelo de visión: {last_error}"
-
+        raise LLMProviderError(
+            provider=self.provider_name,
+            model=last_model,
+            detail=last_error or "No vision model returned a usable response",
+        )

@@ -1,6 +1,8 @@
 from unittest.mock import patch, MagicMock
+import pytest
 from fastapi.testclient import TestClient
 from app.adapters.llm_client import (
+    LLMProviderError,
     ModelHealthRegistry,
     ModelHealthRecord,
     OpenAICompatibleLLMClient,
@@ -103,6 +105,23 @@ def test_llm_client_falls_back_on_persistent_503():
         # Fallback model is marked healthy
         fallback_status = registry.get_status("gemini-2.0-flash")
         assert fallback_status.status == "healthy"
+
+
+def test_llm_client_raises_typed_error_when_all_models_fail():
+    client = OpenAICompatibleLLMClient(
+        base_url="https://api.example.com/v1",
+        api_key="test-key",
+        model="unavailable-model",
+        max_retries=0,
+    )
+    response = MagicMock(status_code=401, text="unauthorized")
+
+    with patch("httpx.Client.post", return_value=response):
+        with pytest.raises(LLMProviderError) as exc_info:
+            client.generate("system", "user")
+
+    assert exc_info.value.provider == "gemini"
+    assert exc_info.value.model == "unavailable-model"
 
 
 def test_api_models_health_and_ping():

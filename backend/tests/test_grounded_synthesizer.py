@@ -235,3 +235,28 @@ def test_synthesizer_does_not_backfill_on_explicit_refusal():
     assert response.evidence_found is False
     assert len(response.citations) == 0
 
+
+def test_synthesizer_does_not_backfill_single_chunk_on_incidental_overlap():
+    doc = SourceDocument(
+        id="d1",
+        filename="unrelated.md",
+        raw_markdown="The provider grows bananas in tropical climates.",
+    )
+    chunk = DocumentChunk(
+        id="d1#c1",
+        source_id="d1",
+        start_char=0,
+        end_char=len(doc.raw_markdown),
+        content=doc.raw_markdown,
+    )
+    mock_llm = MockLLMClient("The provider says Paris is the capital of France.")
+
+    response = GroundedSynthesizer(llm_client=mock_llm).synthesize(
+        query=GroundedQuery(query="What is the capital?", active_source_ids=["d1"]),
+        chunks=[chunk],
+        sources_map={"d1": doc},
+    )
+
+    assert response.evidence_found is False
+    assert response.citations == []
+    assert "[^1]" not in response.answer
