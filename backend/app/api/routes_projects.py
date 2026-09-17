@@ -3,9 +3,9 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
-from fastapi.responses import PlainTextResponse, FileResponse
+from fastapi.responses import PlainTextResponse, FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from app.core.config import settings
@@ -202,8 +202,12 @@ def create_projects_router(
         store = project_manager.get_store(project_id)
         return store.list_documents()
 
-    @router.post("/{project_id}/sources/upload", response_model=SourceDocument)
-    async def upload_project_source(project_id: str, file: UploadFile = File(...)):
+    @router.post("/{project_id}/sources/upload", response_model=Optional[SourceDocument])
+    async def upload_project_source(
+        project_id: str,
+        file: UploadFile = File(...),
+        background: bool = Query(default=False),
+    ):
         proj = project_manager.get_project(project_id)
         if not proj:
             raise HTTPException(status_code=404, detail="Project not found")
@@ -213,14 +217,21 @@ def create_projects_router(
         stored_filename = f"{uuid.uuid4().hex}_{filename}"
         file_path = os.path.join(uploads_dir, stored_filename)
         await _save_upload_with_limit(file, file_path)
+        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
-        def _process_and_persist():
+        def _process_and_persist(progress_reporter=None):
+            def report(pct: int, stg: str, msg: str):
+                if progress_reporter:
+                    progress_reporter(pct, stg, msg)
+
             logger.info("Iniciando procesamiento e indexación para '%s' en proyecto '%s'", filename, project_id)
+            report(12, "extracting", f"Iniciando extracción de '{filename}'...")
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
 
             if active_repo_ingester.is_code_or_repo(filename):
                 logger.info("Detectado código o repositorio para '%s'", filename)
+                report(25, "extracting", f"Procesando código o repositorio '{filename}'...")
                 with open(file_path, "rb") as f_in:
                     file_bytes = f_in.read()
 
@@ -229,17 +240,34 @@ def create_projects_router(
                 else:
                     doc = active_repo_ingester.ingest_code_file(file_bytes, filename=filename)
 
+                report(45, "extracting", f"Generando fragmentos semánticos de código...")
                 chunks = active_code_chunker.chunk(doc)
             else:
                 logger.info("Extrayendo texto, tablas y diagramas para '%s'...", filename)
+                report(20, "extracting", f"Extrayendo texto, tablas y esquemas visuales...")
                 doc = ingester.convert(file_path=file_path, filename=filename)
                 logger.info("Documento '%s' convertido (%d caracteres). Generando chunks...", filename, doc.char_count)
+                report(50, "extracting", f"Extracción completa ({doc.char_count} caracteres). Generando chunks...")
                 chunks = chunker.chunk(doc)
 
             logger.info("Persistiendo '%s' (%d chunks) en SQLite y generando embeddings en LanceDB...", filename, len(chunks))
+            report(70, "embedding", f"Generando vectores semánticos ({len(chunks)} fragmentos)...")
             _persist_document_with_rollback(store, vector_store, doc, chunks)
+            report(95, "indexing", f"Finalizando indexación en base de datos...")
             logger.info("¡Documento '%s' indexado exitosamente! (id=%s)", filename, doc.id)
             return doc
+
+        if background:
+            task = project_manager.task_manager.create_task(
+                project_id=project_id,
+                filename=filename,
+                file_size=file_size,
+            )
+            project_manager.task_manager.submit_ingestion(
+                task_id=task.id,
+                ingest_fn=_process_and_persist,
+            )
+            return JSONResponse(status_code=202, content=task.to_dict())
 
         try:
             return await run_in_threadpool(_process_and_persist)
@@ -255,6 +283,35 @@ def create_projects_router(
                 status_code=500,
                 detail=f"Error al procesar el archivo '{filename}': {err_msg}"
             )
+
+    @router.get("/{project_id}/tasks")
+    async def list_project_tasks(project_id: str):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+        tasks = project_manager.task_manager.list_project_tasks(project_id)
+        return [t.to_dict() for t in tasks]
+
+    @router.get("/{project_id}/tasks/{task_id}")
+    async def get_project_task(project_id: str, task_id: str):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+        task = project_manager.task_manager.get_task(task_id)
+        if not task or task.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return task.to_dict()
+
+    @router.delete("/{project_id}/tasks/{task_id}")
+    async def dismiss_project_task(project_id: str, task_id: str):
+        proj = project_manager.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+        task = project_manager.task_manager.get_task(task_id)
+        if not task or task.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Task not found")
+        project_manager.task_manager.dismiss_task(task_id)
+        return {"status": "dismissed", "id": task_id}
 
     @router.post("/{project_id}/sources/url", response_model=SourceDocument)
     async def ingest_project_url(project_id: str, data: URLIngestRequest):

@@ -3,7 +3,7 @@ import { Check, AlertCircle } from 'lucide-react';
 
 export interface CircularProgressRingProps {
   progress: number; // 0 to 100
-  stage?: 'uploading' | 'processing' | 'done' | 'error';
+  stage?: 'uploading' | 'queued' | 'extracting' | 'vlm' | 'embedding' | 'indexing' | 'processing' | 'done' | 'error';
   size?: 'xs' | 'sm' | 'md' | 'lg';
   strokeWidth?: number;
   className?: string;
@@ -58,12 +58,14 @@ export const CircularProgressRing: React.FC<CircularProgressRingProps> = ({
     );
   }
 
+  const isProcessing = stage !== 'uploading';
+
   return (
     <div
       className={`relative inline-flex items-center justify-center shrink-0 ${className}`}
       style={{ width: config.dim, height: config.dim }}
       title={
-        stage === 'processing'
+        isProcessing
           ? 'Procesando e indexando páginas y diagramas con IA...'
           : `Subiendo archivo: ${clampedProgress}%`
       }
@@ -97,7 +99,9 @@ export const CircularProgressRing: React.FC<CircularProgressRingProps> = ({
           strokeDashoffset={offset}
           strokeLinecap="round"
           className={`transition-all duration-500 ease-out ${
-            stage === 'processing'
+            stage === 'vlm' || stage === 'embedding'
+              ? 'text-purple-400'
+              : isProcessing
               ? 'text-teal-400'
               : clampedProgress > 75
               ? 'text-emerald-400'
@@ -110,12 +114,16 @@ export const CircularProgressRing: React.FC<CircularProgressRingProps> = ({
       {showText && size !== 'xs' ? (
         <span
           className={`absolute font-mono font-bold leading-none ${
-            stage === 'processing' ? 'text-teal-300' : 'text-slate-200'
+            stage === 'vlm' || stage === 'embedding'
+              ? 'text-purple-300'
+              : isProcessing
+              ? 'text-teal-300'
+              : 'text-slate-200'
           } ${config.textSize}`}
         >
           {clampedProgress}%
         </span>
-      ) : stage === 'processing' && size === 'xs' ? (
+      ) : isProcessing && size === 'xs' ? (
         <div className="absolute inset-0 flex items-center justify-center text-teal-300 animate-pulse">
           <div className="w-1 h-1 rounded-full bg-teal-400" />
         </div>

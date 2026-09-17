@@ -38,15 +38,30 @@ export interface SourceDocument {
   metadata?: SourceMetadata;
 }
 
+export interface BackendIngestionTask {
+  id: string;
+  project_id: string;
+  filename: string;
+  file_size: number;
+  stage: 'queued' | 'extracting' | 'vlm' | 'embedding' | 'indexing' | 'done' | 'error';
+  progress: number;
+  status_text: string;
+  document_id?: string | null;
+  error?: string | null;
+  created_at: number;
+  completed_at?: number | null;
+}
+
 export interface ActiveUploadTask {
   id: string;
   name: string;
   size: number;
   progress: number; // 0 to 100
-  stage: 'uploading' | 'processing' | 'done' | 'error';
+  stage: 'uploading' | 'queued' | 'extracting' | 'vlm' | 'embedding' | 'indexing' | 'processing' | 'done' | 'error';
   statusText?: string;
   error?: string;
   startedAt: number;
+  document_id?: string | null;
 }
 
 export interface Citation {

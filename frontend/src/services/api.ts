@@ -12,6 +12,7 @@ import {
   ProjectTaxonomySummary,
   TaxonomyClassificationResult,
   SharedConversationSnapshot,
+  BackendIngestionTask,
 } from '../types';
 
 const API_BASE = '/api';
@@ -50,6 +51,78 @@ export async function fetchProjectSources(projectId: string): Promise<SourceDocu
   const res = await fetch(`${API_BASE}/projects/${projectId}/sources`);
   if (!res.ok) throw new Error('Failed to fetch project sources');
   return res.json();
+}
+
+export async function fetchProjectSource(projectId: string, sourceId: string): Promise<SourceDocument> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/${sourceId}`);
+  if (!res.ok) throw new Error(`Failed to fetch source ${sourceId}`);
+  return res.json();
+}
+
+export function uploadProjectSourceBackground(
+  projectId: string,
+  file: File,
+  onProgress?: (percent: number, loadedBytes: number, totalBytes: number) => void
+): Promise<BackendIngestionTask> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload?background=true`);
+    xhr.timeout = 180000; // 3 minutes network transfer timeout
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        const fraction = event.loaded / event.total;
+        const uploadPercent = Math.min(100, Math.max(1, Math.round(fraction * 100)));
+        onProgress(uploadPercent, event.loaded, event.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const task: BackendIngestionTask = JSON.parse(xhr.responseText);
+          resolve(task);
+        } catch {
+          reject(new Error('Respuesta inválida del servidor'));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.detail || `Error al subir archivo (${xhr.status})`));
+        } catch {
+          reject(new Error(`Error al subir archivo (${xhr.status})`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Error de red al transferir el archivo al servidor'));
+    xhr.onabort = () => reject(new Error('Subida cancelada'));
+    xhr.ontimeout = () => reject(new Error('Tiempo de espera agotado en la transferencia del archivo'));
+
+    xhr.send(formData);
+  });
+}
+
+export async function fetchProjectTasks(projectId: string): Promise<BackendIngestionTask[]> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`);
+  if (!res.ok) throw new Error('Failed to fetch project tasks');
+  return res.json();
+}
+
+export async function fetchProjectTask(projectId: string, taskId: string): Promise<BackendIngestionTask> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`);
+  if (!res.ok) throw new Error(`Failed to fetch task: ${taskId}`);
+  return res.json();
+}
+
+export async function dismissProjectTask(projectId: string, taskId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to dismiss task: ${taskId}`);
 }
 
 export function uploadProjectSource(

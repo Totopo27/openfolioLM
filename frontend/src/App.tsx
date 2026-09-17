@@ -29,7 +29,9 @@ import {
   createProject,
   deleteProject,
   fetchProjectSources,
-  uploadProjectSource,
+  uploadProjectSourceBackground,
+  fetchProjectTasks,
+  dismissProjectTask,
   ingestProjectUrl,
   deleteProjectSource,
   fetchProjectMessages,
@@ -250,6 +252,29 @@ export const App: React.FC = () => {
       console.error(`Failed to load messages for project ${project.id}:`, err);
       setMessages([]);
     }
+
+    // Fetch active or recently completed background tasks for this project
+    try {
+      const backendTasks = await fetchProjectTasks(project.id);
+      const activeOrRecent = backendTasks.filter(
+        (t) => t.stage !== 'done' || (t.completed_at && Date.now() - t.completed_at * 1000 < 10000)
+      );
+      setUploadTasks(
+        activeOrRecent.map((t) => ({
+          id: t.id,
+          name: t.filename,
+          size: t.file_size,
+          progress: t.progress,
+          stage: t.stage,
+          statusText: t.status_text,
+          error: t.error || undefined,
+          document_id: t.document_id,
+          startedAt: Math.round(t.created_at * 1000),
+        }))
+      );
+    } catch (err) {
+      console.error(`Failed to load tasks for project ${project.id}:`, err);
+    }
   };
 
   const handleCreateProjectSubmit = async (e: React.FormEvent) => {
@@ -297,77 +322,106 @@ export const App: React.FC = () => {
     }
   };
 
+  // Polling loop for active background ingestion tasks
+  useEffect(() => {
+    if (!activeProject) return;
+
+    let isMounted = true;
+
+    const poll = async () => {
+      try {
+        const backendTasks = await fetchProjectTasks(activeProject.id);
+        if (!isMounted) return;
+
+        let hasNewCompleted = false;
+
+        setUploadTasks((prev) => {
+          const updated = [...prev];
+
+          for (const bt of backendTasks) {
+            const existingIdx = updated.findIndex((t) => t.id === bt.id);
+            const mappedTask: ActiveUploadTask = {
+              id: bt.id,
+              name: bt.filename,
+              size: bt.file_size,
+              progress: bt.progress,
+              stage: bt.stage,
+              statusText: bt.status_text,
+              error: bt.error || undefined,
+              document_id: bt.document_id,
+              startedAt: Math.round(bt.created_at * 1000),
+            };
+
+            if (existingIdx >= 0) {
+              const prevTask = updated[existingIdx];
+              if (prevTask.stage !== 'done' && bt.stage === 'done') {
+                hasNewCompleted = true;
+              }
+              // Update with latest backend progress/stage
+              updated[existingIdx] = {
+                ...prevTask,
+                ...mappedTask,
+              };
+            } else {
+              // Task found on server not yet in local state (e.g. after refresh or concurrent tab)
+              if (bt.stage !== 'done' || (bt.completed_at && Date.now() - bt.completed_at * 1000 < 8000)) {
+                updated.push(mappedTask);
+              }
+            }
+          }
+
+          return updated;
+        });
+
+        if (hasNewCompleted) {
+          const freshDocs = await fetchProjectSources(activeProject.id);
+          setSources(freshDocs);
+          setActiveSourceIds(freshDocs.map((d) => d.id));
+          setProjects((prev) =>
+            prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: freshDocs.length } : p))
+          );
+        }
+      } catch (err) {
+        // Quietly ignore polling failures on network blip
+      }
+    };
+
+    const interval = setInterval(poll, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeProject?.id]);
+
   const handleUpload = async (file: File) => {
     if (!activeProject) return;
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const tempTaskId = `task_temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newTask: ActiveUploadTask = {
-      id: taskId,
+      id: tempTaskId,
       name: file.name,
       size: file.size,
-      progress: 0,
+      progress: 5,
       stage: 'uploading',
+      statusText: 'Iniciando transferencia...',
       startedAt: Date.now(),
     };
 
     setUploadTasks((prev) => [newTask, ...prev]);
 
-    let tickerInterval: any = null;
-
-    const startProcessingTicker = () => {
-      if (tickerInterval) return;
-      let current = 32;
-      const fileSizeMB = file.size / (1024 * 1024);
-      // Pacing: larger documents take longer for layout parsing, VLM figures and dense embeddings
-      const targetDurationMs = Math.max(15000, Math.min(240000, fileSizeMB * 3000));
-      const stepIntervalMs = Math.max(800, Math.round(targetDurationMs / 60));
-
-      tickerInterval = setInterval(() => {
-        if (current < 97) {
-          // Progressively decelerate as it nears completion
-          const increment = current < 80 ? 1 : Math.random() > 0.4 ? 1 : 0;
-          current += increment;
-          if (current > 97) current = 97;
-
-          let stepDesc = 'Extrayendo páginas y tablas...';
-          if (current >= 45 && current < 70) {
-            stepDesc = 'Analizando esquemas y figuras visuales con IA...';
-          } else if (current >= 70 && current < 88) {
-            stepDesc = 'Generando embeddings semánticos...';
-          } else if (current >= 88) {
-            stepDesc = 'Indexando vectores y base de conocimiento (casi listo)...';
-          }
-
-          setUploadTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId && t.stage === 'processing'
-                ? {
-                    ...t,
-                    progress: current,
-                    statusText: stepDesc,
-                  }
-                : t
-            )
-          );
-        }
-      }, stepIntervalMs);
-    };
-
     try {
-      const newDoc = await uploadProjectSource(
+      const backendTask = await uploadProjectSourceBackground(
         activeProject.id,
         file,
-        (percent, stage, statusText) => {
-          if (stage === 'processing') {
-            startProcessingTicker();
-          }
+        (percent, loaded, total) => {
+          const loadedMb = (loaded / (1024 * 1024)).toFixed(1);
+          const totalMb = (total / (1024 * 1024)).toFixed(1);
           setUploadTasks((prev) =>
             prev.map((t) =>
-              t.id === taskId
+              t.id === tempTaskId
                 ? {
                     ...t,
-                    progress: stage === 'processing' ? Math.max(t.progress, percent) : percent,
-                    stage,
-                    statusText: statusText || t.statusText,
+                    progress: Math.min(100, Math.max(1, percent)),
+                    statusText: `Transfiriendo archivo: ${loadedMb} / ${totalMb} MB (${percent}%)`,
                   }
                 : t
             )
@@ -375,49 +429,41 @@ export const App: React.FC = () => {
         }
       );
 
-      if (tickerInterval) clearInterval(tickerInterval);
-
-      setSources((prev) => [newDoc, ...prev]);
-      setActiveSourceIds((prev) => [...prev, newDoc.id]);
-      setSelectedDoc(newDoc);
-
-      // Refresh project metadata count
-      setProjects((prev) =>
-        prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: p.doc_count + 1 } : p))
-      );
-
-      // Mark task as done
+      // Successfully enqueued on server: update task with backend id and status
       setUploadTasks((prev) =>
         prev.map((t) =>
-          t.id === taskId
+          t.id === tempTaskId
             ? {
                 ...t,
-                progress: 100,
-                stage: 'done',
-                statusText: '¡Libro indexado y listo!',
+                id: backendTask.id,
+                progress: backendTask.progress,
+                stage: backendTask.stage,
+                statusText: backendTask.status_text,
+                error: backendTask.error || undefined,
               }
             : t
         )
       );
-
-      // Auto dismiss done task after 3 seconds
-      setTimeout(() => {
-        setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
-      }, 3000);
     } catch (err: any) {
-      if (tickerInterval) clearInterval(tickerInterval);
       console.error('Upload error:', err);
       setUploadTasks((prev) =>
         prev.map((t) =>
-          t.id === taskId
-            ? { ...t, stage: 'error', error: err.message || 'Error al subir e indexar' }
+          t.id === tempTaskId
+            ? { ...t, stage: 'error', error: err.message || 'Error al subir el archivo' }
             : t
         )
       );
     }
   };
 
-  const handleDismissUploadTask = (taskId: string) => {
+  const handleDismissUploadTask = async (taskId: string) => {
+    if (activeProject && !taskId.startsWith('task_temp_')) {
+      try {
+        await dismissProjectTask(activeProject.id, taskId);
+      } catch (err) {
+        console.error('Error dismissing task from backend:', err);
+      }
+    }
     setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 

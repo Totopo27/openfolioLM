@@ -85,8 +85,8 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onDismissUploadTask,
   onOpenLogs,
 }) => {
-  const isUploading = uploadTasks.some((t) => t.stage === 'uploading' || t.stage === 'processing');
-  const activeUploadTask = uploadTasks.find((t) => t.stage === 'uploading' || t.stage === 'processing');
+  const isUploading = uploadTasks.some((t) => t.stage !== 'done' && t.stage !== 'error');
+  const activeUploadTask = uploadTasks.find((t) => t.stage !== 'done' && t.stage !== 'error');
   const [isDragging, setIsDragging] = useState(false);
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
@@ -298,11 +298,11 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
       <button
         type="button"
         onClick={() => setIsAddMenuOpen((prev) => !prev)}
-        disabled={isUploading || isIngestingUrl || isAutoclassifyingAll}
+        disabled={isIngestingUrl || isAutoclassifyingAll}
         className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 cursor-pointer shrink-0"
         title="Añadir nuevas fuentes al proyecto"
       >
-        {isUploading && activeUploadTask ? (
+        {activeUploadTask ? (
           <>
             <CircularProgressRing
               progress={activeUploadTask.progress}
@@ -310,8 +310,11 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
               size="xs"
             />
             <span className="truncate max-w-[120px] font-mono">
-              {`${activeUploadTask.progress}%`}
+              {uploadTasks.filter((t) => t.stage !== 'done' && t.stage !== 'error').length > 1
+                ? `${uploadTasks.filter((t) => t.stage !== 'done' && t.stage !== 'error').length} en cola`
+                : `${activeUploadTask.progress}%`}
             </span>
+            <ChevronDown className="w-3 h-3 ml-0.5 opacity-80" />
           </>
         ) : (
           <>
@@ -712,7 +715,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
       {/* Sources horizontal / compact list */}
       {sources.length === 0 ? (
         <div
-          onClick={() => !isUploading && fileInputRef.current?.click()}
+          onClick={() => fileInputRef.current?.click()}
           className={`p-6 border-2 border-dashed rounded-xl text-center text-xs transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group ${
             isDragging
               ? 'border-indigo-400 bg-indigo-500/15 text-indigo-200 ring-2 ring-indigo-500/30 scale-[1.01]'
@@ -780,7 +783,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   progress={task.progress}
                   stage={task.stage}
                   size="md"
-                  showText={task.stage === 'uploading' || task.stage === 'processing'}
+                  showText={task.stage !== 'done' && task.stage !== 'error'}
                 />
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex items-center gap-2">
@@ -790,11 +793,11 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                     <span className={`text-[10px] px-1.5 py-0.5 font-mono font-medium rounded ${
                       task.stage === 'error'
                         ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                        : task.stage === 'processing'
-                        ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
                         : task.stage === 'done'
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                        : task.stage === 'uploading'
+                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                        : 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
                     }`}>
                       {task.stage === 'error'
                         ? 'Error'
@@ -808,7 +811,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                       ? 'Indexado exitosamente en la base de conocimiento'
                       : task.stage === 'error'
                       ? (task.error || 'Error en la carga')
-                      : (task.statusText || (task.stage === 'processing' ? 'Extrayendo páginas, tablas y transcribiendo diagramas...' : `Subiendo libro a OpenFolioLM (${(task.size / (1024 * 1024)).toFixed(1)} MB)...`))}
+                      : (task.statusText || 'Procesando e indexando documento...')}
                   </p>
                 </div>
               </div>
@@ -836,7 +839,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   )}
                 </div>
               )}
-              {task.stage === 'processing' && onOpenLogs && (
+              {task.stage !== 'done' && task.stage !== 'error' && onOpenLogs && (
                 <button
                   type="button"
                   onClick={onOpenLogs}
@@ -844,6 +847,16 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                   title="Ver logs de extracción en vivo"
                 >
                   Ver Logs
+                </button>
+              )}
+              {task.stage === 'done' && onDismissUploadTask && (
+                <button
+                  type="button"
+                  onClick={() => onDismissUploadTask(task.id)}
+                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition cursor-pointer shrink-0"
+                  title="Cerrar aviso"
+                >
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

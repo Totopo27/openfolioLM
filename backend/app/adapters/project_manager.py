@@ -10,6 +10,7 @@ from app.core.models import Project, SourceDocument
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.lancedb_store import LanceDBVectorStore
 from app.adapters.academic_resolver import normalize_doi
+from app.adapters.task_manager import IngestionTaskManager
 
 STOPWORDS = {
     "a", "an", "the", "and", "or", "of", "in", "on", "at", "to", "for",
@@ -52,7 +53,8 @@ class ProjectManager:
         self,
         projects_root: str = "data/projects",
         legacy_db_path: Optional[str] = "data/openfolio.db",
-        embedding_model: Optional[Any] = None
+        embedding_model: Optional[Any] = None,
+        task_manager: Optional[IngestionTaskManager] = None,
     ):
         self.projects_root = str(Path(projects_root).resolve())
         self.legacy_db_path = os.path.abspath(legacy_db_path) if legacy_db_path else None
@@ -60,6 +62,7 @@ class ProjectManager:
         self._stores: dict[str, SQLiteDocumentStore] = {}
         self._vector_stores: dict[str, LanceDBVectorStore] = {}
         self._shared_embedding_model = embedding_model
+        self.task_manager = task_manager or IngestionTaskManager()
 
     @staticmethod
     def validate_project_id(project_id: str) -> str:
