@@ -183,6 +183,8 @@ export interface AcademicPaper {
   citations_count?: number | null;
   source_database: string;
   bibtex?: string | null;
+  tldr?: string | null;
+  source_provider?: 'openalex' | 'semanticscholar' | 'both' | string | null;
 }
 
 export interface ProjectNote {

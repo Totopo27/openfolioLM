@@ -24,6 +24,8 @@ class AcademicPaper(BaseModel):
     citations_count: Optional[int] = None
     source_database: str = "unknown"
     bibtex: Optional[str] = None
+    tldr: Optional[str] = None
+    source_provider: Optional[str] = None
 
 
 class AcademicResolverPort(ABC):
@@ -55,7 +57,8 @@ class AcademicResolverPort(ABC):
         query: str,
         limit: int = 15,
         min_year: Optional[int] = None,
-        min_citations: int = 0
+        min_citations: int = 0,
+        provider: str = "all",
     ) -> list[AcademicPaper]:
-        """Searches open scholarly literature (e.g. OpenAlex) for matching works."""
+        """Searches open scholarly literature (e.g. Semantic Scholar, OpenAlex) for matching works."""
         pass

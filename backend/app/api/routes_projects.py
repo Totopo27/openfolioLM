@@ -747,7 +747,8 @@ def create_projects_router(
         query: str,
         limit: int = 15,
         min_year: Optional[int] = None,
-        min_citations: int = 0
+        min_citations: int = 0,
+        provider: str = Query(default="all"),
     ):
         project = project_manager.get_project(project_id)
         if not project:
@@ -757,7 +758,8 @@ def create_projects_router(
             query=query,
             limit=limit,
             min_year=min_year,
-            min_citations=min_citations
+            min_citations=min_citations,
+            provider=provider,
         )
         return papers
 

@@ -3,6 +3,7 @@
 Adapted from patterns in sdd-sota (litreview) into OpenFolioLM's hexagonal architecture.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import re
 import uuid
@@ -10,6 +11,7 @@ from typing import Any, Optional
 import httpx
 
 from app.ports.academic_resolver import AcademicPaper, AcademicResolverPort
+from app.adapters.semantic_scholar_adapter import SemanticScholarAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +65,13 @@ class CompositeAcademicResolver(AcademicResolverPort):
         self,
         mailto: str = "researcher@openfoliolm.local",
         timeout: float = 12.0,
-        http_client: Optional[httpx.Client] = None
+        http_client: Optional[httpx.Client] = None,
+        semantic_scholar: Optional[SemanticScholarAdapter] = None,
     ):
         self.mailto = mailto
         self.timeout = timeout
         self._client = http_client
+        self.semantic_scholar = semantic_scholar or SemanticScholarAdapter(http_client=http_client)
 
     def _get_client(self) -> httpx.Client:
         if self._client is not None:
@@ -81,7 +85,14 @@ class CompositeAcademicResolver(AcademicResolverPort):
         )
 
     def is_doi(self, query: str) -> bool:
-        return normalize_doi(query) is not None
+        if not query or not isinstance(query, str):
+            return False
+        if normalize_doi(query) is not None:
+            return True
+        cleaned = query.strip()
+        if cleaned.startswith("s2/") or "semanticscholar.org/paper/" in cleaned:
+            return True
+        return False
 
     def normalize_doi(self, query: str) -> Optional[str]:
         return normalize_doi(query)
@@ -135,7 +146,12 @@ class CompositeAcademicResolver(AcademicResolverPort):
 
     def resolve(self, doi_or_url: str) -> Optional[AcademicPaper]:
         doi = self.normalize_doi(doi_or_url)
+        clean_target = (doi_or_url or "").strip()
+
         if not doi:
+            if clean_target.startswith("s2/") or "semanticscholar.org" in clean_target:
+                if self.semantic_scholar:
+                    return self.semantic_scholar.resolve_paper(clean_target)
             return None
 
         client_owner = self._client is None
@@ -292,7 +308,7 @@ class CompositeAcademicResolver(AcademicResolverPort):
             bibtex_lines.append("}")
             bibtex = "\n".join(bibtex_lines)
 
-            return AcademicPaper(
+            paper = AcademicPaper(
                 doi=doi,
                 title=title,
                 authors=authors,
@@ -309,7 +325,26 @@ class CompositeAcademicResolver(AcademicResolverPort):
                 citations_count=citations_count,
                 source_database=source_db,
                 bibtex=bibtex,
+                source_provider="openalex" if oa_data else "crossref",
             )
+
+            if self.semantic_scholar:
+                try:
+                    s2_paper = self.semantic_scholar.resolve_paper(doi)
+                    if s2_paper:
+                        if s2_paper.tldr:
+                            paper.tldr = s2_paper.tldr
+                        if not paper.pdf_url and s2_paper.pdf_url:
+                            paper.pdf_url = s2_paper.pdf_url
+                            paper.is_open_access = True
+                        if paper.citations_count is None and s2_paper.citations_count is not None:
+                            paper.citations_count = s2_paper.citations_count
+                        if not paper.abstract and s2_paper.abstract:
+                            paper.abstract = s2_paper.abstract
+                except Exception as exc:
+                    logger.debug("Semantic Scholar enrichment error for %s: %s", doi, exc)
+
+            return paper
         finally:
             if client_owner:
                 client.close()
@@ -341,6 +376,16 @@ class CompositeAcademicResolver(AcademicResolverPort):
         if paper.citations_count is not None:
             lines.append(f"- **Impacto (Citas Registradas)**: {paper.citations_count}")
 
+        if paper.tldr:
+            lines.extend([
+                "",
+                "---",
+                "",
+                "## Síntesis Clave (AI TL;DR - Semantic Scholar)",
+                "",
+                f"> 💡 **TL;DR**: {paper.tldr}",
+            ])
+
         lines.extend([
             "",
             "---",
@@ -361,7 +406,7 @@ class CompositeAcademicResolver(AcademicResolverPort):
 
         return "\n".join(lines)
 
-    def search_literature(
+    def _search_openalex(
         self,
         query: str,
         limit: int = 15,
@@ -460,6 +505,7 @@ class CompositeAcademicResolver(AcademicResolverPort):
                     citations_count=citations,
                     source_database="openalex",
                     bibtex=bibtex,
+                    source_provider="openalex",
                 )
                 papers.append(paper)
                 if len(papers) >= limit:
@@ -472,3 +518,134 @@ class CompositeAcademicResolver(AcademicResolverPort):
                 client.close()
 
         return papers
+
+    def search_literature(
+        self,
+        query: str,
+        limit: int = 15,
+        min_year: Optional[int] = None,
+        min_citations: int = 0,
+        provider: str = "all",
+    ) -> list[AcademicPaper]:
+        """
+        Searches scholarly literature across academic graph providers.
+        Supports provider: 'all' (Federated S2 + OpenAlex with RRF deduplication),
+        'semanticscholar' (Semantic Scholar only), or 'openalex' (OpenAlex only).
+        """
+        if not query or not query.strip():
+            return []
+
+        prov = (provider or "all").lower().strip()
+
+        if prov in ("semanticscholar", "s2"):
+            if self.semantic_scholar:
+                return self.semantic_scholar.search_papers(
+                    query=query, limit=limit, min_year=min_year, min_citations=min_citations
+                )
+            return []
+
+        if prov == "openalex":
+            return self._search_openalex(
+                query=query, limit=limit, min_year=min_year, min_citations=min_citations
+            )
+
+        # Federated Search (provider == 'all' or hybrid)
+        s2_papers: list[AcademicPaper] = []
+        oa_papers: list[AcademicPaper] = []
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_s2 = (
+                executor.submit(
+                    self.semantic_scholar.search_papers,
+                    query,
+                    limit,
+                    min_year,
+                    min_citations,
+                )
+                if self.semantic_scholar
+                else None
+            )
+            future_oa = executor.submit(
+                self._search_openalex,
+                query,
+                limit,
+                min_year,
+                min_citations,
+            )
+
+            if future_s2:
+                try:
+                    s2_papers = future_s2.result()
+                except Exception as exc:
+                    logger.warning("Semantic Scholar federated query error: %s", exc)
+
+            try:
+                oa_papers = future_oa.result()
+            except Exception as exc:
+                logger.warning("OpenAlex federated query error: %s", exc)
+
+        def _clean_title(t: str) -> str:
+            return re.sub(r"[^\w\s]", "", (t or "").lower()).strip()
+
+        def _clean_doi(d: Optional[str]) -> Optional[str]:
+            if not d:
+                return None
+            norm = normalize_doi(d) or d.strip()
+            if norm.startswith("s2/") or norm.startswith("openalex/"):
+                return None
+            return norm.lower()
+
+        merged_papers: dict[str, AcademicPaper] = {}
+        rrf_scores: dict[str, float] = {}
+        doi_to_id: dict[str, str] = {}
+        title_to_id: dict[str, str] = {}
+
+        for i, paper in enumerate(s2_papers):
+            item_id = f"s2_{i}_{uuid.uuid4().hex[:6]}"
+            paper.source_provider = "semanticscholar"
+            merged_papers[item_id] = paper
+            rrf_scores[item_id] = 1.0 / (60.0 + i)
+
+            doi_key = _clean_doi(paper.doi)
+            if doi_key:
+                doi_to_id[doi_key] = item_id
+
+            title_key = _clean_title(paper.title)
+            if title_key and len(title_key) > 5:
+                title_to_id[title_key] = item_id
+
+        for j, paper in enumerate(oa_papers):
+            doi_key = _clean_doi(paper.doi)
+            title_key = _clean_title(paper.title)
+
+            matched_id = None
+            if doi_key and doi_key in doi_to_id:
+                matched_id = doi_to_id[doi_key]
+            elif title_key and title_key in title_to_id:
+                matched_id = title_to_id[title_key]
+
+            if matched_id:
+                existing = merged_papers[matched_id]
+                existing.source_provider = "both"
+                if not existing.abstract and paper.abstract:
+                    existing.abstract = paper.abstract
+                if not existing.pdf_url and paper.pdf_url:
+                    existing.pdf_url = paper.pdf_url
+                    existing.is_open_access = True
+                if (existing.citations_count or 0) < (paper.citations_count or 0):
+                    existing.citations_count = paper.citations_count
+                if existing.doi.startswith("s2/") and paper.doi and not paper.doi.startswith("openalex/"):
+                    existing.doi = paper.doi
+                rrf_scores[matched_id] += 1.0 / (60.0 + j)
+            else:
+                new_id = f"oa_{j}_{uuid.uuid4().hex[:6]}"
+                paper.source_provider = "openalex"
+                merged_papers[new_id] = paper
+                rrf_scores[new_id] = 1.0 / (60.0 + j)
+                if doi_key:
+                    doi_to_id[doi_key] = new_id
+                if title_key and len(title_key) > 5:
+                    title_to_id[title_key] = new_id
+
+        sorted_ids = sorted(rrf_scores.keys(), key=lambda k: rrf_scores[k], reverse=True)
+        return [merged_papers[k] for k in sorted_ids][:limit]

@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # Document Layout & Table Parser (IBM Docling) settings
     enable_docling: bool = os.getenv("ENABLE_DOCLING", "true").lower() in ("true", "1", "yes")
 
+    # Semantic Scholar (S2) settings
+    semantic_scholar_api_key: str = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
+    semantic_scholar_api_url: str = os.getenv("SEMANTIC_SCHOLAR_API_URL", "https://api.semanticscholar.org/graph/v1")
+
     # Upload size limit in MB (0 = unlimited for large books, treatises, and scans)
     max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "0"))
 

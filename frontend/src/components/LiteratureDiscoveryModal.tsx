@@ -35,6 +35,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
   const [minYear, setMinYear] = useState<string>('');
   const [minCitations, setMinCitations] = useState<string>('0');
   const [limit, setLimit] = useState<number>(15);
+  const [provider, setProvider] = useState<'all' | 'semanticscholar' | 'openalex'>('all');
   const [showFilters, setShowFilters] = useState(false);
 
   const [isSearching, setIsSearching] = useState(false);
@@ -94,6 +95,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
         query: query.trim(),
         limit: limit.toString(),
         min_citations: minCitations,
+        provider: provider,
       });
       if (minYear.trim()) {
         params.append('min_year', minYear.trim());
@@ -200,6 +202,54 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
 
         {/* Search Bar & Controls */}
         <div className="p-6 border-b border-slate-800 space-y-3 bg-slate-900/50">
+          {/* Provider Selector Tabs */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-400">Motor de búsqueda:</span>
+              <div className="inline-flex p-0.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setProvider('all')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    provider === 'all'
+                      ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                  title="Consulta Semantic Scholar y OpenAlex en simultáneo con desduplicación RRF"
+                >
+                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                  <span>Todos (Federado)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProvider('semanticscholar')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    provider === 'semanticscholar'
+                      ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                  title="Semantic Scholar (Allen Institute for AI) con IA TL;DR y PDF Open Access"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <span>Semantic Scholar (S2)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProvider('openalex')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    provider === 'openalex'
+                      ? 'bg-teal-600/30 text-teal-200 border border-teal-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                  title="Catálogo global OpenAlex"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+                  <span>OpenAlex</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -354,7 +404,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                 Explorá la frontera científica global
               </p>
               <p className="text-xs text-slate-500 max-w-md">
-                Escribí un tema de investigación o términos clave. OpenFolioLM consultará OpenAlex y te permitirá descargar los PDFs Open Access o sintetizar fichas completas para tu RAG.
+                Escribí un tema de investigación o términos clave. OpenFolioLM consultará Semantic Scholar y OpenAlex con IA para recuperar síntesis TL;DR, citas de impacto y PDFs Open Access listos para indexar en tu base de conocimiento.
               </p>
             </div>
           ) : (
@@ -477,6 +527,22 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
 
                             {/* Metadata Badges */}
                             <span className="text-slate-600">&bull;</span>
+                            {paper.source_provider === 'both' && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/30 font-semibold inline-flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-purple-400" /> S2 + OpenAlex
+                              </span>
+                            )}
+                            {paper.source_provider === 'semanticscholar' && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span> S2
+                              </span>
+                            )}
+                            {paper.source_provider === 'openalex' && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30 font-medium inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span> OpenAlex
+                              </span>
+                            )}
+
                             {paper.is_open_access ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
                                 🔓 Open Access PDF
@@ -506,6 +572,17 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                               </a>
                             )}
                           </div>
+
+                          {/* Semantic Scholar AI TLDR */}
+                          {paper.tldr && (
+                            <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-800/40 text-[11px] text-indigo-200 flex items-start gap-2">
+                              <Lightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5">
+                                <span className="font-semibold text-indigo-300">TL;DR: </span>
+                                <span className="text-slate-200 leading-relaxed">{paper.tldr}</span>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Abstract */}
                           {paper.abstract && (
