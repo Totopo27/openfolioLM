@@ -24,7 +24,7 @@ from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.nli_fact_checker import NLIFactChecker
 from app.adapters.academic_resolver import CompositeAcademicResolver
-from app.adapters.llm_client import OpenAICompatibleLLMClient
+from app.adapters.llm_client import OpenAICompatibleLLMClient, health_registry
 from app.adapters.project_manager import InvalidProjectIdError, ProjectManager
 from app.api.routes_sources import create_sources_router
 from app.api.routes_chat import create_chat_router
@@ -108,12 +108,14 @@ def create_app(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
             api_key=settings.gemini_api_key,
             model=settings.gemini_model,
-            fallback_models=["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"]
+            fallback_models=["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+            provider_name="gemini",
         )
     providers["ollama"] = OpenAICompatibleLLMClient(
         base_url=settings.ollama_base_url,
         api_key=settings.ollama_api_key,
-        model=settings.ollama_model
+        model=settings.ollama_model,
+        provider_name="ollama",
     )
 
     if synthesizer is None:
@@ -150,6 +152,13 @@ def create_app(
         fact_checker=active_fact_checker,
     ))
 
+    @app.get("/api/chat/shared/{share_id}")
+    async def get_shared_chat_conversation(share_id: str):
+        snapshot = active_pm.get_shared_conversation(share_id)
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Shared conversation not found")
+        return snapshot
+
     @app.get("/api/health")
     async def health():
         return {
@@ -168,9 +177,10 @@ def create_app(
         # 1. Cloud / Gemini Engines
         if settings.gemini_api_key:
             gemini_catalog = [
-                ("gemini-3.5-flash", "Gemini 3.5 Flash (Google Cloud)"),
-                ("gemini-3.7-flash", "Gemini 3.7 Flash (Google Cloud)"),
-                ("gemini-3.8-flash", "Gemini 3.8 Flash (Google Cloud)"),
+                ("gemini-2.5-flash", "Gemini 2.5 Flash (Google Cloud)"),
+                ("gemini-2.0-flash", "Gemini 2.0 Flash (Google Cloud)"),
+                ("gemini-1.5-flash", "Gemini 1.5 Flash (Google Cloud)"),
+                ("gemini-1.5-pro", "Gemini 1.5 Pro (Google Cloud)"),
             ]
             custom_model = settings.gemini_model
             known_names = [m[0] for m in gemini_catalog]
@@ -178,13 +188,17 @@ def create_app(
                 gemini_catalog.insert(0, (custom_model, f"Gemini {custom_model} (Google Cloud)"))
 
             for m_id, m_name in gemini_catalog:
+                rec = health_registry.get_status(m_id)
                 engines.append(
                     ModelEngine(
                         id=f"gemini:{m_id}",
                         provider="gemini",
                         model=m_id,
                         name=m_name,
-                        is_available=True
+                        is_available=(rec.status != "offline"),
+                        status=rec.status,
+                        latency_ms=rec.latency_ms,
+                        last_error=rec.last_error,
                     )
                 )
 
@@ -200,18 +214,23 @@ def create_app(
                 ollama_data = resp.json()
             raw_models = ollama_data.get("models", [])
             if not raw_models:
+                rec = health_registry.get_status(settings.ollama_model)
                 engines.append(
                     ModelEngine(
                         id=f"ollama:{settings.ollama_model}",
                         provider="ollama",
                         model=settings.ollama_model,
                         name=f"Ollama: {settings.ollama_model}",
-                        is_available=True
+                        is_available=True,
+                        status=rec.status,
+                        latency_ms=rec.latency_ms,
+                        last_error=rec.last_error,
                     )
                 )
             else:
                 for m in raw_models:
                     model_name = m.get("name") or m.get("model") or "unknown"
+                    rec = health_registry.get_status(model_name)
                     details = m.get("details", {})
                     param_size = details.get("parameter_size", "")
                     display = f"Ollama: {model_name}"
@@ -223,21 +242,50 @@ def create_app(
                             provider="ollama",
                             model=model_name,
                             name=display,
-                            is_available=True
+                            is_available=True,
+                            status=rec.status,
+                            latency_ms=rec.latency_ms,
+                            last_error=rec.last_error,
                         )
                     )
         except Exception:
+            rec = health_registry.get_status(settings.ollama_model)
             engines.append(
                 ModelEngine(
                     id=f"ollama:{settings.ollama_model}",
                     provider="ollama",
                     model=settings.ollama_model,
                     name=f"Ollama: {settings.ollama_model} (Offline)",
-                    is_available=False
+                    is_available=False,
+                    status="offline",
+                    latency_ms=None,
+                    last_error="Ollama endpoint unreachable",
                 )
             )
 
         return ModelsListResponse(models=engines)
+
+    @app.get("/api/models/health")
+    async def get_models_health():
+        """Returns live model statuses from ModelHealthRegistry."""
+        return {
+            "statuses": {
+                m: rec.to_dict() for m, rec in health_registry.get_all().items()
+            }
+        }
+
+    @app.post("/api/models/ping")
+    async def ping_model(model_id: str):
+        """Pings a specific model to check latency and availability."""
+        prov = "gemini"
+        m_name = model_id
+        if ":" in model_id:
+            prov, m_name = model_id.split(":", 1)
+        client = providers.get(prov)
+        if not client or not hasattr(client, "ping"):
+            raise HTTPException(status_code=400, detail=f"Provider '{prov}' does not support pinging")
+        rec = client.ping(m_name)
+        return rec.to_dict()
 
     return app
 
