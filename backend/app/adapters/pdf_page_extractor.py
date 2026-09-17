@@ -90,7 +90,11 @@ class PageAwarePDFExtractor:
         asset_url_prefix: str = "",
         vision_transcriber: Optional[Any] = None,
         max_pages: Optional[int] = None,
-        min_figure_dimension: float = 60.0
+        min_figure_dimension: float = 60.0,
+        min_vlm_dimension: float = 120.0,
+        min_vlm_area: float = 15000.0,
+        max_vlm_figures: int = 10,
+        max_figures_per_page: int = 2,
     ):
         self.extract_tables = extract_tables
         self.extract_figures = extract_figures
@@ -99,6 +103,10 @@ class PageAwarePDFExtractor:
         self.vision_transcriber = vision_transcriber
         self.max_pages = max_pages
         self.min_figure_dimension = min_figure_dimension
+        self.min_vlm_dimension = min_vlm_dimension
+        self.min_vlm_area = min_vlm_area
+        self.max_vlm_figures = max_vlm_figures
+        self.max_figures_per_page = max_figures_per_page
 
     def extract(self, file_path: str) -> PageExtractionResult:
         import pdfplumber
@@ -109,6 +117,7 @@ class PageAwarePDFExtractor:
         page_records: list[dict[str, Any]] = []
         full_text_parts: list[str] = []
         current_offset = 0
+        vlm_figures_processed = 0
 
         if self.extract_figures and self.assets_dir:
             os.makedirs(self.assets_dir, exist_ok=True)
@@ -121,6 +130,7 @@ class PageAwarePDFExtractor:
 
             # Pass 1: Extract page text, tables, figures, and detect folios
             for physical_num, page in enumerate(pages_to_process, start=1):
+                page_im = None
                 try:
                     txt = page.extract_text(layout=False) or ""
                 except Exception as e:
@@ -143,20 +153,31 @@ class PageAwarePDFExtractor:
 
                 # Extract figures and diagrams if enabled
                 figures_md_parts: list[str] = []
-                if self.extract_figures and self.assets_dir and page.images:
+                if self.extract_figures and self.assets_dir and getattr(page, "images", None):
                     try:
-                        # Render high-res page image once to crop figures from
-                        page_im = page.to_image(resolution=150)
-                        orig_w, orig_h = page_im.original.size
-                        scale_x = orig_w / float(page.width)
-                        scale_y = orig_h / float(page.height)
-
-                        fig_counter = 1
+                        # Filter candidate figures and prioritize larger ones (likely diagrams/charts)
+                        candidates = []
                         for img_info in page.images:
                             w = float(img_info.get("width", 0))
                             h = float(img_info.get("height", 0))
-
                             if w >= self.min_figure_dimension and h >= self.min_figure_dimension:
+                                candidates.append((w * h, img_info))
+
+                        # Sort by area descending and respect per-page limit
+                        candidates.sort(key=lambda x: x[0], reverse=True)
+                        selected_candidates = [c[1] for c in candidates[:self.max_figures_per_page]]
+
+                        if selected_candidates:
+                            # Render high-res page image once to crop figures from
+                            page_im = page.to_image(resolution=150)
+                            orig_w, orig_h = page_im.original.size
+                            scale_x = orig_w / float(page.width)
+                            scale_y = orig_h / float(page.height)
+
+                            fig_counter = 1
+                            for img_info in selected_candidates:
+                                w = float(img_info.get("width", 0))
+                                h = float(img_info.get("height", 0))
                                 x0 = float(img_info.get("x0", 0))
                                 top = float(img_info.get("top", 0))
                                 x1 = float(img_info.get("x1", x0 + w))
@@ -176,22 +197,50 @@ class PageAwarePDFExtractor:
                                     img_url = f"{self.asset_url_prefix}/{fig_filename}" if self.asset_url_prefix else fig_filename
                                     fig_md = f"\n![Figura {fig_counter} (Pág. {physical_num})]({img_url})\n"
 
-                                    # Multimodal Vision Transcription (Level 3)
-                                    if self.vision_transcriber:
-                                        img_bytes_io = io.BytesIO()
-                                        cropped.save(img_bytes_io, format="PNG")
-                                        transcription = self.vision_transcriber.transcribe(
-                                            image_bytes=img_bytes_io.getvalue(),
-                                            page_number=physical_num,
-                                            figure_index=fig_counter
-                                        )
-                                        if transcription:
-                                            fig_md += f"\n> **[Análisis Visual de Figura - Pág. {physical_num}]**:\n> {transcription}\n"
+                                    # Multimodal Vision Transcription with quota and size gate
+                                    should_transcribe = (
+                                        self.vision_transcriber is not None
+                                        and vlm_figures_processed < self.max_vlm_figures
+                                        and w >= self.min_vlm_dimension
+                                        and h >= self.min_vlm_dimension
+                                        and (w * h) >= self.min_vlm_area
+                                    )
+
+                                    if should_transcribe:
+                                        try:
+                                            img_bytes_io = io.BytesIO()
+                                            cropped.save(img_bytes_io, format="PNG")
+                                            transcription = self.vision_transcriber.transcribe(
+                                                image_bytes=img_bytes_io.getvalue(),
+                                                page_number=physical_num,
+                                                figure_index=fig_counter
+                                            )
+                                            if transcription:
+                                                fig_md += f"\n> **[Análisis Visual de Figura - Pág. {physical_num}]**:\n> {transcription}\n"
+                                            vlm_figures_processed += 1
+                                        except Exception as vlm_err:
+                                            logger.warning("VLM transcription error on page %d: %s", physical_num, vlm_err)
 
                                     figures_md_parts.append(fig_md)
                                     fig_counter += 1
                     except Exception as e:
                         logger.warning("Error extracting figures on page %d: %s", physical_num, e)
+                    finally:
+                        if page_im is not None:
+                            try:
+                                if hasattr(page_im, "close"):
+                                    page_im.close()
+                                elif hasattr(page_im, "original") and hasattr(page_im.original, "close"):
+                                    page_im.original.close()
+                            except Exception:
+                                pass
+
+                # Flush pdfplumber page cache to prevent memory accumulation in heavy books
+                if hasattr(page, "flush_cache"):
+                    try:
+                        page.flush_cache()
+                    except Exception:
+                        pass
 
                 lines = [line.strip() for line in txt.splitlines() if line.strip()]
                 folio: Optional[int] = None

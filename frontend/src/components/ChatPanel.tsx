@@ -133,7 +133,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       if (projectId) {
         try {
-          const snapshot = await shareProjectChat(projectId, title);
+          const snapshot = await shareProjectChat(projectId, title, messages);
           currentShareId = snapshot.share_id;
           currentShareUrl = `${window.location.origin}${window.location.pathname}?share=${snapshot.share_id}`;
         } catch (apiErr) {

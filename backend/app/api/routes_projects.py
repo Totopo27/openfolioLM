@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
 from fastapi.responses import PlainTextResponse, FileResponse
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.models import (
@@ -213,7 +214,7 @@ def create_projects_router(
         file_path = os.path.join(uploads_dir, stored_filename)
         await _save_upload_with_limit(file, file_path)
 
-        try:
+        def _process_and_persist():
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
 
@@ -233,11 +234,21 @@ def create_projects_router(
 
             _persist_document_with_rollback(store, vector_store, doc, chunks)
             return doc
-        except Exception:
+
+        try:
+            return await run_in_threadpool(_process_and_persist)
+        except Exception as exc:
             if os.path.exists(file_path):
-                os.remove(file_path)
-            logger.exception("Failed to ingest uploaded source for project %s", project_id)
-            raise HTTPException(status_code=500, detail="Unable to ingest uploaded source")
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
+            logger.exception("Failed to ingest uploaded source %s for project %s", filename, project_id)
+            err_msg = str(exc).strip() or "Error interno durante la indexación"
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al procesar el archivo '{filename}': {err_msg}"
+            )
 
     @router.post("/{project_id}/sources/url", response_model=SourceDocument)
     async def ingest_project_url(project_id: str, data: URLIngestRequest):
@@ -453,8 +464,12 @@ def create_projects_router(
         project = project_manager.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-        store = project_manager.get_store(project_id)
-        messages = store.get_messages("default")
+
+        messages = req.messages
+        if not messages:
+            store = project_manager.get_store(project_id)
+            messages = store.get_messages("default")
+
         if not messages:
             raise HTTPException(status_code=400, detail="No hay mensajes en esta conversación para compartir.")
 

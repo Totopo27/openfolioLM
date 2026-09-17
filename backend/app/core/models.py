@@ -276,6 +276,7 @@ class SharedConversationSnapshot(BaseModel):
 
 class ShareConversationRequest(BaseModel):
     title: Optional[str] = Field(default=None, max_length=200, description="Optional custom title for the shared conversation")
+    messages: Optional[list[dict[str, Any]]] = Field(default=None, description="Optional explicit messages list from client to share")
 
 
 class ImportConversationRequest(BaseModel):

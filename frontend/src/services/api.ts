@@ -458,18 +458,27 @@ export async function fetchProjectTaxonomy(projectId: string): Promise<ProjectTa
 
 export async function shareProjectChat(
   projectId: string,
-  title?: string
+  title?: string,
+  messages?: any[]
 ): Promise<SharedConversationSnapshot> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/chat/share`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to share chat' }));
-    throw new Error(err.detail || 'Failed to share chat');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/chat/share`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, messages }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to share chat' }));
+      throw new Error(err.detail || 'Failed to share chat');
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 export async function getSharedChat(shareId: string): Promise<SharedConversationSnapshot> {

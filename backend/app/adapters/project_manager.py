@@ -286,11 +286,25 @@ class ProjectManager:
             if hasattr(m, "model_dump"):
                 m_dict = m.model_dump()
             elif isinstance(m, dict):
-                m_dict = m
+                m_dict = dict(m)
             else:
                 m_dict = dict(m)
-            if "created_at" in m_dict and isinstance(m_dict["created_at"], datetime):
+
+            if "id" not in m_dict or not m_dict["id"]:
+                m_dict["id"] = f"msg_{uuid.uuid4().hex[:12]}"
+            if "conversation_id" not in m_dict or not m_dict["conversation_id"]:
+                m_dict["conversation_id"] = "default"
+            if "created_at" not in m_dict or not m_dict["created_at"]:
+                m_dict["created_at"] = now
+            elif isinstance(m_dict["created_at"], datetime):
                 m_dict["created_at"] = m_dict["created_at"].isoformat()
+            if "sender" not in m_dict:
+                m_dict["sender"] = "user"
+            if "text" not in m_dict:
+                m_dict["text"] = ""
+            if "citations" not in m_dict or m_dict["citations"] is None:
+                m_dict["citations"] = []
+
             serialized_messages.append(m_dict)
             for c in m_dict.get("citations", []):
                 if isinstance(c, dict) and c.get("source_id"):

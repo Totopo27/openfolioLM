@@ -1,3 +1,4 @@
+import logging
 import io
 import ipaddress
 import mimetypes
@@ -13,6 +14,8 @@ from markitdown import MarkItDown
 
 from app.core.models import SourceDocument
 from app.ports.ingester import IngestionPort
+
+logger = logging.getLogger(__name__)
 
 
 class UnsafeURLError(ValueError):
@@ -44,6 +47,9 @@ class MarkItDownAdapter(IngestionPort):
         filename: str,
         source_id: Optional[str] = None
     ) -> SourceDocument:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Source file not found at: {file_path}")
+
         doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
         ext = os.path.splitext(filename)[1].lower()
         if ext == ".pdf":
@@ -86,11 +92,34 @@ class MarkItDownAdapter(IngestionPort):
                             "has_figures": bool(assets_dir and os.path.exists(assets_dir) and os.listdir(assets_dir)),
                         }
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("PageAwarePDFExtractor failed for %s: %s. Falling back to MarkItDown/pypdf.", filename, e)
 
-        result = self._md.convert(file_path)
-        markdown_text = result.text_content or ""
+        markdown_text = ""
+        try:
+            result = self._md.convert(file_path)
+            markdown_text = result.text_content or ""
+        except Exception as md_err:
+            logger.warning("MarkItDown failed to convert %s: %s", filename, md_err)
+
+        # Fallback to pypdf if text is still empty and file is PDF
+        if ext == ".pdf" and not markdown_text.strip():
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(file_path)
+                pypdf_parts = []
+                for idx, p in enumerate(reader.pages, start=1):
+                    p_text = p.extract_text() or ""
+                    if p_text.strip():
+                        pypdf_parts.append(f"<!-- PAGE: {idx} -->\n\n--- [Pág. {idx}] ---\n\n{p_text.strip()}")
+                if pypdf_parts:
+                    markdown_text = "\n\n".join(pypdf_parts)
+                    logger.info("Extracted %d pages via pypdf fallback for %s", len(pypdf_parts), filename)
+            except Exception as pypdf_err:
+                logger.warning("pypdf fallback failed for %s: %s", filename, pypdf_err)
+
+        if not markdown_text.strip():
+            markdown_text = f"# {filename}\n\n*[Aviso: Este documento no contiene una capa de texto indexable por OCR directo. Es posible que consista en páginas escaneadas puramente como imágenes.]*"
 
         doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
         mime_type, _ = mimetypes.guess_type(filename)

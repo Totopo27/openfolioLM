@@ -40,3 +40,60 @@ def test_pdf_extractor_handles_mocked_pdf():
             assert len(result.page_offsets) == 3
             assert result.page_offsets[1]["page"] == 1
             assert result.page_offsets[2]["page"] == 2
+
+
+def test_vlm_quota_and_smart_dimension_filtering(tmp_path):
+    mock_page = MagicMock()
+    mock_page.width = 600
+    mock_page.height = 800
+    mock_page.extract_text.return_value = "Página con figuras"
+    mock_page.flush_cache = MagicMock()
+
+    # Create fake PIL image for page.to_image
+    from PIL import Image
+    fake_im = Image.new("RGB", (600, 800), color="white")
+    mock_page_im = MagicMock()
+    mock_page_im.original = fake_im
+    mock_page.to_image.return_value = mock_page_im
+
+    # 4 images on page:
+    # 1. small icon: 80x80 (area 6400 < 15000 -> not for VLM)
+    # 2. large diagram A: 300x200 (area 60000 -> for VLM)
+    # 3. large diagram B: 400x300 (area 120000 -> for VLM)
+    # 4. medium figure: 200x150 (area 30000 -> max_figures_per_page=2 caps to top 2)
+    mock_page.images = [
+        {"x0": 10, "top": 10, "width": 80, "height": 80},
+        {"x0": 10, "top": 100, "width": 300, "height": 200},
+        {"x0": 10, "top": 350, "width": 400, "height": 300},
+        {"x0": 10, "top": 680, "width": 200, "height": 150},
+    ]
+
+    mock_pdf = MagicMock()
+    mock_pdf.pages = [mock_page]
+
+    mock_transcriber = MagicMock()
+    mock_transcriber.transcribe.return_value = "```mermaid\ngraph TD\nA-->B\n```"
+
+    assets_dir = str(tmp_path / "assets")
+
+    with patch("pdfplumber.open") as mock_open:
+        mock_open.return_value.__enter__.return_value = mock_pdf
+        with patch("os.path.exists", return_value=True):
+            extractor = PageAwarePDFExtractor(
+                extract_figures=True,
+                assets_dir=assets_dir,
+                vision_transcriber=mock_transcriber,
+                min_figure_dimension=60.0,
+                min_vlm_dimension=120.0,
+                min_vlm_area=15000.0,
+                max_vlm_figures=1,  # Quota of 1 across document
+                max_figures_per_page=2,
+            )
+            result = extractor.extract("doc_with_figs.pdf")
+
+            # max_vlm_figures was 1, so transcribe must be called exactly once
+            assert mock_transcriber.transcribe.call_count == 1
+            # flush_cache must have been invoked
+            mock_page.flush_cache.assert_called_once()
+            # The markdown should contain the VLM transcription
+            assert "Análisis Visual de Figura" in result.raw_markdown

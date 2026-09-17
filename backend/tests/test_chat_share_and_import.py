@@ -99,3 +99,52 @@ def test_chat_share_export_and_import(temp_workspace):
     assert len(msgs2) == 2
     assert msgs2[0].text == "¿Qué es el temperamento igual de 31 notas (31-EDO)?"
     assert msgs2[1].citations[0].quote_snippet == "Adriaan Fokker promovió el sistema de 31 notas."
+
+
+def test_chat_share_with_explicit_client_messages(temp_workspace):
+    pm = ProjectManager(projects_root=os.path.join(temp_workspace, "projects"))
+    project = pm.create_project(name="Proyecto con Mensajes Locales", description="Test sharing client messages")
+
+    app = create_app(project_manager=pm)
+    client = TestClient(app)
+
+    # Note: SQLite store has NO messages for this project.
+    # We share by passing explicit messages in the request payload.
+    client_messages = [
+        {
+            "id": "msg_local_1",
+            "sender": "user",
+            "text": "¿Cómo funciona el análisis de frecuencias?",
+            "timestamp": "12:00"
+        },
+        {
+            "id": "msg_local_2",
+            "sender": "assistant",
+            "text": "El análisis de Fourier descompone señales complejas en ondas sinusoidales puras.",
+            "citations": [],
+            "timestamp": "12:01"
+        }
+    ]
+
+    share_res = client.post(
+        f"/api/projects/{project.id}/chat/share",
+        json={
+            "title": "Análisis de Frecuencias",
+            "messages": client_messages
+        }
+    )
+    assert share_res.status_code == 200
+    share_data = share_res.json()
+    share_id = share_data["share_id"]
+    assert share_id.startswith("share_")
+    assert len(share_data["messages"]) == 2
+    assert share_data["messages"][0]["text"] == "¿Cómo funciona el análisis de frecuencias?"
+    assert share_data["messages"][1]["sender"] == "assistant"
+
+    # Public retrieval
+    pub_res = client.get(f"/api/chat/shared/{share_id}")
+    assert pub_res.status_code == 200
+    pub_data = pub_res.json()
+    assert pub_data["share_id"] == share_id
+    assert pub_data["title"] == "Análisis de Frecuencias"
+    assert len(pub_data["messages"]) == 2
