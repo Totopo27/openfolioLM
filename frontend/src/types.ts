@@ -38,6 +38,16 @@ export interface SourceDocument {
   metadata?: SourceMetadata;
 }
 
+export interface ActiveUploadTask {
+  id: string;
+  name: string;
+  size: number;
+  progress: number; // 0 to 100
+  stage: 'uploading' | 'processing' | 'done' | 'error';
+  error?: string;
+  startedAt: number;
+}
+
 export interface Citation {
   index: number;
   chunk_id: string;

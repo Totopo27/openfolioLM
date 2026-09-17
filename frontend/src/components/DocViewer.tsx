@@ -365,8 +365,8 @@ export const DocViewer: React.FC<DocViewerProps> = ({
       </div>
 
       {/* Main Content Pane */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'taxonomy' ? (
+      <div className="flex-1 overflow-hidden relative">
+        <div className={`h-full ${activeTab === 'taxonomy' ? 'block' : 'hidden'}`}>
           <TaxonomyViewer
             projectId={projectId || 'default'}
             document={document}
@@ -374,21 +374,27 @@ export const DocViewer: React.FC<DocViewerProps> = ({
             selectedEngine={selectedEngine}
             onMetadataUpdated={onMetadataUpdated}
           />
-        ) : activeTab === 'dossier' ? (
+        </div>
+
+        <div className={`h-full ${activeTab === 'dossier' ? 'block' : 'hidden'}`}>
           <DossierViewer
             projectId={projectId || 'default'}
             document={document}
             selectedEngine={selectedEngine}
             onExploreTopic={onExploreTopic}
           />
-        ) : document.metadata?.is_code || document.metadata?.is_repo ? (
-          <CodeViewer
-            document={document}
-            highlightTarget={highlightTarget}
-            onClearHighlight={onClearHighlight}
-          />
+        </div>
+
+        {document.metadata?.is_code || document.metadata?.is_repo ? (
+          <div className={`h-full ${activeTab === 'reading' ? 'block' : 'hidden'}`}>
+            <CodeViewer
+              document={document}
+              highlightTarget={highlightTarget}
+              onClearHighlight={onClearHighlight}
+            />
+          </div>
         ) : (
-          <div className="h-full flex flex-col overflow-hidden">
+          <div className={`h-full flex flex-col overflow-hidden ${activeTab === 'reading' ? 'block' : 'hidden'}`}>
             {/* Embedded YouTube Video Player Banner */}
             {document.metadata?.is_youtube && document.metadata?.video_id && (
               <div className="bg-slate-950/90 border-b border-slate-800 p-3 sm:p-4 shrink-0 shadow-inner">

@@ -20,7 +20,9 @@ import {
   Citation,
   Project,
   ModelEngine,
+  ActiveUploadTask,
 } from './types';
+import { CircularProgressRing } from './components/CircularProgressRing';
 import {
   fetchProjects,
   createProject,
@@ -71,6 +73,7 @@ export const App: React.FC = () => {
   const [models, setModels] = useState<ModelEngine[]>([]);
   const [selectedEngine, setSelectedEngine] = useState<string>('gemini:gemini-2.5-flash');
   const [isPinging, setIsPinging] = useState(false);
+  const [uploadTasks, setUploadTasks] = useState<ActiveUploadTask[]>([]);
 
   // Studio & Tab State
   const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier' | 'taxonomy'>('reading');
@@ -293,15 +296,69 @@ export const App: React.FC = () => {
 
   const handleUpload = async (file: File) => {
     if (!activeProject) return;
-    const newDoc = await uploadProjectSource(activeProject.id, file);
-    setSources((prev) => [newDoc, ...prev]);
-    setActiveSourceIds((prev) => [...prev, newDoc.id]);
-    setSelectedDoc(newDoc);
+    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const newTask: ActiveUploadTask = {
+      id: taskId,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      stage: 'uploading',
+      startedAt: Date.now(),
+    };
 
-    // Refresh project metadata count
-    setProjects((prev) =>
-      prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: p.doc_count + 1 } : p))
-    );
+    setUploadTasks((prev) => [newTask, ...prev]);
+
+    try {
+      const newDoc = await uploadProjectSource(
+        activeProject.id,
+        file,
+        (percent) => {
+          setUploadTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    progress: percent,
+                    stage: percent >= 100 ? 'processing' : 'uploading',
+                  }
+                : t
+            )
+          );
+        }
+      );
+
+      setSources((prev) => [newDoc, ...prev]);
+      setActiveSourceIds((prev) => [...prev, newDoc.id]);
+      setSelectedDoc(newDoc);
+
+      // Refresh project metadata count
+      setProjects((prev) =>
+        prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: p.doc_count + 1 } : p))
+      );
+
+      // Mark task as done
+      setUploadTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, progress: 100, stage: 'done' } : t))
+      );
+
+      // Auto dismiss done task after 3 seconds
+      setTimeout(() => {
+        setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
+      }, 3000);
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setUploadTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, stage: 'error', error: err.message || 'Error al subir e indexar' }
+            : t
+        )
+      );
+    }
+  };
+
+  const handleDismissUploadTask = (taskId: string) => {
+    setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 
   const handleIngestUrl = async (url: string, title?: string) => {
@@ -793,6 +850,31 @@ export const App: React.FC = () => {
               </button>
             </div>
 
+            {/* Background uploads indicator badge */}
+            {uploadTasks.length > 0 && (
+              <div
+                onClick={() => setRightPaneMode('sources')}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-950/90 border border-indigo-500/40 text-[10px] text-indigo-200 shadow-md cursor-pointer hover:bg-indigo-900/90 transition animate-in fade-in shrink-0"
+                title="Hacé clic para ver el estado de las fuentes en la bibliografía"
+              >
+                <CircularProgressRing
+                  progress={uploadTasks[0].progress}
+                  stage={uploadTasks[0].stage}
+                  size="xs"
+                />
+                <span className="truncate max-w-[100px] sm:max-w-[150px] font-medium">
+                  {uploadTasks[0].stage === 'processing'
+                    ? `Indexando ${uploadTasks[0].name}`
+                    : `${uploadTasks[0].progress}% ${uploadTasks[0].name}`}
+                </span>
+                {uploadTasks.length > 1 && (
+                  <span className="text-indigo-400 text-[9px] font-mono">
+                    +{uploadTasks.length - 1}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Split Layout Presets */}
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 shrink-0">
               <button
@@ -822,7 +904,8 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {rightPaneMode === 'sources' ? (
+          {/* Persistent SourceManager Panel */}
+          <div className={`h-full flex-1 overflow-hidden ${rightPaneMode === 'sources' ? 'flex flex-col' : 'hidden'}`}>
             <SourceManager
               projectId={activeProject?.id}
               sources={sources}
@@ -853,8 +936,13 @@ export const App: React.FC = () => {
               selectedEngine={selectedEngine}
               isFullView={true}
               onNavigateToChat={() => setRightPaneMode('chat')}
+              uploadTasks={uploadTasks}
+              onDismissUploadTask={handleDismissUploadTask}
             />
-          ) : rightPaneMode === 'chat' ? (
+          </div>
+
+          {/* Persistent Chat Panel */}
+          <div className={`h-full flex-1 overflow-hidden ${rightPaneMode === 'chat' ? 'flex flex-col' : 'hidden'}`}>
             <ChatPanel
               projectId={activeProject?.id}
               projectName={activeProject?.name}
@@ -882,7 +970,9 @@ export const App: React.FC = () => {
                 }
               }}
             />
-          ) : rightPaneMode === 'notebook' ? (
+          </div>
+
+          {rightPaneMode === 'notebook' && (
             <StudioNotebook
               projectId={activeProject?.id || 'default'}
               projectName={activeProject?.name || 'Investigación'}
@@ -893,7 +983,9 @@ export const App: React.FC = () => {
               onClearInitialNote={() => setDraftNote(null)}
               onNavigateToChat={handleNavigateToChat}
             />
-          ) : rightPaneMode === 'network' ? (
+          )}
+
+          {rightPaneMode === 'network' && (
             <NetworkGraphViewer
               projectId={activeProject?.id || 'default'}
               selectedDocId={selectedDoc?.id || null}
@@ -905,7 +997,9 @@ export const App: React.FC = () => {
                 }
               }}
             />
-          ) : (
+          )}
+
+          {rightPaneMode === 'timeline' && (
             <TimelineViewer
               projectId={activeProject?.id || 'default'}
               selectedDocId={selectedDoc?.id || null}

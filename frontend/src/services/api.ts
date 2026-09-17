@@ -52,21 +52,54 @@ export async function fetchProjectSources(projectId: string): Promise<SourceDocu
   return res.json();
 }
 
-export async function uploadProjectSource(projectId: string, file: File): Promise<SourceDocument> {
-  const formData = new FormData();
-  formData.append('file', file);
+export function uploadProjectSource(
+  projectId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<SourceDocument> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/upload`, {
-    method: 'POST',
-    body: formData,
+    xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+        onProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (onProgress) onProgress(100);
+        try {
+          const doc: SourceDocument = JSON.parse(xhr.responseText);
+          resolve(doc);
+        } catch {
+          reject(new Error('Respuesta inválida del servidor'));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.detail || `Error al subir archivo (${xhr.status})`));
+        } catch {
+          reject(new Error(`Error al subir archivo (${xhr.status})`));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Error de conexión de red al subir el archivo'));
+    };
+
+    xhr.onabort = () => {
+      reject(new Error('Subida abortada'));
+    };
+
+    xhr.send(formData);
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
-    throw new Error(err.detail || 'Upload failed');
-  }
-
-  return res.json();
 }
 
 export async function ingestProjectUrl(

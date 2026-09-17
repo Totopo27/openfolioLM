@@ -25,9 +25,10 @@ import {
   MessageSquare,
   ArrowRight,
 } from 'lucide-react';
-import { SourceDocument } from '../types';
+import { SourceDocument, ActiveUploadTask } from '../types';
 import { LiteratureDiscoveryModal } from './LiteratureDiscoveryModal';
 import { autoclassifyAllSources } from '../services/api';
+import { CircularProgressRing } from './CircularProgressRing';
 
 export const YouTubeIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -55,6 +56,8 @@ interface SourceManagerProps {
   onToggleBatchActive?: (ids: string[], activate: boolean) => void;
   isFullView?: boolean;
   onNavigateToChat?: () => void;
+  uploadTasks?: ActiveUploadTask[];
+  onDismissUploadTask?: (taskId: string) => void;
 }
 
 export const SourceManager: React.FC<SourceManagerProps> = ({
@@ -77,9 +80,11 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
   onToggleBatchActive,
   isFullView = false,
   onNavigateToChat,
+  uploadTasks = [],
+  onDismissUploadTask,
 }) => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgressText, setUploadProgressText] = useState('');
+  const isUploading = uploadTasks.some((t) => t.stage === 'uploading' || t.stage === 'processing');
+  const activeUploadTask = uploadTasks.find((t) => t.stage === 'uploading' || t.stage === 'processing');
   const [isDragging, setIsDragging] = useState(false);
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
@@ -148,27 +153,12 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
     }
   };
 
-  const processFiles = async (files: File[]) => {
+  const processFiles = (files: File[]) => {
     if (!files.length) return;
-
-    try {
-      setIsUploading(true);
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (files.length > 1) {
-          setUploadProgressText(`(${i + 1}/${files.length}) ${file.name}`);
-        } else {
-          setUploadProgressText(file.name);
-        }
-        await onUpload(file);
-      }
-    } catch (err: any) {
-      alert(`Error uploading file: ${err.message}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgressText('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    for (const file of files) {
+      onUpload(file);
     }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -310,11 +300,17 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 cursor-pointer shrink-0"
         title="Añadir nuevas fuentes al proyecto"
       >
-        {isUploading ? (
+        {isUploading && activeUploadTask ? (
           <>
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <CircularProgressRing
+              progress={activeUploadTask.progress}
+              stage={activeUploadTask.stage}
+              size="xs"
+            />
             <span className="truncate max-w-[120px]">
-              {uploadProgressText || 'Subiendo...'}
+              {activeUploadTask.stage === 'processing'
+                ? 'Indexando...'
+                : `${activeUploadTask.progress}%`}
             </span>
           </>
         ) : (
@@ -724,15 +720,22 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
           }`}
         >
           <div className="p-3 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition-transform">
-            {isUploading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+            {isUploading && activeUploadTask ? (
+              <CircularProgressRing
+                progress={activeUploadTask.progress}
+                stage={activeUploadTask.stage}
+                size="md"
+                showText
+              />
             ) : (
               <Upload className={`w-5 h-5 ${isDragging ? 'text-indigo-300 animate-bounce' : 'text-indigo-400'}`} />
             )}
           </div>
           <p className="font-semibold text-slate-200 text-sm">
-            {isUploading
-              ? `Procesando e indexando ${uploadProgressText}...`
+            {isUploading && activeUploadTask
+              ? activeUploadTask.stage === 'processing'
+                ? `Extrayendo páginas y esquemas de ${activeUploadTask.name}...`
+                : `Subiendo ${activeUploadTask.name} (${activeUploadTask.progress}%)...`
               : isDragging
               ? '¡Soltá los archivos acá para procesarlos!'
               : 'Arrastrá y soltá tus archivos aquí'}
@@ -758,6 +761,71 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         </div>
       ) : (
         <div className={isFullView ? "flex-1 overflow-y-auto space-y-2 pr-1 min-h-[300px]" : "flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1"}>
+          {/* Optimistic Active Upload Cards */}
+          {uploadTasks && uploadTasks.map((task) => (
+            <div
+              key={task.id}
+              className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-xs transition-all animate-in fade-in slide-in-from-top-2 ${
+                task.stage === 'error'
+                  ? 'bg-rose-950/30 border-rose-500/40 text-rose-200'
+                  : task.stage === 'done'
+                  ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                  : 'bg-indigo-950/40 border-indigo-500/50 text-slate-200 shadow-md ring-1 ring-indigo-500/30'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <CircularProgressRing
+                  progress={task.progress}
+                  stage={task.stage}
+                  size="md"
+                  showText={task.stage === 'uploading'}
+                />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-100 truncate text-xs" title={task.name}>
+                      {task.name}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 font-mono font-medium rounded ${
+                      task.stage === 'error'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : task.stage === 'processing'
+                        ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30 animate-pulse'
+                        : task.stage === 'done'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    }`}>
+                      {task.stage === 'uploading'
+                        ? `${task.progress}%`
+                        : task.stage === 'processing'
+                        ? 'Indexando IA...'
+                        : task.stage === 'done'
+                        ? 'Listo'
+                        : 'Error'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {task.stage === 'uploading'
+                      ? `Subiendo libro a OpenFolioLM (${(task.size / (1024 * 1024)).toFixed(1)} MB)...`
+                      : task.stage === 'processing'
+                      ? 'Extrayendo páginas, tablas y transcribiendo diagramas...'
+                      : task.stage === 'done'
+                      ? 'Indexado exitosamente en LanceDB'
+                      : task.error || 'Error en la carga'}
+                  </p>
+                </div>
+              </div>
+              {task.stage === 'error' && onDismissUploadTask && (
+                <button
+                  type="button"
+                  onClick={() => onDismissUploadTask(task.id)}
+                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition cursor-pointer"
+                  title="Descartar aviso de error"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
           {filteredSources.map((doc) => {
             const isActive = activeSourceIds.includes(doc.id);
             const isSelected = selectedDocId === doc.id;
