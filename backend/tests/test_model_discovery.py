@@ -59,3 +59,80 @@ def test_get_models_ollama_offline():
         offline_ollama = [m for m in models if m["provider"] == "ollama"]
         assert len(offline_ollama) >= 1
         assert offline_ollama[0]["is_available"] is False
+
+
+def test_get_models_gemini_dynamic_discovery(monkeypatch):
+    import app.main as main_mod
+
+    # Set mock api key and clear cache
+    monkeypatch.setattr(settings, "gemini_api_key", "test-gemini-key")
+    monkeypatch.setattr(main_mod, "_gemini_models_cache", [])
+    monkeypatch.setattr(main_mod, "_gemini_models_cache_time", 0.0)
+
+    app = create_app()
+    client = TestClient(app)
+
+    async def mock_get(self, url, *args, **kwargs):
+        resp = MagicMock()
+        resp.status_code = 200
+        if "generativelanguage" in url:
+            resp.json.return_value = {
+                "models": [
+                    {
+                        "name": "models/gemini-3.8-flash",
+                        "displayName": "Gemini 3.8 Flash",
+                        "supportedGenerationMethods": ["generateContent", "countTokens"],
+                    },
+                    {
+                        "name": "models/gemini-3.5-flash",
+                        "displayName": "Gemini 3.5 Flash",
+                        "supportedGenerationMethods": ["generateContent"],
+                    },
+                ]
+            }
+        else:
+            resp.json.return_value = {"models": []}
+        return resp
+
+    with patch("httpx.AsyncClient.get", new=mock_get):
+        res = client.get("/api/models")
+        assert res.status_code == 200
+        data = res.json()
+        models = data["models"]
+        gemini_ids = [m["id"] for m in models if m["provider"] == "gemini"]
+
+        assert "gemini:gemini-3.8-flash" in gemini_ids
+        assert "gemini:gemini-3.5-flash" in gemini_ids
+
+
+def test_get_models_gemini_fallback_catalog(monkeypatch):
+    import app.main as main_mod
+
+    # Set mock api key, clear cache, and simulate Google API failure
+    monkeypatch.setattr(settings, "gemini_api_key", "test-gemini-key")
+    monkeypatch.setattr(main_mod, "_gemini_models_cache", [])
+    monkeypatch.setattr(main_mod, "_gemini_models_cache_time", 0.0)
+
+    app = create_app()
+    client = TestClient(app)
+
+    async def mock_get_fail(self, url, *args, **kwargs):
+        if "generativelanguage" in url:
+            raise Exception("Google API timeout")
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"models": []}
+        return resp
+
+    with patch("httpx.AsyncClient.get", new=mock_get_fail):
+        res = client.get("/api/models")
+        assert res.status_code == 200
+        data = res.json()
+        models = data["models"]
+        gemini_ids = [m["id"] for m in models if m["provider"] == "gemini"]
+
+        # Default modern catalog should contain 3.x models
+        assert "gemini:gemini-3.8-flash" in gemini_ids
+        assert "gemini:gemini-3.5-flash" in gemini_ids
+        assert "gemini:gemini-2.5-flash" in gemini_ids
+

@@ -1,8 +1,11 @@
 import os
 import re
+import logging
 from typing import Optional
 import httpx
 import uvicorn
+
+logger = logging.getLogger(__name__)
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -54,6 +57,83 @@ def _get_cors_origins() -> list[str]:
     return origins
 
 
+_gemini_models_cache: list[tuple[str, str]] = []
+_gemini_models_cache_time: float = 0.0
+GEMINI_CACHE_TTL_SECS = 300.0
+
+DEFAULT_GEMINI_CATALOG: list[tuple[str, str]] = [
+    ("gemini-3.8-flash", "Gemini 3.8 Flash (Google Cloud)"),
+    ("gemini-3.7-flash", "Gemini 3.7 Flash (Google Cloud)"),
+    ("gemini-3.5-flash", "Gemini 3.5 Flash (Google Cloud)"),
+    ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview (Google Cloud)"),
+    ("gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite (Google Cloud)"),
+    ("gemini-2.5-pro", "Gemini 2.5 Pro (Google Cloud)"),
+    ("gemini-2.5-flash", "Gemini 2.5 Flash (Google Cloud)"),
+    ("gemini-2.0-flash", "Gemini 2.0 Flash (Google Cloud)"),
+    ("gemini-1.5-flash", "Gemini 1.5 Flash (Google Cloud)"),
+    ("gemini-1.5-pro", "Gemini 1.5 Pro (Google Cloud)"),
+]
+
+
+async def fetch_available_gemini_models(api_key: str) -> list[tuple[str, str]]:
+    """Dynamically discover generation models from Google AI API with in-memory caching."""
+    global _gemini_models_cache, _gemini_models_cache_time
+    import time
+    now = time.time()
+    if _gemini_models_cache and (now - _gemini_models_cache_time) < GEMINI_CACHE_TTL_SECS:
+        return list(_gemini_models_cache)
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                discovered: list[tuple[str, str]] = []
+                for m in data.get("models", []):
+                    methods = m.get("supportedGenerationMethods", [])
+                    name = m.get("name", "").replace("models/", "")
+                    display = m.get("displayName", name)
+                    if "generateContent" not in methods:
+                        continue
+                    if not name.startswith("gemini"):
+                        continue
+                    if any(
+                        skip in name
+                        for skip in [
+                            "tts",
+                            "robotics",
+                            "translate",
+                            "clip",
+                            "transcribe",
+                            "native-audio",
+                            "embedding",
+                            "computer-use",
+                            "customtools",
+                            "image",
+                        ]
+                    ):
+                        continue
+                    discovered.append((name, f"{display} (Google Cloud)"))
+
+                if discovered:
+                    discovered.sort(
+                        key=lambda item: (
+                            item[0].startswith("gemini-3"),
+                            item[0].startswith("gemini-2.5"),
+                            item[0],
+                        ),
+                        reverse=True,
+                    )
+                    _gemini_models_cache = discovered
+                    _gemini_models_cache_time = now
+                    return list(discovered)
+    except Exception as e:
+        logger.debug(f"Dynamic Gemini model discovery failed, falling back to catalog: {e}")
+
+    return list(DEFAULT_GEMINI_CATALOG)
+
+
 def create_app(
     store: Optional[DocumentStorePort] = None,
     synthesizer: Optional[SynthesizerPort] = None,
@@ -103,7 +183,7 @@ def create_app(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
             api_key=settings.gemini_api_key,
             model=settings.gemini_model,
-            fallback_models=["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+            fallback_models=["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
             provider_name="gemini",
         )
     providers["ollama"] = OpenAICompatibleLLMClient(
@@ -208,16 +288,15 @@ def create_app(
 
         # 1. Cloud / Gemini Engines
         if settings.gemini_api_key:
-            gemini_catalog = [
-                ("gemini-2.5-flash", "Gemini 2.5 Flash (Google Cloud)"),
-                ("gemini-2.0-flash", "Gemini 2.0 Flash (Google Cloud)"),
-                ("gemini-1.5-flash", "Gemini 1.5 Flash (Google Cloud)"),
-                ("gemini-1.5-pro", "Gemini 1.5 Pro (Google Cloud)"),
-            ]
+            gemini_catalog = await fetch_available_gemini_models(settings.gemini_api_key)
             custom_model = settings.gemini_model
-            known_names = [m[0] for m in gemini_catalog]
-            if custom_model and custom_model not in known_names:
-                gemini_catalog.insert(0, (custom_model, f"Gemini {custom_model} (Google Cloud)"))
+            if custom_model:
+                match_idx = next((i for i, m in enumerate(gemini_catalog) if m[0] == custom_model), -1)
+                if match_idx > 0:
+                    model_entry = gemini_catalog.pop(match_idx)
+                    gemini_catalog.insert(0, model_entry)
+                elif match_idx == -1:
+                    gemini_catalog.insert(0, (custom_model, f"Gemini {custom_model} (Google Cloud)"))
 
             for m_id, m_name in gemini_catalog:
                 rec = health_registry.get_status(m_id)
