@@ -33,6 +33,12 @@ MODEL_FILENAMES = {
         "decoder": "base-decoder.int8.onnx",
         "tokens": "base-tokens.txt",
     },
+    "small": {
+        "repo": "sherpa-onnx-whisper-small",
+        "encoder": "small-encoder.int8.onnx",
+        "decoder": "small-decoder.int8.onnx",
+        "tokens": "small-tokens.txt",
+    },
 }
 
 
@@ -50,7 +56,7 @@ class SherpaOnnxTranscriber(AudioTranscriberPort):
         default_language: str = "",
     ):
         self.models_dir = models_dir or settings.sherpa_models_dir
-        self.model_size = model_size or settings.sherpa_whisper_model or "tiny"
+        self.model_size = model_size or settings.sherpa_whisper_model or "small"
         self.num_threads = num_threads
         self.default_language = default_language
         self._recognizer: Optional[sherpa_onnx.OfflineRecognizer] = None

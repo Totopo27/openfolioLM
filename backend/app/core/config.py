@@ -58,7 +58,7 @@ class Settings(BaseSettings):
 
     # Audio Ingestion & Offline Speech-to-Text (sherpa-onnx)
     enable_audio_transcription: bool = os.getenv("ENABLE_AUDIO_TRANSCRIPTION", "true").lower() in ("true", "1", "yes")
-    sherpa_whisper_model: str = os.getenv("SHERPA_WHISPER_MODEL", "tiny")
+    sherpa_whisper_model: str = os.getenv("SHERPA_WHISPER_MODEL", "small")
     sherpa_models_dir: str = os.getenv("SHERPA_MODELS_DIR", "data/models/sherpa")
 
     @property
