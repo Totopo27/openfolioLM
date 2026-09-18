@@ -28,6 +28,9 @@ from app.adapters.cross_encoder_reranker import CrossEncoderReranker
 from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.nli_fact_checker import NLIFactChecker
 from app.adapters.academic_resolver import CompositeAcademicResolver
+from app.adapters.youtube_ingester import YouTubeIngester
+from app.adapters.sherpa_transcriber import SherpaOnnxTranscriber
+from app.adapters.audio_ingester import AudioIngester
 from app.adapters.llm_client import OpenAICompatibleLLMClient, health_registry
 from app.adapters.vision_transcriber import VisionTranscriber
 from app.adapters.project_manager import InvalidProjectIdError, ProjectManager
@@ -218,11 +221,23 @@ def create_app(
         enabled=settings.enable_vision_transcription and (vision_client is not None),
     )
 
+    active_transcriber = None
+    if settings.enable_audio_transcription:
+        active_transcriber = SherpaOnnxTranscriber(
+            models_dir=settings.sherpa_models_dir,
+            model_size=settings.sherpa_whisper_model,
+        )
+
+    active_audio_ingester = AudioIngester(transcriber=active_transcriber)
+    active_yt_ingester = YouTubeIngester(audio_transcriber=active_transcriber)
+
     active_store = store or active_pm.get_store(default_proj.id)
     active_resolver = academic_resolver or CompositeAcademicResolver()
     active_ingester = ingester or HybridDocumentIngester(
         academic_resolver=active_resolver,
         vision_transcriber=active_vision_transcriber,
+        audio_ingester=active_audio_ingester,
+        youtube_ingester=active_yt_ingester,
     )
     active_chunker = chunker or PositionalChunker()
     active_reranker = reranker or CrossEncoderReranker(model_name=settings.reranker_model)
@@ -257,6 +272,7 @@ def create_app(
         fact_checker=active_fact_checker,
         academic_resolver=active_resolver,
         vision_transcriber=active_vision_transcriber,
+        audio_ingester=active_audio_ingester,
     ))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
     app.include_router(create_chat_router(

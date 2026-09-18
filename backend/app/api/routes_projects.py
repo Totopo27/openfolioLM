@@ -33,6 +33,7 @@ from app.core.models import (
 from app.core.exporter import export_project_bibtex, export_project_markdown
 from app.adapters.project_manager import ProjectManager
 from app.adapters.repository_ingester import RepositoryIngester
+from app.adapters.audio_ingester import AudioIngester
 from app.adapters.code_chunker import SemanticCodeChunker
 from app.ports.ingester import IngestionPort
 from app.ports.chunker import ChunkerPort
@@ -166,6 +167,7 @@ def create_projects_router(
     network_builder: Optional[NetworkBuilderPort] = None,
     timeline_builder: Optional[TimelineBuilderPort] = None,
     vision_transcriber: Optional[Any] = None,
+    audio_ingester: Optional[AudioIngester] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
@@ -176,6 +178,7 @@ def create_projects_router(
     active_network_builder = network_builder or CitationNetworkBuilder(project_manager)
     active_timeline_builder = timeline_builder or TimelineBuilder(project_manager, synthesizer)
     active_vision_transcriber = vision_transcriber or getattr(ingester, "_vision_transcriber", None)
+    active_audio_ingester = audio_ingester or getattr(ingester, "_audio_ingester", None)
 
     def _resolve_vision_transcriber(engine: Optional[str] = None) -> Optional[Any]:
         if not settings.enable_vision_transcription:
@@ -283,7 +286,19 @@ def create_projects_router(
                     getattr(dynamic_vt.llm_client, "model", "unknown"),
                 )
 
-            if active_repo_ingester.is_code_or_repo(filename):
+            if active_audio_ingester and active_audio_ingester.is_audio_file(filename) is True:
+                logger.info("Detectado archivo de audio o video para '%s'", filename)
+                report(15, "extracting", f"Decodificando audio y transcribiendo con IA (sherpa-onnx)...")
+                def _audio_progress(pct: float, msg: str):
+                    report(int(15 + pct * 0.4), "extracting", msg)
+                doc = active_audio_ingester.convert(
+                    file_path=file_path,
+                    filename=filename,
+                    progress_callback=_audio_progress,
+                )
+                report(55, "extracting", f"Transcripción completada ({doc.char_count} caracteres). Generando chunks...")
+                chunks = chunker.chunk(doc)
+            elif active_repo_ingester.is_code_or_repo(filename):
                 logger.info("Detectado código o repositorio para '%s'", filename)
                 report(25, "extracting", f"Procesando código o repositorio '{filename}'...")
                 with open(file_path, "rb") as f_in:

@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # Upload size limit in MB (0 = unlimited for large books, treatises, and scans)
     max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "0"))
 
+    # Audio Ingestion & Offline Speech-to-Text (sherpa-onnx)
+    enable_audio_transcription: bool = os.getenv("ENABLE_AUDIO_TRANSCRIPTION", "true").lower() in ("true", "1", "yes")
+    sherpa_whisper_model: str = os.getenv("SHERPA_WHISPER_MODEL", "tiny")
+    sherpa_models_dir: str = os.getenv("SHERPA_MODELS_DIR", "data/models/sherpa")
+
     @property
     def effective_llm_base_url(self) -> str:
         if self.llm_base_url:

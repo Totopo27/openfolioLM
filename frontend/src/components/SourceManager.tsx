@@ -24,6 +24,7 @@ import {
   Plus,
   MessageSquare,
   ArrowRight,
+  Headphones,
 } from 'lucide-react';
 import { SourceDocument, ActiveUploadTask } from '../types';
 import { LiteratureDiscoveryModal } from './LiteratureDiscoveryModal';
@@ -408,7 +409,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml"
+        accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml,.mp3,.wav,.m4a,.ogg,.flac,.aac,.mp4,.webm"
       />
 
       {/* Drag overlay when dragging files over container with existing sources */}
@@ -418,7 +419,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
           <p className="text-xs font-semibold text-indigo-200">
             Soltá los archivos para subirlos a este proyecto
           </p>
-          <p className="text-[10px] text-indigo-400">PDF, Word, PPTX, Excel, Markdown, TXT o Código (.zip, .py, .ts...)</p>
+          <p className="text-[10px] text-indigo-400">PDF, Word, Excel, Audio (.mp3, .wav), Video (.mp4), Markdown o Código</p>
         </div>
       )}
 
@@ -892,6 +893,8 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                     <div className="shrink-0">
                       {doc.metadata?.is_youtube ? (
                         <YouTubeIcon className="w-4 h-4 text-red-500" />
+                      ) : doc.metadata?.is_audio ? (
+                        <Headphones className="w-4 h-4 text-amber-400" />
                       ) : doc.metadata?.doi ? (
                         <BookOpen className="w-4 h-4 text-emerald-400" />
                       ) : doc.metadata?.is_repo ? (
@@ -1004,6 +1007,10 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
                 {doc.metadata?.is_youtube ? (
                   <span title={`Video de YouTube${doc.metadata.channel ? ` (${doc.metadata.channel})` : ''}`} className="flex items-center shrink-0">
                     <YouTubeIcon className="w-3.5 h-3.5 text-red-500" />
+                  </span>
+                ) : doc.metadata?.is_audio ? (
+                  <span title={`Grabación de Audio / Video${doc.metadata.duration_seconds ? ` (${Math.round(doc.metadata.duration_seconds)}s)` : ''}`} className="flex items-center shrink-0">
+                    <Headphones className="w-3.5 h-3.5 text-amber-400" />
                   </span>
                 ) : doc.metadata?.doi ? (
                   <span title={`Artículo Científico (DOI: ${doc.metadata.doi})`} className="flex items-center shrink-0">

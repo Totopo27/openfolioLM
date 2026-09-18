@@ -16,6 +16,7 @@ from app.adapters.docling_adapter import DoclingAdapter
 from app.adapters.markitdown_adapter import MarkItDownAdapter
 from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.youtube_ingester import YouTubeIngester
+from app.adapters.audio_ingester import AudioIngester
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class HybridDocumentIngester(IngestionPort):
     """
     Composite ingester routing rich multi-column documents (PDF, DOCX) through IBM Docling,
     academic DOIs through the Academic Resolver, YouTube videos through YouTubeIngester,
-    and web URLs / code through MarkItDown.
+    audio/video recordings through AudioIngester, and web URLs / code through MarkItDown.
     """
 
     def __init__(
@@ -36,6 +37,7 @@ class HybridDocumentIngester(IngestionPort):
         markitdown_adapter: Optional[MarkItDownAdapter] = None,
         academic_resolver: Optional[AcademicResolverPort] = None,
         youtube_ingester: Optional[YouTubeIngester] = None,
+        audio_ingester: Optional[AudioIngester] = None,
         enable_docling: Optional[bool] = None,
         vision_transcriber: Optional[Any] = None,
     ):
@@ -44,6 +46,7 @@ class HybridDocumentIngester(IngestionPort):
         self._docling = docling_adapter or DoclingAdapter(fallback_ingester=self._markitdown)
         self._academic_resolver = academic_resolver or CompositeAcademicResolver()
         self._youtube_ingester = youtube_ingester or YouTubeIngester()
+        self._audio_ingester = audio_ingester or AudioIngester()
         self.enable_docling = enable_docling if enable_docling is not None else settings.enable_docling
 
     def _download_public_pdf(self, url: str, headers: dict[str, str]) -> bytes:
@@ -101,6 +104,8 @@ class HybridDocumentIngester(IngestionPort):
         vision_transcriber: Optional[Any] = None,
     ) -> SourceDocument:
         ext = os.path.splitext(filename)[1].lower()
+        if self._audio_ingester and self._audio_ingester.is_audio_file(filename) is True:
+            return self._audio_ingester.convert(file_path, filename, source_id, vision_transcriber=vision_transcriber)
         if self.enable_docling and ext in DOCLING_EXTENSIONS:
             return self._docling.convert(file_path, filename, source_id, vision_transcriber=vision_transcriber)
         return self._markitdown.convert(file_path, filename, source_id, vision_transcriber=vision_transcriber)

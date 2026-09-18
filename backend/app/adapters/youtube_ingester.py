@@ -7,6 +7,7 @@ from typing import Optional, Any
 import httpx
 
 from app.core.models import SourceDocument
+from app.ports.audio_transcriber import AudioTranscriberPort
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,13 @@ YOUTUBE_URL_PATTERN = re.compile(
 class YouTubeIngester:
     """Ingests YouTube videos using public oEmbed metadata and timestamped transcripts."""
 
-    def __init__(self, http_timeout: float = 15.0):
+    def __init__(
+        self,
+        http_timeout: float = 15.0,
+        audio_transcriber: Optional[AudioTranscriberPort] = None,
+    ):
         self.http_timeout = http_timeout
+        self.audio_transcriber = audio_transcriber
 
     def is_youtube_url(self, url: str) -> bool:
         """Determines if a given URL or string matches a supported YouTube video pattern."""
@@ -241,6 +247,34 @@ class YouTubeIngester:
 
         return "\n".join(lines)
 
+    def _download_audio_stream(self, video_id: str) -> bytes:
+        """
+        Downloads the lightweight audio-only stream of a YouTube video using yt-dlp.
+        Returns the raw audio bytes without requiring ffmpeg.exe installed.
+        """
+        import os
+        import tempfile
+        import yt_dlp
+
+        temp_dir = tempfile.mkdtemp(prefix="yt_audio_")
+        target_template = os.path.join(temp_dir, f"{video_id}.%(ext)s")
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": target_template,
+            "quiet": True,
+            "no_warnings": True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
+                downloaded_file = ydl.prepare_filename(info)
+                with open(downloaded_file, "rb") as f_in:
+                    return f_in.read()
+        finally:
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     def ingest(
         self,
         url: str,
@@ -250,6 +284,7 @@ class YouTubeIngester:
         """
         Full ingestion pipeline: extracts video ID, oEmbed metadata, transcripts,
         formats markdown and packages as a SourceDocument.
+        Falls back to yt-dlp + ASR if subtitles are unavailable.
         """
         video_id = self.extract_video_id(url)
         if not video_id:
@@ -257,7 +292,33 @@ class YouTubeIngester:
 
         doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
         metadata = self.fetch_metadata(video_id)
-        transcript_entries, language, is_generated = self.fetch_transcript(video_id)
+
+        transcript_entries = None
+        language = "es"
+        is_generated = False
+        is_asr_fallback = False
+
+        try:
+            transcript_entries, language, is_generated = self.fetch_transcript(video_id)
+        except ValueError as original_err:
+            if not self.audio_transcriber:
+                raise original_err
+
+            logger.info("Subtítulos no disponibles para YouTube %s. Iniciando fallback con sherpa-onnx...", video_id)
+            is_asr_fallback = True
+            audio_bytes = self._download_audio_stream(video_id)
+            asr_res = self.audio_transcriber.transcribe(audio_bytes)
+
+            transcript_entries = [
+                {
+                    "start": seg.start_seconds,
+                    "duration": max(0.1, seg.end_seconds - seg.start_seconds),
+                    "text": seg.text,
+                }
+                for seg in asr_res.segments
+            ]
+            language = asr_res.language
+            is_generated = True
 
         raw_markdown = self.format_transcript_to_markdown(
             metadata=metadata,
@@ -292,5 +353,6 @@ class YouTubeIngester:
                 "is_generated_transcript": is_generated,
                 "duration_seconds": total_duration,
                 "source_url": f"https://www.youtube.com/watch?v={video_id}",
+                "transcription_engine": "sherpa-onnx" if is_asr_fallback else "youtube-captions",
             }
         )
