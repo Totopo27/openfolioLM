@@ -139,11 +139,19 @@ class SQLiteDocumentStore(DocumentStorePort):
 
     def add_document(self, document: SourceDocument, chunks: list[DocumentChunk]) -> None:
         with self._get_connection() as conn:
-            # Upsert document
+            # Update in place on conflict. SQLite's INSERT OR REPLACE deletes the
+            # existing row first, which would cascade-delete saved dossiers.
             conn.execute(
                 """
-                INSERT OR REPLACE INTO documents (id, filename, mime_type, raw_markdown, char_count, created_at, metadata_json)
+                INSERT INTO documents (id, filename, mime_type, raw_markdown, char_count, created_at, metadata_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    filename = excluded.filename,
+                    mime_type = excluded.mime_type,
+                    raw_markdown = excluded.raw_markdown,
+                    char_count = excluded.char_count,
+                    created_at = excluded.created_at,
+                    metadata_json = excluded.metadata_json
                 """,
                 (
                     document.id,

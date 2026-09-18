@@ -214,8 +214,9 @@ class GroundedSynthesizer(SynthesizerPort):
                     best_score = overlap
                     best_idx = c_idx
 
-            # If meaningful overlap or single chunk provided, attribute top chunk
-            if best_idx != -1 and (best_score >= 0.15 or len(chunks) == 1):
+            # Do not lower the evidence threshold for a single chunk: incidental
+            # token overlap is not sufficient to make an answer grounded.
+            if best_idx != -1 and best_score >= 0.25:
                 attributed_indices.add(best_idx)
                 result_text = f"{result_text.rstrip()} [^{best_idx}]"
 

@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ from app.api.routes_projects import (
     _safe_upload_filename,
 )
 from app.core.models import DocumentChunk, SourceDocument
-from app.main import create_app
+from app.main import API_DEFAULT_PORT, API_LOOPBACK_HOST, create_app, run_api
 
 
 class InMemoryVectorStore:
@@ -128,3 +129,17 @@ def test_invalid_project_identifier_returns_not_found(tmp_path):
     response = client.get("/api/projects/not_a_project")
 
     assert response.status_code == 404
+
+
+def test_direct_api_runner_binds_only_to_loopback():
+    with patch("app.main.uvicorn.run") as run:
+        run_api()
+
+    run.assert_called_once_with(
+        "app.main:app",
+        host=API_LOOPBACK_HOST,
+        port=API_DEFAULT_PORT,
+        reload=False,
+    )
+    assert API_LOOPBACK_HOST == "127.0.0.1"
+

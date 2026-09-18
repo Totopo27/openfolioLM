@@ -2,6 +2,7 @@ import os
 import re
 from typing import Optional
 import httpx
+import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -349,3 +350,20 @@ def create_app(
 
 
 app = create_app()
+
+API_LOOPBACK_HOST = "127.0.0.1"
+API_DEFAULT_PORT = 8000
+
+
+def run_api() -> None:
+    """Run the local-first API on loopback only."""
+    uvicorn.run(
+        "app.main:app",
+        host=API_LOOPBACK_HOST,
+        port=API_DEFAULT_PORT,
+        reload=False,
+    )
+
+
+if __name__ == "__main__":
+    run_api()

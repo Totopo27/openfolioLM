@@ -90,7 +90,8 @@ class NLIFactChecker(FactCheckerPort):
                 entailment_prob=1.0,
                 contradiction_prob=0.0,
                 neutral_prob=0.0,
-                claims_audited=0
+                claims_audited=0,
+                audit_status="not_applicable",
             )
 
         claims = self._split_into_claims(hypothesis_text)
@@ -101,18 +102,20 @@ class NLIFactChecker(FactCheckerPort):
                 entailment_prob=1.0,
                 contradiction_prob=0.0,
                 neutral_prob=0.0,
-                claims_audited=0
+                claims_audited=0,
+                audit_status="not_applicable",
             )
 
         if not self._ensure_loaded():
-            # Graceful fallback if model runtime is unavailable
+            # Do not present an unavailable safety model as a successful audit.
             return FactAuditResult(
-                factual_score=0.85,
-                hallucination_risk="low",
-                entailment_prob=0.85,
-                contradiction_prob=0.05,
-                neutral_prob=0.10,
-                claims_audited=len(claims)
+                factual_score=None,
+                hallucination_risk=None,
+                entailment_prob=None,
+                contradiction_prob=None,
+                neutral_prob=None,
+                claims_audited=0,
+                audit_status="unavailable",
             )
 
         # Build aggregated premise text from top chunks (budgeted to ~1500 chars)

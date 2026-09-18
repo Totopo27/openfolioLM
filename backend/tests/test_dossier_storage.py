@@ -85,3 +85,28 @@ def test_dossier_save_and_retrieve():
     # Verify deletion cascade
     store.delete_document("src_doc_42")
     assert store.get_dossier("src_doc_42") is None
+
+
+def test_document_upsert_preserves_existing_dossier():
+    store = SQLiteDocumentStore(db_path=":memory:")
+    document = SourceDocument(
+        id="src_doc_upsert",
+        filename="first.md",
+        raw_markdown="Original content",
+    )
+    store.add_document(document, [])
+    dossier = DocumentDossier(
+        source_id=document.id,
+        title="Persistent dossier",
+        executive_summary="Summary",
+        verdict="Keep this analysis",
+    )
+    store.save_dossier(dossier)
+
+    updated = document.model_copy(
+        update={"filename": "updated.md", "raw_markdown": "Updated content"}
+    )
+    store.add_document(updated, [])
+
+    assert store.get_dossier(document.id) == dossier
+
