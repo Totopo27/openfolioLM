@@ -47,10 +47,12 @@ class SherpaOnnxTranscriber(AudioTranscriberPort):
         models_dir: Optional[str] = None,
         model_size: Optional[str] = None,
         num_threads: int = 4,
+        default_language: str = "",
     ):
         self.models_dir = models_dir or settings.sherpa_models_dir
         self.model_size = model_size or settings.sherpa_whisper_model or "tiny"
         self.num_threads = num_threads
+        self.default_language = default_language
         self._recognizer: Optional[sherpa_onnx.OfflineRecognizer] = None
         self._vad: Optional[sherpa_onnx.VoiceActivityDetector] = None
 
@@ -128,12 +130,12 @@ class SherpaOnnxTranscriber(AudioTranscriberPort):
             buffer_size_in_seconds=60.0,
         )
 
-        # Initialize Whisper Recognizer
+        # Initialize Whisper Recognizer (empty string enables auto-language detection)
         self._recognizer = sherpa_onnx.OfflineRecognizer.from_whisper(
             encoder=encoder_path,
             decoder=decoder_path,
             tokens=tokens_path,
-            language="es",
+            language=self.default_language,
             task="transcribe",
             num_threads=self.num_threads,
         )
@@ -206,6 +208,7 @@ class SherpaOnnxTranscriber(AudioTranscriberPort):
 
         audio_segments: list[AudioSegment] = []
         total_segs = len(raw_segments)
+        detected_language = language or "es"
 
         for idx, (start_sec, end_sec, seg_samples) in enumerate(raw_segments):
             if progress_callback and total_segs > 0:
@@ -216,6 +219,8 @@ class SherpaOnnxTranscriber(AudioTranscriberPort):
             stream.accept_waveform(16000, seg_samples)
             self._recognizer.decode_stream(stream)
             text = stream.result.text.strip()
+            if hasattr(stream.result, "lang") and stream.result.lang:
+                detected_language = stream.result.lang
 
             if text:
                 audio_segments.append(
@@ -232,7 +237,7 @@ class SherpaOnnxTranscriber(AudioTranscriberPort):
 
         return AudioTranscriptResult(
             segments=audio_segments,
-            language=language or "es",
+            language=detected_language,
             duration_seconds=duration,
             full_text=full_text,
         )
