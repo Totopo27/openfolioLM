@@ -132,6 +132,7 @@ class ProjectCreate(BaseModel):
 class URLIngestRequest(BaseModel):
     url: str = Field(..., min_length=4, description="Web URL to ingest (http:// or https://)")
     title: Optional[str] = Field(default=None, description="Optional custom title override for the page")
+    engine: Optional[str] = Field(default=None, description="Optional LLM engine identifier, e.g. 'gemini:gemini-3.8-flash'")
 
 
 class ModelEngine(BaseModel):

@@ -62,14 +62,17 @@ export async function fetchProjectSource(projectId: string, sourceId: string): P
 export function uploadProjectSourceBackground(
   projectId: string,
   file: File,
-  onProgress?: (percent: number, loadedBytes: number, totalBytes: number) => void
+  onProgress?: (percent: number, loadedBytes: number, totalBytes: number) => void,
+  engine?: string
 ): Promise<BackendIngestionTask> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
     formData.append('file', file);
 
-    xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload?background=true`);
+    const query = new URLSearchParams({ background: 'true' });
+    if (engine) query.set('engine', engine);
+    xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload?${query.toString()}`);
     xhr.timeout = 180000; // 3 minutes network transfer timeout
 
     xhr.upload.onprogress = (event) => {
@@ -128,14 +131,18 @@ export async function dismissProjectTask(projectId: string, taskId: string): Pro
 export function uploadProjectSource(
   projectId: string,
   file: File,
-  onProgress?: (percent: number, stage: 'uploading' | 'processing', statusText?: string) => void
+  onProgress?: (percent: number, stage: 'uploading' | 'processing', statusText?: string) => void,
+  engine?: string
 ): Promise<SourceDocument> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
     formData.append('file', file);
 
-    xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload`);
+    const query = new URLSearchParams();
+    if (engine) query.set('engine', engine);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    xhr.open('POST', `${API_BASE}/projects/${projectId}/sources/upload${qs}`);
     xhr.timeout = 0; // Allow sufficient time for deep OCR, VLM transcriptions and LanceDB embedding
 
     // Byte transfer phase: represents 0% to 30% of total ingestion
@@ -194,12 +201,13 @@ export function uploadProjectSource(
 export async function ingestProjectUrl(
   projectId: string,
   url: string,
-  title?: string
+  title?: string,
+  engine?: string
 ): Promise<SourceDocument> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/sources/url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, title: title || undefined }),
+    body: JSON.stringify({ url, title: title || undefined, engine: engine || undefined }),
   });
 
   if (!res.ok) {

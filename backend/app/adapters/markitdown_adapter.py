@@ -45,7 +45,8 @@ class MarkItDownAdapter(IngestionPort):
         self,
         file_path: str,
         filename: str,
-        source_id: Optional[str] = None
+        source_id: Optional[str] = None,
+        vision_transcriber: Optional[Any] = None,
     ) -> SourceDocument:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Source file not found at: {file_path}")
@@ -66,12 +67,14 @@ class MarkItDownAdapter(IngestionPort):
                     assets_dir = os.path.join(grandparent, "assets", doc_id)
                     asset_url_prefix = f"/api/projects/{project_id}/assets/{doc_id}"
 
+                active_vt = vision_transcriber if vision_transcriber is not None else self._vision_transcriber
+
                 extractor = PageAwarePDFExtractor(
                     extract_tables=True,
                     extract_figures=bool(assets_dir),
                     assets_dir=assets_dir,
                     asset_url_prefix=asset_url_prefix,
-                    vision_transcriber=self._vision_transcriber,
+                    vision_transcriber=active_vt,
                 )
                 page_result = extractor.extract(file_path)
                 if page_result.raw_markdown and page_result.raw_markdown.strip():

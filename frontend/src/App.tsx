@@ -451,7 +451,8 @@ export const App: React.FC = () => {
                 : t
             )
           );
-        }
+        },
+        selectedEngine
       );
 
       // Successfully enqueued on server: update task with backend id and status
@@ -1233,6 +1234,7 @@ export const App: React.FC = () => {
           projectId={activeProject.id}
           isOpen={isDiscoveryOpen}
           initialQuery={discoveryInitialQuery}
+          selectedEngine={selectedEngine}
           onClose={() => {
             setIsDiscoveryOpen(false);
             setDiscoveryInitialQuery(undefined);

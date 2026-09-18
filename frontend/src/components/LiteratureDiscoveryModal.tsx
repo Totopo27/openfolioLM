@@ -22,6 +22,7 @@ interface LiteratureDiscoveryModalProps {
   onClose: () => void;
   onSourcesAdded: (sources: SourceDocument[]) => void;
   initialQuery?: string;
+  selectedEngine?: string;
 }
 
 export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> = ({
@@ -30,6 +31,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
   onClose,
   onSourcesAdded,
   initialQuery = '',
+  selectedEngine,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [minYear, setMinYear] = useState<string>('');
@@ -150,7 +152,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
       const res = await fetch(`/api/projects/${projectId}/discovery/ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dois: doisToIngest }),
+        body: JSON.stringify({ dois: doisToIngest, engine: selectedEngine || undefined }),
       });
 
       if (!res.ok) {

@@ -50,7 +50,8 @@ class DoclingAdapter(IngestionPort):
         self,
         file_path: str,
         filename: str,
-        source_id: Optional[str] = None
+        source_id: Optional[str] = None,
+        vision_transcriber: Optional[Any] = None,
     ) -> SourceDocument:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Source file not found at: {file_path}")
@@ -83,12 +84,19 @@ class DoclingAdapter(IngestionPort):
                     logger.warning("Docling conversion failed for '%s': %s. Falling back to MarkItDown.", filename, e)
 
         # Fallback to MarkItDown
-        return self._fallback.convert(file_path, filename, source_id)
+        try:
+            return self._fallback.convert(file_path, filename, source_id, vision_transcriber=vision_transcriber)
+        except TypeError:
+            return self._fallback.convert(file_path, filename, source_id)
 
     def ingest_url(
         self,
         url: str,
         source_id: Optional[str] = None,
-        title_override: Optional[str] = None
+        title_override: Optional[str] = None,
+        vision_transcriber: Optional[Any] = None,
     ) -> SourceDocument:
-        return self._fallback.ingest_url(url, source_id=source_id, title_override=title_override)
+        try:
+            return self._fallback.ingest_url(url, source_id=source_id, title_override=title_override, vision_transcriber=vision_transcriber)
+        except TypeError:
+            return self._fallback.ingest_url(url, source_id=source_id, title_override=title_override)

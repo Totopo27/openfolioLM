@@ -256,6 +256,7 @@ def create_app(
         analyzer=active_analyzer,
         fact_checker=active_fact_checker,
         academic_resolver=active_resolver,
+        vision_transcriber=active_vision_transcriber,
     ))
     app.include_router(create_sources_router(active_store, active_ingester, active_chunker))
     app.include_router(create_chat_router(

@@ -195,3 +195,90 @@ def test_minicpm_vlm_config_and_wiring():
     md = MarkItDownAdapter(vision_transcriber=mock_transcriber)
     assert md._vision_transcriber is mock_transcriber
 
+
+def test_hybrid_ingester_dynamic_vision_transcriber_override():
+    from app.adapters.hybrid_ingester import HybridDocumentIngester
+    from app.adapters.markitdown_adapter import MarkItDownAdapter
+
+    default_vt = MagicMock()
+    dynamic_vt = MagicMock()
+
+    mock_md = MagicMock(spec=MarkItDownAdapter)
+    hybrid = HybridDocumentIngester(markitdown_adapter=mock_md, vision_transcriber=default_vt, enable_docling=False)
+
+    hybrid.convert("fake.txt", "fake.txt", vision_transcriber=dynamic_vt)
+    mock_md.convert.assert_called_once_with("fake.txt", "fake.txt", None, vision_transcriber=dynamic_vt)
+
+
+def test_dynamic_vision_resolution_gemini_and_ollama(monkeypatch):
+    from app.core.config import settings
+    from app.api.routes_projects import create_projects_router
+
+    monkeypatch.setattr(settings, "gemini_api_key", "test-key-123")
+    monkeypatch.setattr(settings, "enable_vision_transcription", True)
+
+    mock_pm = MagicMock()
+    mock_ingester = MagicMock()
+    mock_chunker = MagicMock()
+    mock_synthesizer = MagicMock()
+    default_vt = MagicMock()
+
+    router = create_projects_router(
+        project_manager=mock_pm,
+        ingester=mock_ingester,
+        chunker=mock_chunker,
+        synthesizer=mock_synthesizer,
+        vision_transcriber=default_vt,
+    )
+
+    # Inspect internal resolver via endpoint closure or standalone test
+    # In routes_projects, upload_project_source uses _resolve_vision_transcriber
+    # Let's test upload_project_source endpoint with TestClient
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    from app.core.models import SourceDocument
+    valid_doc = SourceDocument(id="doc1", filename="test.pdf", mime_type="application/pdf", raw_markdown="dummy", metadata={})
+    mock_ingester.convert.return_value = valid_doc
+    mock_chunker.chunk.return_value = []
+
+    mock_pm.get_project.return_value = {"id": "p1", "name": "Test Project"}
+    mock_pm.get_uploads_dir.return_value = tempfile.gettempdir()
+    mock_pm.get_store.return_value = MagicMock()
+    mock_pm.get_vector_store.return_value = MagicMock()
+
+    # Upload with Gemini engine
+    with patch("builtins.open", MagicMock()), patch("os.path.exists", return_value=True), patch("os.path.getsize", return_value=100):
+        # When engine is gemini:gemini-3.8-flash
+        resp = client.post(
+            "/api/projects/p1/sources/upload?engine=gemini:gemini-3.8-flash",
+            files={"file": ("test.pdf", b"%PDF-1.4 dummy", "application/pdf")},
+        )
+        assert resp.status_code == 200
+        # Verify convert was called with dynamic_vt having Gemini client
+        assert mock_ingester.convert.called
+        kwargs = mock_ingester.convert.call_args[1]
+        passed_vt = kwargs.get("vision_transcriber")
+        assert passed_vt is not None
+        assert passed_vt.llm_client.provider_name == "gemini"
+        assert passed_vt.llm_client.model == "gemini-3.8-flash"
+
+        # When engine is ollama:qwen2.5:3b
+        mock_ingester.convert.reset_mock()
+        resp2 = client.post(
+            "/api/projects/p1/sources/upload?engine=ollama:qwen2.5:3b",
+            files={"file": ("test.pdf", b"%PDF-1.4 dummy", "application/pdf")},
+        )
+        assert resp2.status_code == 200
+        assert mock_ingester.convert.called
+        kwargs2 = mock_ingester.convert.call_args[1]
+        passed_vt2 = kwargs2.get("vision_transcriber")
+        assert passed_vt2 is not None
+        assert passed_vt2.llm_client.provider_name == "ollama"
+        assert passed_vt2.llm_client.model == settings.vision_model  # minicpm-v4.6
+
+

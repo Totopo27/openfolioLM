@@ -97,18 +97,20 @@ class HybridDocumentIngester(IngestionPort):
         self,
         file_path: str,
         filename: str,
-        source_id: Optional[str] = None
+        source_id: Optional[str] = None,
+        vision_transcriber: Optional[Any] = None,
     ) -> SourceDocument:
         ext = os.path.splitext(filename)[1].lower()
         if self.enable_docling and ext in DOCLING_EXTENSIONS:
-            return self._docling.convert(file_path, filename, source_id)
-        return self._markitdown.convert(file_path, filename, source_id)
+            return self._docling.convert(file_path, filename, source_id, vision_transcriber=vision_transcriber)
+        return self._markitdown.convert(file_path, filename, source_id, vision_transcriber=vision_transcriber)
 
     def ingest_url(
         self,
         url: str,
         source_id: Optional[str] = None,
-        title_override: Optional[str] = None
+        title_override: Optional[str] = None,
+        vision_transcriber: Optional[Any] = None,
     ) -> SourceDocument:
         doc_id = source_id or f"doc_{uuid.uuid4().hex[:12]}"
 
@@ -136,7 +138,12 @@ class HybridDocumentIngester(IngestionPort):
 
                                     filename = f"{paper.title}.pdf" if not title_override else f"{title_override}.pdf"
                                     # Route through Docling or fallback
-                                    doc = self.convert(file_path=temp_path, filename=filename, source_id=doc_id)
+                                    doc = self.convert(
+                                        file_path=temp_path,
+                                        filename=filename,
+                                        source_id=doc_id,
+                                        vision_transcriber=vision_transcriber,
+                                    )
                                     
                                     # Prepend academic metadata header and bibtex to full-text markdown
                                     header_block = (

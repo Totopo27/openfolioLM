@@ -48,6 +48,8 @@ from app.adapters.structured_analyzer import StructuredDocumentAnalyzer
 from app.adapters.academic_resolver import CompositeAcademicResolver
 from app.adapters.citation_network import CitationNetworkBuilder
 from app.adapters.timeline_builder import TimelineBuilder
+from app.adapters.llm_client import OpenAICompatibleLLMClient
+from app.adapters.vision_transcriber import VisionTranscriber
 from app.core.fusion import reciprocal_rank_fusion
 
 
@@ -63,6 +65,7 @@ UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 
 class BatchIngestRequest(BaseModel):
     dois: list[str] = Field(default_factory=list)
+    engine: Optional[str] = None
 
 
 class DocumentPersistenceError(RuntimeError):
@@ -162,6 +165,7 @@ def create_projects_router(
     academic_resolver: Optional[AcademicResolverPort] = None,
     network_builder: Optional[NetworkBuilderPort] = None,
     timeline_builder: Optional[TimelineBuilderPort] = None,
+    vision_transcriber: Optional[Any] = None,
 ) -> APIRouter:
     active_repo_ingester = repo_ingester or RepositoryIngester()
     active_code_chunker = code_chunker or SemanticCodeChunker()
@@ -171,6 +175,46 @@ def create_projects_router(
     active_academic_resolver = academic_resolver or CompositeAcademicResolver()
     active_network_builder = network_builder or CitationNetworkBuilder(project_manager)
     active_timeline_builder = timeline_builder or TimelineBuilder(project_manager, synthesizer)
+    active_vision_transcriber = vision_transcriber or getattr(ingester, "_vision_transcriber", None)
+
+    def _resolve_vision_transcriber(engine: Optional[str] = None) -> Optional[Any]:
+        if not settings.enable_vision_transcription:
+            return None
+        if not engine:
+            return active_vision_transcriber
+
+        parsed_provider = engine.split(":", 1)[0].lower() if ":" in engine else engine.lower()
+        parsed_model = engine.split(":", 1)[1] if ":" in engine else None
+
+        if parsed_provider == "gemini":
+            if not settings.gemini_api_key:
+                logger.warning(
+                    "Dynamic vision requested Gemini, but GEMINI_API_KEY is not set. Falling back to default transcriber."
+                )
+                return active_vision_transcriber
+            model_name = parsed_model or settings.gemini_model
+            client = OpenAICompatibleLLMClient(
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+                api_key=settings.gemini_api_key,
+                model=model_name,
+                provider_name="gemini",
+                timeout=60.0,
+            )
+            return VisionTranscriber(llm_client=client, enabled=True)
+
+        elif parsed_provider == "ollama":
+            model_name = settings.vision_model
+            client = OpenAICompatibleLLMClient(
+                base_url=settings.ollama_base_url,
+                api_key=settings.ollama_api_key,
+                model=model_name,
+                provider_name="ollama",
+                timeout=90.0,
+            )
+            return VisionTranscriber(llm_client=client, enabled=True)
+
+        return active_vision_transcriber
+
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
     @router.get("", response_model=list[Project])
@@ -207,6 +251,7 @@ def create_projects_router(
         project_id: str,
         file: UploadFile = File(...),
         background: bool = Query(default=False),
+        engine: Optional[str] = Query(default=None),
     ):
         proj = project_manager.get_project(project_id)
         if not proj:
@@ -229,6 +274,15 @@ def create_projects_router(
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
 
+            dynamic_vt = _resolve_vision_transcriber(engine)
+            if dynamic_vt and dynamic_vt.llm_client:
+                logger.info(
+                    "Dynamic vision transcriber activated for '%s': provider=%s, model=%s",
+                    filename,
+                    getattr(dynamic_vt.llm_client, "provider_name", "unknown"),
+                    getattr(dynamic_vt.llm_client, "model", "unknown"),
+                )
+
             if active_repo_ingester.is_code_or_repo(filename):
                 logger.info("Detectado código o repositorio para '%s'", filename)
                 report(25, "extracting", f"Procesando código o repositorio '{filename}'...")
@@ -245,7 +299,10 @@ def create_projects_router(
             else:
                 logger.info("Extrayendo texto, tablas y diagramas para '%s'...", filename)
                 report(20, "extracting", f"Extrayendo texto, tablas y esquemas visuales...")
-                doc = ingester.convert(file_path=file_path, filename=filename)
+                try:
+                    doc = ingester.convert(file_path=file_path, filename=filename, vision_transcriber=dynamic_vt)
+                except TypeError:
+                    doc = ingester.convert(file_path=file_path, filename=filename)
                 logger.info("Documento '%s' convertido (%d caracteres). Generando chunks...", filename, doc.char_count)
                 report(50, "extracting", f"Extracción completa ({doc.char_count} caracteres). Generando chunks...")
                 chunks = chunker.chunk(doc)
@@ -322,7 +379,11 @@ def create_projects_router(
         try:
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
-            doc = ingester.ingest_url(url=data.url, title_override=data.title)
+            dynamic_vt = _resolve_vision_transcriber(data.engine)
+            try:
+                doc = ingester.ingest_url(url=data.url, title_override=data.title, vision_transcriber=dynamic_vt)
+            except TypeError:
+                doc = ingester.ingest_url(url=data.url, title_override=data.title)
 
             # Deduplication: check if document already exists in this project
             existing_doc = project_manager.find_duplicate_document(
@@ -772,10 +833,14 @@ def create_projects_router(
         store = project_manager.get_store(project_id)
         vector_store = project_manager.get_vector_store(project_id)
         ingested_docs = []
+        dynamic_vt = _resolve_vision_transcriber(payload.engine)
 
         for doi in payload.dois:
             try:
-                doc = ingester.ingest_url(url=doi)
+                try:
+                    doc = ingester.ingest_url(url=doi, vision_transcriber=dynamic_vt)
+                except TypeError:
+                    doc = ingester.ingest_url(url=doi)
 
                 # Deduplication check
                 existing_doc = project_manager.find_duplicate_document(
