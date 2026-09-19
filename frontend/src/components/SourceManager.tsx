@@ -409,7 +409,7 @@ export const SourceManager: React.FC<SourceManagerProps> = ({
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml,.mp3,.wav,.m4a,.ogg,.flac,.aac,.mp4,.webm"
+        accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.zip,.py,.ts,.tsx,.js,.jsx,.go,.rs,.java,.cpp,.c,.h,.cs,.sql,.html,.css,.json,.yaml,.yml,.mp3,.wav,.m4a,.ogg,.flac,.aac,.opus,.wma,.mp4,.webm,.mkv,.mov"
       />
 
       {/* Drag overlay when dragging files over container with existing sources */}
