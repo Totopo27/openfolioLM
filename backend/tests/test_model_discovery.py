@@ -134,5 +134,5 @@ def test_get_models_gemini_fallback_catalog(monkeypatch):
         # Default modern catalog should contain 3.x models
         assert "gemini:gemini-3.8-flash" in gemini_ids
         assert "gemini:gemini-3.5-flash" in gemini_ids
-        assert "gemini:gemini-2.5-flash" in gemini_ids
+        assert "gemini:gemini-3.6-flash" in gemini_ids
 

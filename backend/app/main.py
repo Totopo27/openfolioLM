@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+import asyncio
 from typing import Optional
 import httpx
 import uvicorn
@@ -65,16 +66,12 @@ _gemini_models_cache_time: float = 0.0
 GEMINI_CACHE_TTL_SECS = 300.0
 
 DEFAULT_GEMINI_CATALOG: list[tuple[str, str]] = [
-    ("gemini-3.8-flash", "Gemini 3.8 Flash (Google Cloud)"),
+    ("gemini-3.6-flash", "Gemini 3.6 Flash (Google Cloud - Estable)"),
     ("gemini-3.7-flash", "Gemini 3.7 Flash (Google Cloud)"),
     ("gemini-3.5-flash", "Gemini 3.5 Flash (Google Cloud)"),
-    ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview (Google Cloud)"),
     ("gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite (Google Cloud)"),
-    ("gemini-2.5-pro", "Gemini 2.5 Pro (Google Cloud)"),
-    ("gemini-2.5-flash", "Gemini 2.5 Flash (Google Cloud)"),
-    ("gemini-2.0-flash", "Gemini 2.0 Flash (Google Cloud)"),
-    ("gemini-1.5-flash", "Gemini 1.5 Flash (Google Cloud)"),
-    ("gemini-1.5-pro", "Gemini 1.5 Pro (Google Cloud)"),
+    ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview (Google Cloud)"),
+    ("gemini-3.8-flash", "Gemini 3.8 Flash (Google Cloud)"),
 ]
 
 
@@ -101,9 +98,13 @@ async def fetch_available_gemini_models(api_key: str) -> list[tuple[str, str]]:
                         continue
                     if not name.startswith("gemini"):
                         continue
+                    # Exclude deprecated / retired model families (1.5, 2.0, 2.5) and non-chat specialties
                     if any(
                         skip in name
                         for skip in [
+                            "1.5",
+                            "2.0",
+                            "2.5",
                             "tts",
                             "robotics",
                             "translate",
@@ -122,8 +123,9 @@ async def fetch_available_gemini_models(api_key: str) -> list[tuple[str, str]]:
                 if discovered:
                     discovered.sort(
                         key=lambda item: (
-                            item[0].startswith("gemini-3"),
-                            item[0].startswith("gemini-2.5"),
+                            item[0] == "gemini-3.6-flash",
+                            item[0].startswith("gemini-3.7"),
+                            item[0].startswith("gemini-3.5"),
                             item[0],
                         ),
                         reverse=True,
@@ -186,7 +188,7 @@ def create_app(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
             api_key=settings.gemini_api_key,
             model=settings.gemini_model,
-            fallback_models=["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
+            fallback_models=["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"],
             provider_name="gemini",
         )
     providers["ollama"] = OpenAICompatibleLLMClient(
@@ -370,7 +372,7 @@ def create_app(
                             provider="ollama",
                             model=model_name,
                             name=display,
-                            is_available=True,
+                            is_available=(rec.status != "offline"),
                             status=rec.status,
                             latency_ms=rec.latency_ms,
                             last_error=rec.last_error,
@@ -412,7 +414,7 @@ def create_app(
         client = providers.get(prov)
         if not client or not hasattr(client, "ping"):
             raise HTTPException(status_code=400, detail=f"Provider '{prov}' does not support pinging")
-        rec = client.ping(m_name)
+        rec = await asyncio.to_thread(client.ping, m_name)
         return rec.to_dict()
 
     @app.get("/api/system/logs")

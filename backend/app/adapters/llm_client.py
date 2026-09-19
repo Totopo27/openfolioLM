@@ -116,7 +116,7 @@ class OpenAICompatibleLLMClient:
         max_retries: int = 2,
         retry_delay: float = 1.0,
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = base_url.rstrip("/").replace("localhost", "127.0.0.1")
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
@@ -141,7 +141,7 @@ class OpenAICompatibleLLMClient:
         }
         t0 = time.perf_counter()
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=6.0) as client:
                 resp = client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
                 latency_ms = int((time.perf_counter() - t0) * 1000)
                 if resp.status_code == 200:
@@ -156,6 +156,9 @@ class OpenAICompatibleLLMClient:
                     target_model, self.provider_name, f"HTTP {resp.status_code}: {resp.text[:120]}"
                 )
                 return self.health_registry.get_status(target_model)
+        except httpx.TimeoutException:
+            self.health_registry.record_offline(target_model, self.provider_name, "Timeout: sin respuesta en 6s")
+            return self.health_registry.get_status(target_model)
         except Exception as e:
             self.health_registry.record_offline(target_model, self.provider_name, str(e))
             return self.health_registry.get_status(target_model)
@@ -173,9 +176,12 @@ class OpenAICompatibleLLMClient:
             "Content-Type": "application/json",
         }
 
+        primary_error = ""
+        fallbacks_attempted: list[tuple[str, str]] = []
         last_error = ""
 
-        for mod in models_to_try:
+        for idx, mod in enumerate(models_to_try):
+            is_primary = (idx == 0)
             payload = {
                 "model": mod,
                 "messages": [
@@ -185,6 +191,7 @@ class OpenAICompatibleLLMClient:
                 "temperature": 0.0,  # Zero temperature for deterministic grounding
             }
 
+            mod_error = ""
             for attempt in range(self.max_retries + 1):
                 t0 = time.perf_counter()
                 try:
@@ -201,13 +208,13 @@ class OpenAICompatibleLLMClient:
                                 if content is not None:
                                     self.health_registry.record_success(mod, self.provider_name, latency_ms)
                                     return content
-                            last_error = f"Model {mod} returned empty choices or null content"
+                            mod_error = f"Model {mod} returned empty choices or null content"
                             break
 
                         # Handle 503 (High Demand) and 429 (Rate Limit) with backoff retry
                         if resp.status_code in (503, 429):
-                            last_error = f"HTTP {resp.status_code} on model {mod}: {resp.text[:200]}"
-                            self.health_registry.record_high_demand(mod, self.provider_name, last_error)
+                            mod_error = f"HTTP {resp.status_code} (Alta demanda / Cuota): {resp.text[:140]}"
+                            self.health_registry.record_high_demand(mod, self.provider_name, mod_error)
 
                             if attempt < self.max_retries:
                                 sleep_time = self.retry_delay * (2 ** attempt)
@@ -217,31 +224,51 @@ class OpenAICompatibleLLMClient:
                                 # Retries on this model exhausted; break to fallback loop
                                 break
 
-                        # Handle 404 (Model not found) or 401 (Auth error)
+                        # Handle 404 (Model not found/deprecated) or 401 (Auth error)
                         if resp.status_code in (404, 401):
-                            last_error = f"HTTP {resp.status_code} on model {mod}: {resp.text[:200]}"
-                            self.health_registry.record_offline(mod, self.provider_name, last_error)
+                            mod_error = f"HTTP {resp.status_code}: {resp.text[:140]}"
+                            self.health_registry.record_offline(mod, self.provider_name, mod_error)
                             break
 
                         resp.raise_for_status()
 
                 except httpx.HTTPStatusError as e:
-                    last_error = f"HTTP error {e.response.status_code}: {e.response.text[:200]}"
+                    mod_error = f"HTTP {e.response.status_code}: {e.response.text[:140]}"
                     if e.response.status_code in (503, 429):
-                        self.health_registry.record_high_demand(mod, self.provider_name, last_error)
+                        self.health_registry.record_high_demand(mod, self.provider_name, mod_error)
                         if attempt < self.max_retries:
                             time.sleep(self.retry_delay * (2 ** attempt))
                             continue
                     else:
-                        self.health_registry.record_offline(mod, self.provider_name, last_error)
+                        self.health_registry.record_offline(mod, self.provider_name, mod_error)
+                    break
+
+                except httpx.TimeoutException:
+                    mod_error = "Timeout: El servidor de IA no respondió a tiempo"
+                    self.health_registry.record_offline(mod, self.provider_name, mod_error)
                     break
 
                 except Exception as e:
-                    last_error = f"Connection error: {str(e)}"
-                    self.health_registry.record_offline(mod, self.provider_name, last_error)
+                    mod_error = f"Connection error: {str(e)}"
+                    self.health_registry.record_offline(mod, self.provider_name, mod_error)
                     break
 
-        # If all candidate models and retries exhausted, return clear diagnostic
+            last_error = mod_error
+            if is_primary:
+                primary_error = mod_error
+            else:
+                fallbacks_attempted.append((mod, mod_error))
+
+        # Build honest diagnostic report preserving the primary model failure
+        if primary_error:
+            if fallbacks_attempted:
+                fb_details = "; ".join(f"{m} -> {err.splitlines()[0][:80]}" for m, err in fallbacks_attempted)
+                return (
+                    f"Error al consultar el proveedor de IA: El modelo seleccionado '{active_model}' falló: {primary_error}. "
+                    f"Se intentaron los respaldos configurados pero también fallaron: [{fb_details}]"
+                )
+            return f"Error al consultar el proveedor de IA: El modelo seleccionado '{active_model}' falló: {primary_error}"
+
         return f"Error al consultar el proveedor de IA: {last_error}"
 
     def generate_with_image(

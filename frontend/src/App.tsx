@@ -175,6 +175,31 @@ export const App: React.FC = () => {
     return () => clearInterval(healthInterval);
   }, []);
 
+  const triggerModelPing = async (engineId: string) => {
+    if (!engineId) return;
+    try {
+      setIsPinging(true);
+      const res = await pingModelEngine(engineId);
+      setModels((prev) =>
+        prev.map((m) =>
+          m.id === engineId
+            ? {
+                ...m,
+                status: res.status as any,
+                latency_ms: res.latency_ms,
+                last_error: res.last_error,
+                is_available: res.status !== 'offline',
+              }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error('Failed to ping model:', err);
+    } finally {
+      setIsPinging(false);
+    }
+  };
+
   const initModels = async () => {
     try {
       const modelList = await fetchAvailableModels();
@@ -182,11 +207,17 @@ export const App: React.FC = () => {
       if (modelList.length > 0) {
         const savedEngine = localStorage.getItem('openfolio_selected_engine');
         const matched = modelList.find((m) => m.id === savedEngine && m.is_available);
+        let activeId = '';
         if (matched) {
+          activeId = matched.id;
           setSelectedEngine(matched.id);
         } else {
           const firstAvailable = modelList.find((m) => m.is_available) || modelList[0];
+          activeId = firstAvailable.id;
           setSelectedEngine(firstAvailable.id);
+        }
+        if (activeId) {
+          triggerModelPing(activeId);
         }
       }
     } catch (err) {
@@ -196,15 +227,7 @@ export const App: React.FC = () => {
 
   const handlePingActiveModel = async () => {
     if (!selectedEngine) return;
-    try {
-      setIsPinging(true);
-      await pingModelEngine(selectedEngine);
-      await initModels();
-    } catch (err) {
-      console.error('Failed to ping model:', err);
-    } finally {
-      setIsPinging(false);
-    }
+    await triggerModelPing(selectedEngine);
   };
 
   const initProjects = async () => {
@@ -789,13 +812,15 @@ export const App: React.FC = () => {
             <select
               value={selectedEngine}
               onChange={(e) => {
-                setSelectedEngine(e.target.value);
-                localStorage.setItem('openfolio_selected_engine', e.target.value);
+                const newEngine = e.target.value;
+                setSelectedEngine(newEngine);
+                localStorage.setItem('openfolio_selected_engine', newEngine);
+                triggerModelPing(newEngine);
               }}
               className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer max-w-[200px] truncate"
             >
               {models.length === 0 ? (
-                <option value="gemini:gemini-2.5-flash" className="bg-slate-900 text-slate-200">
+                <option value="gemini:gemini-3.6-flash" className="bg-slate-900 text-slate-200">
                   Cargando modelos...
                 </option>
               ) : (
@@ -817,37 +842,53 @@ export const App: React.FC = () => {
             {activeModel && (
               <div
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono border transition-all ${
-                  activeModel.status === 'high_demand'
+                  isPinging
+                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
+                    : activeModel.status === 'high_demand'
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
                     : activeModel.status === 'offline'
                     ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : activeModel.status === 'healthy'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-slate-700/40 text-slate-400 border-slate-600/40'
                 }`}
                 title={
-                  activeModel.status === 'high_demand'
+                  isPinging
+                    ? 'Comprobando respuesta y latencia con el proveedor...'
+                    : activeModel.status === 'high_demand'
                     ? `Picos de alta demanda en Google Cloud (${activeModel.last_error || 'HTTP 503'}). Reintentos con backoff y fallback activos.`
                     : activeModel.status === 'offline'
-                    ? `Modelo offline: ${activeModel.last_error || 'Sin conexión'}`
-                    : `Modelo operativo y disponible${activeModel.latency_ms ? ` · Latencia: ${activeModel.latency_ms}ms` : ''}`
+                    ? `Modelo no disponible: ${activeModel.last_error || 'Sin conexión'}`
+                    : activeModel.status === 'healthy'
+                    ? `Modelo operativo y disponible${activeModel.latency_ms ? ` · Latencia: ${activeModel.latency_ms}ms` : ''}`
+                    : 'Estado pendiente de comprobación'
                 }
               >
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    activeModel.status === 'high_demand'
+                    isPinging
+                      ? 'bg-blue-400 animate-ping'
+                      : activeModel.status === 'high_demand'
                       ? 'bg-amber-400'
                       : activeModel.status === 'offline'
                       ? 'bg-rose-400'
-                      : 'bg-emerald-400'
+                      : activeModel.status === 'healthy'
+                      ? 'bg-emerald-400'
+                      : 'bg-slate-500'
                   }`}
                 />
                 <span>
-                  {activeModel.status === 'high_demand'
+                  {isPinging
+                    ? 'Comprobando...'
+                    : activeModel.status === 'high_demand'
                     ? 'Alta Demanda'
                     : activeModel.status === 'offline'
                     ? 'Offline'
-                    : activeModel.latency_ms
-                    ? `${activeModel.latency_ms}ms`
-                    : 'Operativo'}
+                    : activeModel.status === 'healthy'
+                    ? activeModel.latency_ms
+                      ? `${activeModel.latency_ms}ms · Operativo`
+                      : 'Operativo'
+                    : 'Sin verificar'}
                 </span>
               </div>
             )}
