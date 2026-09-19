@@ -690,9 +690,6 @@ export const App: React.FC = () => {
             <div>
               <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
                 OpenFolioLM
-                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Grounded Core
-                </span>
               </h1>
             </div>
           </div>
@@ -866,11 +863,6 @@ export const App: React.FC = () => {
               <Activity className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin text-indigo-400' : ''}`} />
             </button>
           </div>
-
-          <span className="hidden sm:flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-indigo-400" />
-            Hexagonal Core
-          </span>
 
           {/* Server Logs Console Button */}
           <button
