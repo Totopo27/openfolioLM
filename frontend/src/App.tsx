@@ -860,7 +860,7 @@ export const App: React.FC = () => {
                     {activeProject ? activeProject.name : 'Seleccionar Proyecto'}
                   </span>
                   <span className="text-[10px] text-[#666666] dark:text-[#888888] tabular-nums">
-                    [{sources.length} ENTRIES]
+                    ({sources.length} {sources.length === 1 ? 'fuente' : 'fuentes'})
                   </span>
                   <ChevronDown className="w-3 h-3 text-[#666666] dark:text-[#888888]" />
                 </button>
@@ -919,18 +919,18 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Middle: Archival Navigation Lanes */}
+            {/* Middle: Navigation Lanes */}
             <nav className="flex items-center gap-1 font-mono text-xs">
               <button
                 type="button"
                 onClick={() => setArchivalTab('index')}
-                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                className={`px-3 py-1 transition-colors cursor-pointer border ${
                   archivalTab === 'index'
                     ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [01 // CATÁLOGO]
+                01 Catálogo
               </button>
               <button
                 type="button"
@@ -940,15 +940,15 @@ export const App: React.FC = () => {
                   }
                   setArchivalTab('split');
                 }}
-                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                className={`px-3 py-1 transition-colors cursor-pointer border ${
                   archivalTab === 'split'
                     ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [02 // LECTURA & CHAT]
+                02 Lectura y Chat
                 {selectedDoc && (
-                  <span className="ml-1 opacity-70 truncate max-w-[100px] inline-block align-bottom">
+                  <span className="ml-1.5 opacity-70 truncate max-w-[120px] inline-block align-bottom font-sans text-[11px]">
                     · {selectedDoc.metadata?.title || selectedDoc.filename}
                   </span>
                 )}
@@ -956,36 +956,36 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setArchivalTab('notebook')}
-                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                className={`px-3 py-1 transition-colors cursor-pointer border ${
                   archivalTab === 'notebook'
                     ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [03 // CUADERNO]
-                {notesCount > 0 && <span className="ml-1">({notesCount})</span>}
+                03 Cuaderno
+                {notesCount > 0 && <span className="ml-1 text-[10px] tabular-nums">({notesCount})</span>}
               </button>
               <button
                 type="button"
                 onClick={() => setArchivalTab('timeline')}
-                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                className={`px-3 py-1 transition-colors cursor-pointer border ${
                   archivalTab === 'timeline'
                     ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [04 // CRONOLOGÍA]
+                04 Cronología
               </button>
               <button
                 type="button"
                 onClick={() => setArchivalTab('network')}
-                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                className={`px-3 py-1 transition-colors cursor-pointer border ${
                   archivalTab === 'network'
                     ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [05 // RED SEMÁNTICA]
+                05 Red Semántica
               </button>
             </nav>
 
@@ -1043,10 +1043,10 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsLogsModalOpen(true)}
-                className="px-2 py-1 bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[11px] font-mono text-[#1A1A1A] dark:text-[#EDEDED] cursor-pointer"
+                className="px-2.5 py-1 bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#1A1A1A] dark:text-[#EDEDED] cursor-pointer"
                 title="Consola de logs del servidor"
               >
-                [LOGS]
+                Logs
               </button>
 
               {/* UI Mode Toggle (Minimalista vs Clásico) */}
@@ -1095,8 +1095,8 @@ export const App: React.FC = () => {
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F9F9F8] dark:bg-[#121214] select-none">
                   <div className="p-6 border border-dashed border-[#E0E0DC] dark:border-[#2A2A2E] max-w-md space-y-3 font-mono">
-                    <p className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED]">
-                      [ NINGÚN DOCUMENTO SELECCIONADO ]
+                    <p className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wide">
+                      Ningún documento seleccionado
                     </p>
                     <p className="text-xs text-[#666666] dark:text-[#888888] font-sans">
                       Seleccioná un documento del catálogo de fuentes para abrir el visor sincronizado de lectura y chat con citas auditables.
