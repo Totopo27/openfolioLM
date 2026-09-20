@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   BookOpen,
   Layers,
@@ -51,12 +51,33 @@ import { LiteratureDiscoveryModal } from './components/LiteratureDiscoveryModal'
 import { SharedConversationView } from './components/SharedConversationView';
 import { ResizableSplitter } from './components/ResizableSplitter';
 import { SystemLogsModal } from './components/SystemLogsModal';
+import { ArchivalIndex, ArchivalDocument } from './components/archival/ArchivalIndex';
+import {
+  ArchivalSplitViewer,
+  DocumentSourceChunk,
+  GroundedChatMessage,
+} from './components/archival/ArchivalSplitViewer';
 
 export const App: React.FC = () => {
   // Public shared conversation viewer (?share=share_xxxx)
   const [shareId, setShareId] = useState<string | null>(() => {
     return new URLSearchParams(window.location.search).get('share');
   });
+
+  // UI Mode: 'archival' (Are.na Index & Archival Brutalism) vs 'classic' (Legacy)
+  const [uiMode, setUiMode] = useState<'archival' | 'classic'>(() => {
+    const saved = localStorage.getItem('openfolio_ui_mode');
+    return saved === 'classic' || saved === 'archival' ? saved : 'archival';
+  });
+
+  // Archival Navigation Tab
+  const [archivalTab, setArchivalTab] = useState<'index' | 'split' | 'notebook' | 'network' | 'timeline'>('index');
+  const archivalFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleToggleUiMode = (mode: 'archival' | 'classic') => {
+    setUiMode(mode);
+    localStorage.setItem('openfolio_ui_mode', mode);
+  };
 
   // Project State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -688,6 +709,110 @@ export const App: React.FC = () => {
 
   const activeModel = models.find((m) => m.id === selectedEngine);
 
+  // Archival derived data and handlers
+  const archivalDocuments: ArchivalDocument[] = useMemo(() => {
+    return sources.map((s) => {
+      const meta = s.metadata || {};
+      const authors = meta.author
+        ? [meta.author]
+        : (meta.authors || ['Autor no especificado']);
+      let year = new Date(s.created_at || Date.now()).getFullYear();
+      if (meta.year_or_era) {
+        const parsed = parseInt(meta.year_or_era, 10);
+        if (!isNaN(parsed)) year = parsed;
+      }
+      const fileSize = s.char_count
+        ? `${(s.char_count / 1024).toFixed(1)} KB`
+        : 'N/A';
+
+      return {
+        id: s.id,
+        title: meta.title || s.filename || 'Documento sin título',
+        authors: Array.isArray(authors) ? authors : [String(authors)],
+        year,
+        doi: meta.doi || undefined,
+        openAccess: Boolean(meta.source_url || meta.doi || meta.is_open_access),
+        status: 'indexed' as const,
+        chunkCount: Math.max(1, Math.ceil((s.char_count || 1000) / 1200)),
+        fileSize,
+        addedAt: s.created_at
+          ? new Date(s.created_at).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+      };
+    });
+  }, [sources]);
+
+  const archivalChunks: DocumentSourceChunk[] = useMemo(() => {
+    if (!selectedDoc || !selectedDoc.raw_markdown) return [];
+    const raw = selectedDoc.raw_markdown;
+    const paragraphs = raw.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+    if (paragraphs.length === 0) {
+      return [
+        {
+          id: `${selectedDoc.id}-1`,
+          chunkIndex: 1,
+          pageNumber: 1,
+          content: raw,
+        },
+      ];
+    }
+    return paragraphs.map((p, idx) => {
+      const headingMatch = p.match(/^#{1,4}\s+(.+)$/m);
+      const heading = headingMatch ? [headingMatch[1]] : undefined;
+      const pageMatch = p.match(/<!-- PAGE: (\d+) -->/);
+      const pageNum = pageMatch ? parseInt(pageMatch[1], 10) : Math.floor(idx / 4) + 1;
+      const cleanContent = p.replace(/<!-- PAGE: \d+ -->/g, '').trim();
+
+      return {
+        id: `${selectedDoc.id}-${idx + 1}`,
+        chunkIndex: idx + 1,
+        pageNumber: pageNum,
+        headingPath: heading,
+        content: cleanContent,
+      };
+    });
+  }, [selectedDoc]);
+
+  const groundedMessages: GroundedChatMessage[] = useMemo(() => {
+    return messages.map((m) => ({
+      id: m.id,
+      sender: m.sender,
+      text: m.text,
+      factualScore: m.factual_score ?? (m.evidence_found ? 0.98 : undefined),
+      timestamp: m.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      citations: m.citations?.map((c) => ({
+        index: c.index,
+        chunkId: c.chunk_id,
+        sourceFilename: c.source_filename,
+        pageNumber: c.page_number,
+        snippet: c.quote_snippet,
+      })),
+    }));
+  }, [messages]);
+
+  const selectedDocAuthors = useMemo(() => {
+    if (!selectedDoc?.metadata) return ['Autor no especificado'];
+    if (selectedDoc.metadata.author) return [selectedDoc.metadata.author];
+    if (Array.isArray(selectedDoc.metadata.authors)) return selectedDoc.metadata.authors;
+    return ['Autor no especificado'];
+  }, [selectedDoc]);
+
+  const handleArchivalSelectDoc = (doc: ArchivalDocument) => {
+    const found = sources.find((s) => s.id === doc.id);
+    if (found) {
+      setSelectedDoc(found);
+      setHighlightTarget(null);
+      setArchivalTab('split');
+    }
+  };
+
+  const handleArchivalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleUpload(e.target.files[0]);
+      e.target.value = '';
+    }
+  };
+
   if (shareId) {
     return (
       <SharedConversationView
@@ -701,8 +826,341 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-950 text-slate-100">
-      {/* Top Navbar */}
+    <div
+      className={
+        uiMode === 'archival'
+          ? 'h-full flex flex-col bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] font-sans antialiased'
+          : 'h-full flex flex-col bg-slate-950 text-slate-100'
+      }
+    >
+      {uiMode === 'archival' ? (
+        <>
+          {/* Archival Brutalist Top Header */}
+          <header className="h-12 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] px-4 flex items-center justify-between shrink-0 select-none text-xs">
+            {/* Left: Brand & Project Selector */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold tracking-widest text-[#1A1A1A] dark:text-[#EDEDED]">
+                  [ OPENFOLIO // ARCHIVAL ]
+                </span>
+              </div>
+
+              <span className="text-[#E0E0DC] dark:text-[#2A2A2E]">|</span>
+
+              {/* Project Switcher Dropdown (Are.na Style) */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                  className="flex items-center gap-2 px-2.5 py-1 bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#1A1A1A] dark:text-[#EDEDED] transition-colors cursor-pointer"
+                  title="Cambiar proyecto o crear uno nuevo"
+                >
+                  <Folder className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+                  <span className="max-w-[140px] truncate font-semibold">
+                    {activeProject ? activeProject.name : 'Seleccionar Proyecto'}
+                  </span>
+                  <span className="text-[10px] text-[#666666] dark:text-[#888888] tabular-nums">
+                    [{sources.length} ENTRIES]
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-[#666666] dark:text-[#888888]" />
+                </button>
+
+                {isProjectDropdownOpen && (
+                  <div className="absolute left-0 mt-1 w-72 bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] shadow-xl py-1 z-50 animate-in fade-in duration-100 font-mono text-xs">
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-[#666666] dark:text-[#888888] uppercase tracking-wider flex items-center justify-between border-b border-[#E0E0DC] dark:border-[#2A2A2E]">
+                      <span>CATÁLOGOS ({projects.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProjectDropdownOpen(false);
+                          setIsCreateModalOpen(true);
+                        }}
+                        className="text-[#1A56DB] dark:text-[#60A5FA] hover:underline font-bold cursor-pointer"
+                      >
+                        + NUEVO
+                      </button>
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto divide-y divide-[#E0E0DC] dark:divide-[#2A2A2E]">
+                      {projects.map((proj) => {
+                        const isSelected = activeProject?.id === proj.id;
+                        return (
+                          <div
+                            key={proj.id}
+                            onClick={() => handleSelectProject(proj)}
+                            className={`px-3 py-2 flex items-center justify-between hover:bg-[#EBEBE8] dark:hover:bg-[#1E1E22] cursor-pointer transition-colors ${
+                              isSelected ? 'bg-[#EBEBE8] dark:bg-[#1E1E22] border-l-2 border-[#1A56DB] dark:border-[#60A5FA]' : ''
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className={`text-xs truncate ${isSelected ? 'font-bold text-[#1A56DB] dark:text-[#60A5FA]' : 'text-[#1A1A1A] dark:text-[#EDEDED]'}`}>
+                                {proj.name}
+                              </p>
+                              <p className="text-[10px] text-[#666666] dark:text-[#888888] tabular-nums">
+                                {proj.doc_count} docs · {proj.message_count} msgs
+                              </p>
+                            </div>
+                            {projects.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteProject(e, proj.id)}
+                                className="text-[#999999] hover:text-rose-600 p-1 transition-colors"
+                                title="Eliminar proyecto"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Middle: Archival Navigation Lanes */}
+            <nav className="flex items-center gap-1 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setArchivalTab('index')}
+                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                  archivalTab === 'index'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                    : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
+                }`}
+              >
+                [01 // CATÁLOGO]
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedDoc && sources.length > 0) {
+                    setSelectedDoc(sources[0]);
+                  }
+                  setArchivalTab('split');
+                }}
+                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                  archivalTab === 'split'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                    : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
+                }`}
+              >
+                [02 // SPLIT-VIEWER]
+                {selectedDoc && (
+                  <span className="ml-1 opacity-70 truncate max-w-[100px] inline-block align-bottom">
+                    · {selectedDoc.metadata?.title || selectedDoc.filename}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchivalTab('notebook')}
+                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                  archivalTab === 'notebook'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                    : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
+                }`}
+              >
+                [03 // CUADERNO]
+                {notesCount > 0 && <span className="ml-1">({notesCount})</span>}
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchivalTab('timeline')}
+                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                  archivalTab === 'timeline'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                    : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
+                }`}
+              >
+                [04 // CRONOLOGÍA]
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchivalTab('network')}
+                className={`px-2.5 py-1 transition-colors cursor-pointer border ${
+                  archivalTab === 'network'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                    : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
+                }`}
+              >
+                [05 // RED]
+              </button>
+            </nav>
+
+            {/* Right: Engine Selector, Health Monitor, Logs, and UI Mode Switch */}
+            <div className="flex items-center gap-2 font-mono text-xs">
+              <div className="flex items-center gap-1.5 bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-2 py-0.5">
+                <span className="text-[10px] text-[#666666] dark:text-[#888888]">ENGINE:</span>
+                <select
+                  value={selectedEngine}
+                  onChange={(e) => {
+                    const newEngine = e.target.value;
+                    setSelectedEngine(newEngine);
+                    localStorage.setItem('openfolio_selected_engine', newEngine);
+                    triggerModelPing(newEngine);
+                  }}
+                  className="bg-transparent text-[11px] font-mono text-[#1A56DB] dark:text-[#60A5FA] focus:outline-none cursor-pointer max-w-[150px] truncate"
+                >
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id} className="bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED]">
+                      {m.name} {!m.is_available ? '(Offline)' : ''}
+                    </option>
+                  ))}
+                </select>
+
+                {activeModel && (
+                  <span
+                    className={`text-[9px] px-1 py-0.2 border ${
+                      activeModel.status === 'healthy'
+                        ? 'border-emerald-600/40 text-emerald-700 dark:text-emerald-400'
+                        : activeModel.status === 'high_demand'
+                        ? 'border-amber-600/40 text-amber-700 dark:text-amber-400'
+                        : 'border-rose-600/40 text-rose-700 dark:text-rose-400'
+                    }`}
+                  >
+                    {activeModel.status === 'healthy'
+                      ? `${activeModel.latency_ms ? `${activeModel.latency_ms}ms` : 'OPERATIVO'}`
+                      : activeModel.status === 'high_demand'
+                      ? 'DEMANDA'
+                      : 'OFFLINE'}
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handlePingActiveModel}
+                  disabled={isPinging}
+                  className="text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] p-0.5 cursor-pointer disabled:opacity-40"
+                  title="Ping latencia"
+                >
+                  <Activity className={`w-3 h-3 ${isPinging ? 'animate-spin text-[#1A56DB]' : ''}`} />
+                </button>
+              </div>
+
+              {/* Logs Console Button */}
+              <button
+                type="button"
+                onClick={() => setIsLogsModalOpen(true)}
+                className="px-2 py-1 bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[11px] font-mono text-[#1A1A1A] dark:text-[#EDEDED] cursor-pointer"
+                title="Consola de logs del servidor"
+              >
+                [LOGS]
+              </button>
+
+              {/* UI Mode Toggle (Are.na Archival vs Classic) */}
+              <div className="flex items-center border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-[10px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => handleToggleUiMode('archival')}
+                  className="px-2 py-0.5 bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold transition-colors"
+                >
+                  ARE.NA ARCHIVO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleUiMode('classic')}
+                  className="px-2 py-0.5 border-l border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition-colors"
+                >
+                  CLÁSICO
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Archival Main Content */}
+          <main className="flex-1 overflow-hidden relative">
+            {archivalTab === 'index' && (
+              <ArchivalIndex
+                documents={archivalDocuments}
+                selectedDocId={selectedDoc?.id || null}
+                onSelectDocument={handleArchivalSelectDoc}
+                onUploadClick={() => archivalFileInputRef.current?.click()}
+              />
+            )}
+
+            {archivalTab === 'split' && (
+              selectedDoc ? (
+                <ArchivalSplitViewer
+                  documentTitle={selectedDoc.metadata?.title || selectedDoc.filename || 'Documento sin título'}
+                  documentAuthors={selectedDocAuthors}
+                  documentDoi={selectedDoc.metadata?.doi}
+                  chunks={archivalChunks}
+                  messages={groundedMessages}
+                  onSendMessage={handleSendMessage}
+                  onBackToIndex={() => setArchivalTab('index')}
+                  isLoading={isLoading}
+                />
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F9F9F8] dark:bg-[#121214] select-none">
+                  <div className="p-6 border border-dashed border-[#E0E0DC] dark:border-[#2A2A2E] max-w-md space-y-3 font-mono">
+                    <p className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED]">
+                      [NO SOURCE SELECTED // REPOSITORY READY]
+                    </p>
+                    <p className="text-xs text-[#666666] dark:text-[#888888] font-sans">
+                      Seleccioná un documento del catálogo archivístico para abrir el visor sincronizado con coordenadas marginales y citas auditables.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setArchivalTab('index')}
+                      className="px-4 py-2 bg-[#1A1A1A] dark:bg-[#EDEDED] text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium uppercase hover:opacity-90 transition-opacity cursor-pointer"
+                    >
+                      Abrir Catálogo de Fuentes ({sources.length})
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+
+            {archivalTab === 'notebook' && (
+              <StudioNotebook
+                projectId={activeProject?.id || 'default'}
+                projectName={activeProject?.name || 'Investigación'}
+                onNotesCountChange={setNotesCount}
+                targetNoteId={targetNoteId}
+                onClearTargetNote={() => setTargetNoteId(null)}
+                initialNewNote={draftNote}
+                onClearInitialNote={() => setDraftNote(null)}
+                onNavigateToChat={handleNavigateToChat}
+              />
+            )}
+
+            {archivalTab === 'timeline' && (
+              <TimelineViewer
+                projectId={activeProject?.id || 'default'}
+                selectedDocId={selectedDoc?.id || null}
+                selectedEngine={selectedEngine}
+                onSelectDocument={(docId) => {
+                  const doc = sources.find((s) => s.id === docId);
+                  if (doc) {
+                    setSelectedDoc(doc);
+                    setHighlightTarget(null);
+                    setArchivalTab('split');
+                  }
+                }}
+              />
+            )}
+
+            {archivalTab === 'network' && (
+              <NetworkGraphViewer
+                projectId={activeProject?.id || 'default'}
+                selectedDocId={selectedDoc?.id || null}
+                onSelectDocument={(docId) => {
+                  const doc = sources.find((s) => s.id === docId);
+                  if (doc) {
+                    setSelectedDoc(doc);
+                    setHighlightTarget(null);
+                    setArchivalTab('split');
+                  }
+                }}
+              />
+            )}
+          </main>
+        </>
+      ) : (
+        <>
+          {/* Top Navbar */}
       <header className="relative z-40 h-14 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           {/* Logo & Brand */}
@@ -915,6 +1373,26 @@ export const App: React.FC = () => {
             <Terminal className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden sm:inline">Logs</span>
           </button>
+
+          {/* UI Mode Switcher */}
+          <div className="flex items-center border border-slate-700/80 rounded-lg p-0.5 bg-slate-950 font-mono text-[10px]">
+            <button
+              type="button"
+              onClick={() => handleToggleUiMode('archival')}
+              className="px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition"
+              title="Cambiar a la interfaz estética Are.na Index & Archival Brutalism"
+            >
+              ARE.NA ARCHIVO
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleUiMode('classic')}
+              className="px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold shadow-sm transition"
+              title="Interfaz clásica"
+            >
+              CLÁSICO
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1192,6 +1670,17 @@ export const App: React.FC = () => {
           )}
         </div>
       </div>
+        </>
+      )}
+
+      {/* Hidden File Input for Archival Add Document */}
+      <input
+        type="file"
+        ref={archivalFileInputRef}
+        className="hidden"
+        accept=".pdf,.txt,.md,.docx,.epub,.mp3,.m4a,.wav,.ogg,.flac,.aac,.opus,.wma,.mp4,.webm,.mkv,.mov"
+        onChange={handleArchivalFileChange}
+      />
 
       {/* Create Project Modal */}
       {isCreateModalOpen && (
