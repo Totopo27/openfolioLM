@@ -102,6 +102,7 @@ export interface HighlightTarget {
   start_char: number;
   end_char: number;
   quote_snippet: string;
+  citation_index?: number;
 }
 
 export type ModelHealthStatus = 'healthy' | 'high_demand' | 'offline' | 'unknown';

@@ -157,70 +157,49 @@ export const App: React.FC = () => {
   };
 
   const handleNavigateToChat = (msgId?: string) => {
+    setArchivalTab('split');
+    setRightPaneMode('chat');
     if (!selectedDoc && sources.length > 0) {
       setSelectedDoc(sources[0]);
     }
-    setArchivalTab('split');
-    setDocViewerTab('reading');
-    setRightPaneMode('chat');
     if (msgId) {
       setTargetMessageId(msgId);
     }
   };
 
-  const handleNavigateToSourceFromNote = (
-    sourceCitationId?: string,
-    citationIndex?: number,
-    sourceMessageId?: string
-  ) => {
-    let targetDoc: SourceDocument | undefined;
-    let targetHighlight: HighlightTarget | null = null;
+  const handleNavigateToSourceFromNote = (sourceCitationId?: string, citationIndex?: number) => {
+    let targetDoc = sources.find((s) => s.id === sourceCitationId);
+    let matchedCitation: Citation | undefined;
 
-    // 1. Try to find the exact citation from the origin chat message
-    if (sourceMessageId) {
-      const originMsg = messages.find((m) => m.id === sourceMessageId);
-      if (originMsg?.citations && citationIndex !== undefined) {
-        const cit = originMsg.citations.find((c) => c.index === citationIndex);
-        if (cit) {
-          targetDoc = sources.find((s) => s.id === cit.source_id);
-          targetHighlight = {
-            source_id: cit.source_id,
-            start_char: cit.start_char,
-            end_char: cit.end_char,
-            quote_snippet: cit.quote_snippet,
-          };
+    // Search messages for matching citation if sourceCitationId is a chunkId or if citationIndex is given
+    for (const msg of messages) {
+      if (msg.citations) {
+        const found = msg.citations.find(
+          (c) =>
+            (sourceCitationId && c.chunk_id === sourceCitationId) ||
+            (sourceCitationId && c.source_id === sourceCitationId) ||
+            (citationIndex !== undefined && c.index === citationIndex)
+        );
+        if (found) {
+          matchedCitation = found;
+          if (!targetDoc) {
+            targetDoc = sources.find((s) => s.id === found.source_id);
+          }
+          break;
         }
       }
     }
 
-    // 2. Fallback to sourceCitationId if not found via message
-    if (!targetDoc && sourceCitationId) {
-      targetDoc = sources.find((s) => s.id === sourceCitationId || s.filename === sourceCitationId);
-      if (!targetDoc) {
-        targetDoc = sources.find((s) => sourceCitationId.startsWith(s.id));
-      }
-      if (targetDoc) {
-        targetHighlight = {
-          source_id: targetDoc.id,
-          start_char: 0,
-          end_char: 0,
-          quote_snippet: '',
-        };
-      }
-    }
-
-    // 3. Fallback to selectedDoc or first source
-    if (!targetDoc) {
-      targetDoc = selectedDoc || (sources.length > 0 ? sources[0] : undefined);
+    if (matchedCitation) {
+      handleCitationClick(matchedCitation);
+      return;
     }
 
     if (targetDoc) {
       setSelectedDoc(targetDoc);
-      if (targetHighlight) {
-        setHighlightTarget(targetHighlight);
-      }
+    } else if (!selectedDoc && sources.length > 0) {
+      setSelectedDoc(sources[0]);
     }
-
     setArchivalTab('split');
     setDocViewerTab('reading');
     setRightPaneMode('chat');
@@ -683,6 +662,7 @@ export const App: React.FC = () => {
     if (targetDoc) {
       setSelectedDoc(targetDoc);
     }
+    setArchivalTab('split');
     setDocViewerTab('reading');
     setRightPaneMode('chat');
 
@@ -691,6 +671,7 @@ export const App: React.FC = () => {
       start_char: citation.start_char,
       end_char: citation.end_char,
       quote_snippet: citation.quote_snippet,
+      citation_index: citation.index,
     });
   };
 
@@ -823,12 +804,9 @@ export const App: React.FC = () => {
           chunkIndex: 1,
           pageNumber: 1,
           content: raw,
-          startChar: 0,
-          endChar: raw.length,
         },
       ];
     }
-    let currentSearchPos = 0;
     return paragraphs.map((p, idx) => {
       const headingMatch = p.match(/^#{1,4}\s+(.+)$/m);
       const heading = headingMatch ? [headingMatch[1]] : undefined;
@@ -836,19 +814,12 @@ export const App: React.FC = () => {
       const pageNum = pageMatch ? parseInt(pageMatch[1], 10) : Math.floor(idx / 4) + 1;
       const cleanContent = p.replace(/<!-- PAGE: \d+ -->/g, '').trim();
 
-      const pPos = raw.indexOf(p, currentSearchPos);
-      const startChar = pPos !== -1 ? pPos : currentSearchPos;
-      const endChar = startChar + p.length;
-      currentSearchPos = endChar;
-
       return {
         id: `${selectedDoc.id}-${idx + 1}`,
         chunkIndex: idx + 1,
         pageNumber: pageNum,
         headingPath: heading,
         content: cleanContent,
-        startChar,
-        endChar,
       };
     });
   }, [selectedDoc]);
@@ -863,10 +834,10 @@ export const App: React.FC = () => {
       citations: m.citations?.map((c) => ({
         index: c.index,
         chunkId: c.chunk_id,
-        sourceId: c.source_id,
         sourceFilename: c.source_filename,
         pageNumber: c.page_number,
         snippet: c.quote_snippet,
+        sourceId: c.source_id,
         startChar: c.start_char,
         endChar: c.end_char,
       })),
@@ -1228,9 +1199,13 @@ export const App: React.FC = () => {
                   onSaveToNotebook={handleSaveToNotebook}
                   highlightTarget={highlightTarget}
                   onClearHighlight={() => setHighlightTarget(null)}
-                  onSelectDoc={(doc) => setSelectedDoc(doc)}
+                  onSelectDocument={(doc) => {
+                    setSelectedDoc(doc);
+                    setDocViewerTab('reading');
+                  }}
+                  onCitationClick={handleCitationClick}
                   targetMessageId={targetMessageId}
-                  onClearTargetMessageId={() => setTargetMessageId(null)}
+                  onClearTargetMessage={() => setTargetMessageId(null)}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F9F9F8] dark:bg-[#121214] select-none">
@@ -1264,6 +1239,9 @@ export const App: React.FC = () => {
                 onClearInitialNote={() => setDraftNote(null)}
                 onNavigateToChat={handleNavigateToChat}
                 onNavigateToSource={handleNavigateToSourceFromNote}
+                messages={messages}
+                sources={sources}
+                onNavigateToCitation={handleCitationClick}
               />
             )}
 
@@ -1779,6 +1757,9 @@ export const App: React.FC = () => {
               onClearInitialNote={() => setDraftNote(null)}
               onNavigateToChat={handleNavigateToChat}
               onNavigateToSource={handleNavigateToSourceFromNote}
+              messages={messages}
+              sources={sources}
+              onNavigateToCitation={handleCitationClick}
             />
           )}
 

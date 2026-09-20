@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ProjectNote } from '../types';
+import { ProjectNote, ChatMessage, SourceDocument, Citation } from '../types';
 import {
   fetchProjectNotes,
   createProjectNote,
@@ -44,7 +44,10 @@ interface StudioNotebookProps {
   } | null;
   onClearInitialNote?: () => void;
   onNavigateToChat?: (sourceMessageId?: string) => void;
-  onNavigateToSource?: (sourceCitationId?: string, citationIndex?: number, sourceMessageId?: string) => void;
+  onNavigateToSource?: (sourceCitationId?: string, citationIndex?: number) => void;
+  messages?: ChatMessage[];
+  sources?: SourceDocument[];
+  onNavigateToCitation?: (citation: Citation) => void;
 }
 
 export const StudioNotebook: React.FC<StudioNotebookProps> = ({
@@ -57,6 +60,9 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   onClearInitialNote,
   onNavigateToChat,
   onNavigateToSource,
+  messages = [],
+  sources = [],
+  onNavigateToCitation,
 }) => {
   const [notes, setNotes] = useState<ProjectNote[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
@@ -106,6 +112,101 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
     }
   }, [initialNewNote]);
 
+  const handleCitationClickFromNote = (cIndex: number, targetCId?: string) => {
+    // 1. Try finding origin message
+    if (sourceMessageId && messages && messages.length > 0) {
+      const originMsg = messages.find((m) => m.id === sourceMessageId);
+      if (originMsg?.citations && originMsg.citations.length > 0) {
+        const matchedCit =
+          originMsg.citations.find((c) => c.index === cIndex) ||
+          (targetCId ? originMsg.citations.find((c) => c.chunk_id === targetCId) : undefined) ||
+          originMsg.citations[cIndex - 1];
+        if (matchedCit && onNavigateToCitation) {
+          onNavigateToCitation(matchedCit);
+          return;
+        }
+      }
+    }
+
+    // 2. Try searching in all messages' citations
+    if (messages && messages.length > 0) {
+      for (const msg of messages) {
+        if (msg.citations && msg.citations.length > 0) {
+          const matchedCit =
+            (targetCId ? msg.citations.find((c) => c.chunk_id === targetCId) : undefined) ||
+            (originPrompt && msg.text.includes(originPrompt) ? msg.citations.find((c) => c.index === cIndex) : undefined);
+          if (matchedCit && onNavigateToCitation) {
+            onNavigateToCitation(matchedCit);
+            return;
+          }
+        }
+      }
+    }
+
+    // 3. Try matching targetCId in sources
+    if (sources && sources.length > 0 && targetCId) {
+      const matchedSource = sources.find((s) => s.id === targetCId);
+      if (matchedSource && onNavigateToCitation) {
+        onNavigateToCitation({
+          index: cIndex,
+          chunk_id: targetCId,
+          source_id: matchedSource.id,
+          source_filename: matchedSource.filename,
+          heading_path: [],
+          start_char: 0,
+          end_char: 0,
+          quote_snippet: '',
+        });
+        return;
+      }
+    }
+
+    // 4. Fallback to onNavigateToSource / onNavigateToChat
+    if (onNavigateToSource) {
+      onNavigateToSource(targetCId, cIndex);
+    } else if (onNavigateToChat) {
+      onNavigateToChat(sourceMessageId || undefined);
+    }
+  };
+
+  const renderTextWithFootnoteButtons = (childText: string) => {
+    const parts = childText.split(/(\[\^?\d+\])/g);
+    return parts.map((part, pIdx) => {
+      const match = part.match(/\[\^?(\d+)\]/);
+      if (match) {
+        const cIndex = parseInt(match[1], 10);
+        const targetCId = sourceCitationIds[cIndex - 1];
+        return (
+          <button
+            key={pIdx}
+            type="button"
+            onClick={() => handleCitationClickFromNote(cIndex, targetCId)}
+            className="inline-flex items-center justify-center px-1.5 py-0.2 mx-0.5 text-[10px] font-mono font-bold bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white transition-colors cursor-pointer align-baseline select-none"
+            title={`Ir a la referencia [${cIndex}] en el texto`}
+          >
+            [{cIndex}]
+          </button>
+        );
+      }
+      return part;
+    });
+  };
+
+  const processNodeChildren = (children: React.ReactNode): React.ReactNode => {
+    return React.Children.map(children, (child) => {
+      if (typeof child === 'string') {
+        return renderTextWithFootnoteButtons(child);
+      }
+      if (React.isValidElement(child) && (child.props as any)?.children) {
+        return React.cloneElement(child, {
+          ...(child.props as any),
+          children: processNodeChildren((child.props as any).children),
+        });
+      }
+      return child;
+    });
+  };
+
   const loadNotes = async (selectTargetId?: string | null) => {
     try {
       setIsLoading(true);
@@ -151,7 +252,6 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
     setOriginPrompt(note.origin_prompt || null);
     setSourceMessageId(note.source_message_id || null);
     setSaveSuccess(false);
-    setViewMode('preview');
   };
 
   const handleCreateNewDraft = (
@@ -603,19 +703,27 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {sourceCitationIds.map((cId, idx) => (
-                <button
-                  key={cId || idx}
-                  type="button"
-                  onClick={() => onNavigateToSource && onNavigateToSource(cId, idx + 1, sourceMessageId || undefined)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono font-medium bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
-                  title={`Ir al fragmento fuente citado #${idx + 1}`}
-                >
-                  <span>[{idx + 1}]</span>
-                  <span>Ver en Texto</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              ))}
+              {sourceCitationIds.map((cId, idx) => {
+                const cIndex = idx + 1;
+                const originMsg = sourceMessageId ? messages?.find((m) => m.id === sourceMessageId) : null;
+                const citDetail = originMsg?.citations?.find((c) => c.index === cIndex || c.chunk_id === cId);
+                const label = citDetail?.source_filename
+                  ? `[${cIndex}] ${citDetail.source_filename}${citDetail.page_number ? ` (P${citDetail.page_number})` : ''}`
+                  : `[${cIndex}] Ver en Texto`;
+
+                return (
+                  <button
+                    key={cId || idx}
+                    type="button"
+                    onClick={() => handleCitationClickFromNote(cIndex, cId)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono font-medium bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
+                    title={citDetail?.quote_snippet ? `"${citDetail.quote_snippet.slice(0, 80)}..."` : `Ir a la referencia #${cIndex}`}
+                  >
+                    <span>{label}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -632,86 +740,58 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
           ) : (
             <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-3 font-sans text-[#1A1A1A] dark:text-[#EDEDED]">
               {content.trim() ? (
-                (() => {
-                  const renderTextWithCitationButtons = (children: React.ReactNode) => {
-                    return React.Children.map(children, (child) => {
-                      if (typeof child === 'string') {
-                        const parts = child.split(/(\[\^?\d+\])/g);
-                        return parts.map((part, pIdx) => {
-                          const match = part.match(/\[\^?(\d+)\]/);
-                          if (match) {
-                            const cIndex = parseInt(match[1], 10);
-                            const targetCId = sourceCitationIds[cIndex - 1];
-                            return (
-                              <button
-                                key={pIdx}
-                                type="button"
-                                onClick={() => {
-                                  if (onNavigateToSource) {
-                                    onNavigateToSource(targetCId, cIndex, sourceMessageId || undefined);
-                                  } else if (onNavigateToChat) {
-                                    onNavigateToChat(sourceMessageId || undefined);
-                                  }
-                                }}
-                                className="inline-flex items-center justify-center px-1.5 py-0.2 mx-0.5 text-[10px] font-mono font-bold bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white transition-colors cursor-pointer align-baseline select-none"
-                                title={`Ir a la referencia [${cIndex}] en el texto`}
-                              >
-                                [{cIndex}]
-                              </button>
-                            );
-                          }
-                          return part;
-                        });
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ node, children, ...props }) => (
+                      <p {...props} className="leading-relaxed mb-3">
+                        {processNodeChildren(children)}
+                      </p>
+                    ),
+                    li: ({ node, children, ...props }) => (
+                      <li {...props} className="leading-relaxed">
+                        {processNodeChildren(children)}
+                      </li>
+                    ),
+                    blockquote: ({ node, children, ...props }) => (
+                      <blockquote {...props} className="border-l-2 border-[#1A56DB] pl-3 italic">
+                        {processNodeChildren(children)}
+                      </blockquote>
+                    ),
+                    sup: ({ node, children, ...props }) => (
+                      <sup {...props}>
+                        {processNodeChildren(children)}
+                      </sup>
+                    ),
+                    a: ({ node, children, href, ...props }) => {
+                      const isFootnote = href?.startsWith('#fn') || href?.startsWith('#user-content-fn');
+                      if (isFootnote) {
+                        const numMatch = href?.match(/\d+$/);
+                        if (numMatch) {
+                          const cIndex = parseInt(numMatch[0], 10);
+                          const targetCId = sourceCitationIds[cIndex - 1];
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleCitationClickFromNote(cIndex, targetCId)}
+                              className="inline-flex items-center justify-center px-1.5 py-0.2 mx-0.5 text-[10px] font-mono font-bold bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white transition-colors cursor-pointer align-baseline select-none"
+                              title={`Ir a la referencia [${cIndex}] en el texto`}
+                            >
+                              [{cIndex}]
+                            </button>
+                          );
+                        }
                       }
-                      return child;
-                    });
-                  };
-
-                  return (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        p: ({ node, children, ...props }) => (
-                          <p {...props} className="leading-relaxed mb-3">
-                            {renderTextWithCitationButtons(children)}
-                          </p>
-                        ),
-                        li: ({ node, children, ...props }) => (
-                          <li {...props} className="leading-relaxed">
-                            {renderTextWithCitationButtons(children)}
-                          </li>
-                        ),
-                        blockquote: ({ node, children, ...props }) => (
-                          <blockquote {...props} className="border-l-2 border-[#1A56DB] pl-3 italic my-2">
-                            {renderTextWithCitationButtons(children)}
-                          </blockquote>
-                        ),
-                        h1: ({ node, children, ...props }) => (
-                          <h1 {...props} className="text-base font-bold my-2">
-                            {renderTextWithCitationButtons(children)}
-                          </h1>
-                        ),
-                        h2: ({ node, children, ...props }) => (
-                          <h2 {...props} className="text-sm font-bold my-2">
-                            {renderTextWithCitationButtons(children)}
-                          </h2>
-                        ),
-                        h3: ({ node, children, ...props }) => (
-                          <h3 {...props} className="text-xs font-bold my-1.5">
-                            {renderTextWithCitationButtons(children)}
-                          </h3>
-                        ),
-                        td: ({ node, children, ...props }) => (
-                          <td {...props}>
-                            {renderTextWithCitationButtons(children)}
-                          </td>
-                        ),
-                      }}
-                    >
-                      {content}
-                    </ReactMarkdown>
-                  );
-                })()
+                      return (
+                        <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                          {processNodeChildren(children)}
+                        </a>
+                      );
+                    },
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
               ) : (
                 <p className="text-[#999999] dark:text-[#555555] italic">No hay contenido para previsualizar...</p>
               )}
