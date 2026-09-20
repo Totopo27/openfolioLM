@@ -40,6 +40,7 @@ import {
   fetchAvailableModels,
   createProjectNote,
   pingModelEngine,
+  autoclassifyAllSources,
 } from './services/api';
 import { DocViewer } from './components/DocViewer';
 import { SourceManager } from './components/SourceManager';
@@ -738,6 +739,12 @@ export const App: React.FC = () => {
         addedAt: s.created_at
           ? new Date(s.created_at).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0],
+        category: meta.category || undefined,
+        tags: Array.isArray(meta.tags) ? meta.tags : undefined,
+        isAudio: Boolean(meta.is_audio || s.mime_type?.startsWith('audio/') || /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(s.filename)),
+        isYouTube: Boolean(meta.is_youtube),
+        isCode: Boolean(meta.is_code || meta.is_repo),
+        rawSource: s,
       };
     });
   }, [sources]);
@@ -797,11 +804,15 @@ export const App: React.FC = () => {
     return ['Autor no especificado'];
   }, [selectedDoc]);
 
-  const handleArchivalSelectDoc = (doc: ArchivalDocument) => {
+  const handleArchivalSelectDoc = (
+    doc: ArchivalDocument,
+    tab: 'reading' | 'dossier' | 'taxonomy' = 'reading'
+  ) => {
     const found = sources.find((s) => s.id === doc.id);
     if (found) {
       setSelectedDoc(found);
       setHighlightTarget(null);
+      setDocViewerTab(tab);
       setArchivalTab('split');
     }
   };
@@ -1075,22 +1086,65 @@ export const App: React.FC = () => {
               <ArchivalIndex
                 documents={archivalDocuments}
                 selectedDocId={selectedDoc?.id || null}
-                onSelectDocument={handleArchivalSelectDoc}
-                onUploadClick={() => archivalFileInputRef.current?.click()}
+                activeSourceIds={activeSourceIds}
+                projectId={activeProject?.id}
+                selectedEngine={selectedEngine}
+                uploadTasks={uploadTasks}
+                onSelectDocument={(doc, tab) => handleArchivalSelectDoc(doc, tab)}
+                onOpenDossier={(doc) => handleArchivalSelectDoc(doc, 'dossier')}
+                onOpenTaxonomy={(doc) => handleArchivalSelectDoc(doc, 'taxonomy')}
+                onDeleteDocument={handleDeleteSource}
+                onUploadFile={handleUpload}
+                onIngestUrl={handleIngestUrl}
+                onOpenDiscovery={() => handleOpenDiscovery()}
+                onSourcesAdded={handleSourcesAdded}
+                onAutoclassifyAll={async () => {
+                  if (!activeProject) return;
+                  await autoclassifyAllSources(activeProject.id, selectedEngine);
+                  await handleRefreshSources();
+                }}
+                onToggleActive={handleToggleActive}
+                onToggleAll={handleToggleAll}
+                onDismissUploadTask={handleDismissUploadTask}
+                onRefreshSources={handleRefreshSources}
               />
             )}
 
             {archivalTab === 'split' && (
               selectedDoc ? (
                 <ArchivalSplitViewer
+                  document={selectedDoc}
                   documentTitle={selectedDoc.metadata?.title || selectedDoc.filename || 'Documento sin título'}
                   documentAuthors={selectedDocAuthors}
                   documentDoi={selectedDoc.metadata?.doi}
                   chunks={archivalChunks}
                   messages={groundedMessages}
+                  rawMessages={messages}
                   onSendMessage={handleSendMessage}
                   onBackToIndex={() => setArchivalTab('index')}
                   isLoading={isLoading}
+                  projectId={activeProject?.id}
+                  projectName={activeProject?.name}
+                  selectedEngine={selectedEngine}
+                  allSources={sources}
+                  activeTab={docViewerTab}
+                  onTabChange={(tab) => setDocViewerTab(tab)}
+                  onExploreTopic={handleSendMessage}
+                  onMetadataUpdated={handleMetadataUpdated}
+                  onClearChat={handleClearChat}
+                  onMessagesImported={(newMsgs) => {
+                    setMessages((prev) => [...prev, ...newMsgs]);
+                    if (activeProject) {
+                      setProjects((prev) =>
+                        prev.map((p) =>
+                          p.id === activeProject.id
+                            ? { ...p, message_count: (p.message_count || 0) + newMsgs.length }
+                            : p
+                        )
+                      );
+                    }
+                  }}
+                  onSaveToNotebook={handleSaveToNotebook}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F9F9F8] dark:bg-[#121214] select-none">
