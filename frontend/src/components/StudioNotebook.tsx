@@ -44,7 +44,7 @@ interface StudioNotebookProps {
   } | null;
   onClearInitialNote?: () => void;
   onNavigateToChat?: (sourceMessageId?: string) => void;
-  onNavigateToSource?: (sourceCitationId?: string, citationIndex?: number) => void;
+  onNavigateToSource?: (sourceCitationId?: string, citationIndex?: number, sourceMessageId?: string) => void;
 }
 
 export const StudioNotebook: React.FC<StudioNotebookProps> = ({
@@ -151,6 +151,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
     setOriginPrompt(note.origin_prompt || null);
     setSourceMessageId(note.source_message_id || null);
     setSaveSuccess(false);
+    setViewMode('preview');
   };
 
   const handleCreateNewDraft = (
@@ -606,7 +607,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                 <button
                   key={cId || idx}
                   type="button"
-                  onClick={() => onNavigateToSource && onNavigateToSource(cId, idx + 1)}
+                  onClick={() => onNavigateToSource && onNavigateToSource(cId, idx + 1, sourceMessageId || undefined)}
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono font-medium bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
                   title={`Ir al fragmento fuente citado #${idx + 1}`}
                 >
@@ -631,83 +632,86 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
           ) : (
             <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-3 font-sans text-[#1A1A1A] dark:text-[#EDEDED]">
               {content.trim() ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    p: ({ node, children, ...props }) => (
-                      <p {...props} className="leading-relaxed mb-3">
-                        {React.Children.map(children, (child) => {
-                          if (typeof child === 'string') {
-                            const parts = child.split(/(\[\^?\d+\])/g);
-                            return parts.map((part, pIdx) => {
-                              const match = part.match(/\[\^?(\d+)\]/);
-                              if (match) {
-                                const cIndex = parseInt(match[1], 10);
-                                const targetCId = sourceCitationIds[cIndex - 1];
-                                return (
-                                  <button
-                                    key={pIdx}
-                                    type="button"
-                                    onClick={() => {
-                                      if (onNavigateToSource) {
-                                        onNavigateToSource(targetCId, cIndex);
-                                      } else if (onNavigateToChat) {
-                                        onNavigateToChat(sourceMessageId || undefined);
-                                      }
-                                    }}
-                                    className="inline-flex items-center justify-center px-1.5 py-0.2 mx-0.5 text-[10px] font-mono font-bold bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white transition-colors cursor-pointer align-baseline select-none"
-                                    title={`Ir a la referencia [${cIndex}] en el texto`}
-                                  >
-                                    [{cIndex}]
-                                  </button>
-                                );
-                              }
-                              return part;
-                            });
+                (() => {
+                  const renderTextWithCitationButtons = (children: React.ReactNode) => {
+                    return React.Children.map(children, (child) => {
+                      if (typeof child === 'string') {
+                        const parts = child.split(/(\[\^?\d+\])/g);
+                        return parts.map((part, pIdx) => {
+                          const match = part.match(/\[\^?(\d+)\]/);
+                          if (match) {
+                            const cIndex = parseInt(match[1], 10);
+                            const targetCId = sourceCitationIds[cIndex - 1];
+                            return (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => {
+                                  if (onNavigateToSource) {
+                                    onNavigateToSource(targetCId, cIndex, sourceMessageId || undefined);
+                                  } else if (onNavigateToChat) {
+                                    onNavigateToChat(sourceMessageId || undefined);
+                                  }
+                                }}
+                                className="inline-flex items-center justify-center px-1.5 py-0.2 mx-0.5 text-[10px] font-mono font-bold bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white transition-colors cursor-pointer align-baseline select-none"
+                                title={`Ir a la referencia [${cIndex}] en el texto`}
+                              >
+                                [{cIndex}]
+                              </button>
+                            );
                           }
-                          return child;
-                        })}
-                      </p>
-                    ),
-                    li: ({ node, children, ...props }) => (
-                      <li {...props} className="leading-relaxed">
-                        {React.Children.map(children, (child) => {
-                          if (typeof child === 'string') {
-                            const parts = child.split(/(\[\^?\d+\])/g);
-                            return parts.map((part, pIdx) => {
-                              const match = part.match(/\[\^?(\d+)\]/);
-                              if (match) {
-                                const cIndex = parseInt(match[1], 10);
-                                const targetCId = sourceCitationIds[cIndex - 1];
-                                return (
-                                  <button
-                                    key={pIdx}
-                                    type="button"
-                                    onClick={() => {
-                                      if (onNavigateToSource) {
-                                        onNavigateToSource(targetCId, cIndex);
-                                      } else if (onNavigateToChat) {
-                                        onNavigateToChat(sourceMessageId || undefined);
-                                      }
-                                    }}
-                                    className="inline-flex items-center justify-center px-1.5 py-0.2 mx-0.5 text-[10px] font-mono font-bold bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white transition-colors cursor-pointer align-baseline select-none"
-                                    title={`Ir a la referencia [${cIndex}] en el texto`}
-                                  >
-                                    [{cIndex}]
-                                  </button>
-                                );
-                              }
-                              return part;
-                            });
-                          }
-                          return child;
-                        })}
-                      </li>
-                    ),
-                  }}
-                >
-                  {content}
-                </ReactMarkdown>
+                          return part;
+                        });
+                      }
+                      return child;
+                    });
+                  };
+
+                  return (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ node, children, ...props }) => (
+                          <p {...props} className="leading-relaxed mb-3">
+                            {renderTextWithCitationButtons(children)}
+                          </p>
+                        ),
+                        li: ({ node, children, ...props }) => (
+                          <li {...props} className="leading-relaxed">
+                            {renderTextWithCitationButtons(children)}
+                          </li>
+                        ),
+                        blockquote: ({ node, children, ...props }) => (
+                          <blockquote {...props} className="border-l-2 border-[#1A56DB] pl-3 italic my-2">
+                            {renderTextWithCitationButtons(children)}
+                          </blockquote>
+                        ),
+                        h1: ({ node, children, ...props }) => (
+                          <h1 {...props} className="text-base font-bold my-2">
+                            {renderTextWithCitationButtons(children)}
+                          </h1>
+                        ),
+                        h2: ({ node, children, ...props }) => (
+                          <h2 {...props} className="text-sm font-bold my-2">
+                            {renderTextWithCitationButtons(children)}
+                          </h2>
+                        ),
+                        h3: ({ node, children, ...props }) => (
+                          <h3 {...props} className="text-xs font-bold my-1.5">
+                            {renderTextWithCitationButtons(children)}
+                          </h3>
+                        ),
+                        td: ({ node, children, ...props }) => (
+                          <td {...props}>
+                            {renderTextWithCitationButtons(children)}
+                          </td>
+                        ),
+                      }}
+                    >
+                      {content}
+                    </ReactMarkdown>
+                  );
+                })()
               ) : (
                 <p className="text-[#999999] dark:text-[#555555] italic">No hay contenido para previsualizar...</p>
               )}

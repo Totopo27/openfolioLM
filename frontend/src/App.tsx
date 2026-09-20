@@ -157,21 +157,70 @@ export const App: React.FC = () => {
   };
 
   const handleNavigateToChat = (msgId?: string) => {
+    if (!selectedDoc && sources.length > 0) {
+      setSelectedDoc(sources[0]);
+    }
+    setArchivalTab('split');
+    setDocViewerTab('reading');
     setRightPaneMode('chat');
     if (msgId) {
       setTargetMessageId(msgId);
     }
   };
 
-  const handleNavigateToSourceFromNote = (sourceCitationId?: string, _citationIndex?: number) => {
-    if (sourceCitationId) {
-      const targetDoc = sources.find((s) => s.id === sourceCitationId);
-      if (targetDoc) {
-        setSelectedDoc(targetDoc);
+  const handleNavigateToSourceFromNote = (
+    sourceCitationId?: string,
+    citationIndex?: number,
+    sourceMessageId?: string
+  ) => {
+    let targetDoc: SourceDocument | undefined;
+    let targetHighlight: HighlightTarget | null = null;
+
+    // 1. Try to find the exact citation from the origin chat message
+    if (sourceMessageId) {
+      const originMsg = messages.find((m) => m.id === sourceMessageId);
+      if (originMsg?.citations && citationIndex !== undefined) {
+        const cit = originMsg.citations.find((c) => c.index === citationIndex);
+        if (cit) {
+          targetDoc = sources.find((s) => s.id === cit.source_id);
+          targetHighlight = {
+            source_id: cit.source_id,
+            start_char: cit.start_char,
+            end_char: cit.end_char,
+            quote_snippet: cit.quote_snippet,
+          };
+        }
       }
-    } else if (!selectedDoc && sources.length > 0) {
-      setSelectedDoc(sources[0]);
     }
+
+    // 2. Fallback to sourceCitationId if not found via message
+    if (!targetDoc && sourceCitationId) {
+      targetDoc = sources.find((s) => s.id === sourceCitationId || s.filename === sourceCitationId);
+      if (!targetDoc) {
+        targetDoc = sources.find((s) => sourceCitationId.startsWith(s.id));
+      }
+      if (targetDoc) {
+        targetHighlight = {
+          source_id: targetDoc.id,
+          start_char: 0,
+          end_char: 0,
+          quote_snippet: '',
+        };
+      }
+    }
+
+    // 3. Fallback to selectedDoc or first source
+    if (!targetDoc) {
+      targetDoc = selectedDoc || (sources.length > 0 ? sources[0] : undefined);
+    }
+
+    if (targetDoc) {
+      setSelectedDoc(targetDoc);
+      if (targetHighlight) {
+        setHighlightTarget(targetHighlight);
+      }
+    }
+
     setArchivalTab('split');
     setDocViewerTab('reading');
     setRightPaneMode('chat');
@@ -774,9 +823,12 @@ export const App: React.FC = () => {
           chunkIndex: 1,
           pageNumber: 1,
           content: raw,
+          startChar: 0,
+          endChar: raw.length,
         },
       ];
     }
+    let currentSearchPos = 0;
     return paragraphs.map((p, idx) => {
       const headingMatch = p.match(/^#{1,4}\s+(.+)$/m);
       const heading = headingMatch ? [headingMatch[1]] : undefined;
@@ -784,12 +836,19 @@ export const App: React.FC = () => {
       const pageNum = pageMatch ? parseInt(pageMatch[1], 10) : Math.floor(idx / 4) + 1;
       const cleanContent = p.replace(/<!-- PAGE: \d+ -->/g, '').trim();
 
+      const pPos = raw.indexOf(p, currentSearchPos);
+      const startChar = pPos !== -1 ? pPos : currentSearchPos;
+      const endChar = startChar + p.length;
+      currentSearchPos = endChar;
+
       return {
         id: `${selectedDoc.id}-${idx + 1}`,
         chunkIndex: idx + 1,
         pageNumber: pageNum,
         headingPath: heading,
         content: cleanContent,
+        startChar,
+        endChar,
       };
     });
   }, [selectedDoc]);
@@ -804,9 +863,12 @@ export const App: React.FC = () => {
       citations: m.citations?.map((c) => ({
         index: c.index,
         chunkId: c.chunk_id,
+        sourceId: c.source_id,
         sourceFilename: c.source_filename,
         pageNumber: c.page_number,
         snippet: c.quote_snippet,
+        startChar: c.start_char,
+        endChar: c.end_char,
       })),
     }));
   }, [messages]);
@@ -1164,6 +1226,11 @@ export const App: React.FC = () => {
                     }
                   }}
                   onSaveToNotebook={handleSaveToNotebook}
+                  highlightTarget={highlightTarget}
+                  onClearHighlight={() => setHighlightTarget(null)}
+                  onSelectDoc={(doc) => setSelectedDoc(doc)}
+                  targetMessageId={targetMessageId}
+                  onClearTargetMessageId={() => setTargetMessageId(null)}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F9F9F8] dark:bg-[#121214] select-none">

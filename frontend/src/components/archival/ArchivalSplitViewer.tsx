@@ -34,9 +34,12 @@ import { shareProjectChat } from '../../services/api';
 export interface ChunkCitation {
   index: number;
   chunkId: string;
+  sourceId?: string;
   sourceFilename: string;
   pageNumber?: number;
   snippet: string;
+  startChar?: number;
+  endChar?: number;
 }
 
 export interface GroundedChatMessage {
@@ -54,7 +57,25 @@ export interface DocumentSourceChunk {
   pageNumber?: number;
   headingPath?: string[];
   content: string;
+  startChar?: number;
+  endChar?: number;
 }
+
+const parseTimestampSeconds = (text: string): number | null => {
+  if (!text) return null;
+  const match = /(?:\[|\()?(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:\]|\))?/.exec(text);
+  if (!match) return null;
+  if (match[1] !== undefined) {
+    const hours = parseInt(match[1], 10);
+    const mins = parseInt(match[2], 10);
+    const secs = parseInt(match[3], 10);
+    return hours * 3600 + mins * 60 + secs;
+  } else {
+    const mins = parseInt(match[2], 10);
+    const secs = parseInt(match[3], 10);
+    return mins * 60 + secs;
+  }
+};
 
 const formatSeconds = (totalSecs: number): string => {
   const mins = Math.floor(totalSecs / 60);
@@ -100,6 +121,11 @@ interface ArchivalSplitViewerProps {
     originPrompt?: string,
     sourceMessageId?: string
   ) => void | Promise<void>;
+  highlightTarget?: HighlightTarget | null;
+  onClearHighlight?: () => void;
+  onSelectDoc?: (doc: SourceDocument) => void;
+  targetMessageId?: string | null;
+  onClearTargetMessageId?: () => void;
 }
 
 export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
@@ -129,6 +155,11 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   onClearChat,
   onMessagesImported,
   onSaveToNotebook,
+  highlightTarget,
+  onClearHighlight,
+  onSelectDoc,
+  targetMessageId,
+  onClearTargetMessageId,
 }) => {
   const [splitRatio, setSplitRatio] = useState<number>(50); // 50% / 50%
   const [isResizing, setIsResizing] = useState<boolean>(false);
@@ -189,14 +220,122 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   const [savingMsgId, setSavingMsgId] = useState<string | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
+  // Internal highlight target to support local citation clicks as well as incoming prop
+  const [internalHighlightTarget, setInternalHighlightTarget] = useState<HighlightTarget | null>(null);
+  const activeHighlight = highlightTarget || internalHighlightTarget;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const chunkRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleTabSelect = (tab: 'reading' | 'dossier' | 'taxonomy') => {
     setInternalActiveTab(tab);
     if (onTabChange) onTabChange(tab);
+  };
+
+  // Sync incoming highlightTarget from parent (e.g. from notebook or catalog)
+  useEffect(() => {
+    if (highlightTarget && highlightTarget.source_id === document.id) {
+      setInternalHighlightTarget(highlightTarget);
+      if (activeTab !== 'reading') {
+        handleTabSelect('reading');
+      }
+
+      // If YouTube source, seek to citation timestamp
+      if (document.metadata?.is_youtube) {
+        const snippet =
+          highlightTarget.quote_snippet ||
+          (document.raw_markdown
+            ? document.raw_markdown.slice(
+                Math.max(0, (highlightTarget.start_char || 0) - 150),
+                Math.min(document.raw_markdown.length, (highlightTarget.end_char || 0) + 150)
+              )
+            : '');
+        const parsed = parseTimestampSeconds(snippet);
+        if (parsed !== null) {
+          setActiveSeekTime(parsed);
+        }
+      }
+
+      const timer = setTimeout(() => {
+        if (viewStyle === 'rich' && highlightRef.current) {
+          highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          let targetEl: HTMLDivElement | undefined;
+          if (highlightTarget.start_char && highlightTarget.start_char > 0) {
+            const matchIdx = chunks.findIndex(
+              (c) =>
+                c.startChar !== undefined &&
+                c.endChar !== undefined &&
+                highlightTarget.start_char >= c.startChar &&
+                highlightTarget.start_char < c.endChar
+            );
+            if (matchIdx !== -1) {
+              targetEl = chunkRefs.current.get(matchIdx + 1);
+            }
+          }
+          if (!targetEl && highlightTarget.quote_snippet) {
+            const norm = highlightTarget.quote_snippet.replace(/\s+/g, ' ').trim().toLowerCase();
+            const matchIdx = chunks.findIndex((c) =>
+              c.content.replace(/\s+/g, ' ').toLowerCase().includes(norm.slice(0, 30))
+            );
+            if (matchIdx !== -1) {
+              targetEl = chunkRefs.current.get(matchIdx + 1);
+            }
+          }
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 150);
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightTarget, document.id, activeTab, viewStyle, chunks]);
+
+  // Handle incoming targetMessageId (e.g. from notebook "Ver en Chat")
+  useEffect(() => {
+    if (targetMessageId) {
+      const timer = setTimeout(() => {
+        const el = window.document.getElementById(`archival-msg-${targetMessageId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-[#1A56DB]', 'dark:ring-[#60A5FA]', 'transition-all');
+          setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-[#1A56DB]', 'dark:ring-[#60A5FA]');
+            onClearTargetMessageId?.();
+          }, 2500);
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [targetMessageId, messages]);
+
+  // Clickable timestamps for YouTube/Audio transcripts
+  const renderTextWithClickableTimestamps = (text: string) => {
+    if (!document?.metadata?.is_youtube) {
+      return text;
+    }
+    const parts = text.split(/(\*{0,2}\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]\*{0,2})/g);
+    return parts.map((part, idx) => {
+      const tsSeconds = parseTimestampSeconds(part);
+      if (tsSeconds !== null) {
+        return (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => setActiveSeekTime(tsSeconds)}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 font-mono text-[10px] font-bold bg-[#EBEBE8] dark:bg-[#222226] text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer align-baseline"
+            title={`Saltar en video a ${formatSeconds(tsSeconds)}`}
+          >
+            ▶ {part.replace(/\*/g, '')}
+          </button>
+        );
+      }
+      return part;
+    });
   };
 
   // Handle Resizable Splitter
@@ -223,9 +362,31 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     };
   }, [isResizing]);
 
-  // Scroll to cited chunk on click
-  const handleCitationClick = (citationIndex: number, snippet?: string, chunkId?: string) => {
-    // If not in reading mode, switch to reading mode so the user sees the highlighted chunk
+  // Scroll to cited chunk and highlight exact passage on click
+  const handleCitationClick = (
+    citationIndex: number,
+    snippet?: string,
+    chunkId?: string,
+    sourceId?: string,
+    startChar?: number,
+    endChar?: number
+  ) => {
+    // If the citation belongs to a different document, switch document first
+    if (sourceId && sourceId !== document.id && onSelectDoc && allSources.length > 0) {
+      const targetDoc = allSources.find((s) => s.id === sourceId);
+      if (targetDoc) {
+        onSelectDoc(targetDoc);
+        setInternalHighlightTarget({
+          source_id: sourceId,
+          start_char: startChar ?? 0,
+          end_char: endChar ?? 0,
+          quote_snippet: snippet || '',
+        });
+        return;
+      }
+    }
+
+    // Switch to reading mode so the user sees the highlighted chunk
     if (activeTab !== 'reading') {
       handleTabSelect('reading');
     }
@@ -233,27 +394,81 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     setActiveCitationIndex(citationIndex);
     setActiveCitationSnippet(snippet || null);
 
-    let targetEl: HTMLDivElement | undefined;
-    if (snippet && snippet.trim().length > 0) {
-      const matchIdx = chunks.findIndex((c) =>
-        c.content.toLowerCase().includes(snippet.toLowerCase().slice(0, 30))
-      );
-      if (matchIdx !== -1) {
-        targetEl = chunkRefs.current.get(matchIdx + 1);
+    let sChar = startChar ?? 0;
+    let eChar = endChar ?? 0;
+    if (sChar === 0 && eChar === 0 && snippet && document.raw_markdown) {
+      const cleanSnippet = snippet.trim().toLowerCase();
+      const foundIdx = document.raw_markdown.toLowerCase().indexOf(cleanSnippet.slice(0, 40));
+      if (foundIdx !== -1) {
+        sChar = foundIdx;
+        eChar = foundIdx + snippet.length;
       }
     }
-    if (!targetEl && chunkId) {
-      const matchIdx = chunks.findIndex((c) => c.id === chunkId);
-      if (matchIdx !== -1) {
-        targetEl = chunkRefs.current.get(matchIdx + 1);
+
+    setInternalHighlightTarget({
+      source_id: document.id,
+      start_char: sChar,
+      end_char: eChar,
+      quote_snippet: snippet || '',
+    });
+
+    // If YouTube source, seek to the timestamp
+    if (document.metadata?.is_youtube) {
+      const targetSnippet =
+        snippet ||
+        (document.raw_markdown
+          ? document.raw_markdown.slice(
+              Math.max(0, sChar - 150),
+              Math.min(document.raw_markdown.length, eChar + 150)
+            )
+          : '');
+      const parsed = parseTimestampSeconds(targetSnippet);
+      if (parsed !== null) {
+        setActiveSeekTime(parsed);
       }
     }
-    if (!targetEl) {
-      targetEl = chunkRefs.current.get(citationIndex);
-    }
-    if (targetEl) {
-      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+
+    setTimeout(() => {
+      if (viewStyle === 'rich' && highlightRef.current) {
+        highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      let targetEl: HTMLDivElement | undefined;
+      if (sChar > 0) {
+        const matchIdx = chunks.findIndex(
+          (c) =>
+            c.startChar !== undefined &&
+            c.endChar !== undefined &&
+            sChar >= c.startChar &&
+            sChar < c.endChar
+        );
+        if (matchIdx !== -1) {
+          targetEl = chunkRefs.current.get(matchIdx + 1);
+        }
+      }
+      if (!targetEl && snippet && snippet.trim().length > 0) {
+        const normSnippet = snippet.replace(/\s+/g, ' ').trim().toLowerCase();
+        const matchIdx = chunks.findIndex((c) =>
+          c.content.replace(/\s+/g, ' ').toLowerCase().includes(normSnippet.slice(0, 30))
+        );
+        if (matchIdx !== -1) {
+          targetEl = chunkRefs.current.get(matchIdx + 1);
+        }
+      }
+      if (!targetEl && chunkId) {
+        const matchIdx = chunks.findIndex((c) => c.id === chunkId);
+        if (matchIdx !== -1) {
+          targetEl = chunkRefs.current.get(matchIdx + 1);
+        }
+      }
+      if (!targetEl && chunkRefs.current.has(citationIndex)) {
+        targetEl = chunkRefs.current.get(citationIndex);
+      }
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 120);
   };
 
   const handleSend = async () => {
@@ -311,7 +526,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     try {
       const firstLine = msg.text.replace(/\[\^?\d+\]/g, '').trim().split('\n')[0];
       const cleanTitle = firstLine.slice(0, 50).trim() + (firstLine.length > 50 ? '...' : '');
-      const cIds = msg.citations?.map((c) => c.chunkId) || [];
+      const cIds = msg.citations?.map((c) => c.sourceId || c.chunkId) || [];
 
       let originPrompt: string | undefined = undefined;
       for (let i = idx - 1; i >= 0; i--) {
@@ -346,7 +561,16 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
           <button
             key={i}
             type="button"
-            onClick={() => handleCitationClick(citIndex, cit?.snippet, cit?.chunkId)}
+            onClick={() =>
+              handleCitationClick(
+                citIndex,
+                cit?.snippet,
+                cit?.chunkId,
+                cit?.sourceId,
+                cit?.startChar,
+                cit?.endChar
+              )
+            }
             onMouseEnter={() => {
               setActiveCitationIndex(citIndex);
               if (cit?.snippet) setActiveCitationSnippet(cit.snippet);
@@ -608,17 +832,21 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
           {activeTab === 'reading' && (
             <div className="h-full flex flex-col overflow-hidden">
               {/* Code Viewer Mode */}
+              {/* Code Viewer Mode */}
               {document.metadata?.is_code || document.metadata?.is_repo ? (
                 <CodeViewer
                   document={document}
                   highlightTarget={
-                    activeCitationSnippet
+                    activeHighlight ||
+                    (activeCitationSnippet
                       ? ({ quote_snippet: activeCitationSnippet } as HighlightTarget)
-                      : null
+                      : null)
                   }
                   onClearHighlight={() => {
+                    setInternalHighlightTarget(null);
                     setActiveCitationIndex(null);
                     setActiveCitationSnippet(null);
+                    onClearHighlight?.();
                   }}
                 />
               ) : (
@@ -686,62 +914,149 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
 
                   {/* Reading Content Pane */}
                   <div ref={leftPanelRef} className="flex-1 overflow-auto p-4 md:p-6 select-text">
-                    {viewStyle === 'rich' ? (
-                      /* Rich Markdown Mode */
-                      <article className={`prose dark:prose-invert max-w-2xl mx-auto font-sans ${fontSizeClass}`}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {document.raw_markdown || '*Documento sin contenido disponible.*'}
-                        </ReactMarkdown>
-                      </article>
-                    ) : (
-                      /* Raw Synchronized Chunks with Coordinates */
-                      <article className="space-y-5 max-w-2xl mx-auto font-sans">
-                        {chunks.map((chunk, idx) => {
-                          const chunkNum = idx + 1;
-                          const isActive =
-                            activeCitationIndex === chunkNum ||
-                            (Boolean(activeCitationSnippet) &&
-                              chunk.content.toLowerCase().includes(activeCitationSnippet!.toLowerCase().slice(0, 30)));
+                    {(() => {
+                      const isHighlightedForThisDoc =
+                        Boolean(activeHighlight && activeHighlight.source_id === document.id && document.raw_markdown);
 
-                          return (
-                            <div
-                              key={chunk.id}
-                              ref={(el) => {
-                                if (el) chunkRefs.current.set(chunkNum, el);
-                                else chunkRefs.current.delete(chunkNum);
-                              }}
-                              className={`group relative pl-10 pr-3 py-2.5 border-l-2 transition-all ${
-                                isActive
-                                  ? 'border-[#1A56DB] bg-[#FEF08A]/30 dark:bg-[#1A56DB]/15 text-[#1A1A1A] dark:text-[#EDEDED]'
-                                  : 'border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
-                              }`}
-                            >
-                              {/* Margin Coordinate Anchor */}
-                              <div className="absolute left-0 top-2.5 font-mono text-[10px] text-[#999999] dark:text-[#555555] select-none flex items-center gap-1">
-                                <span className="font-bold text-[#666666] dark:text-[#888888]">
-                                  [{String(chunkNum).padStart(2, '0')}]
-                                </span>
-                                {chunk.pageNumber && (
-                                  <span className="text-[9px]">P{chunk.pageNumber}</span>
-                                )}
-                              </div>
+                      let beforeText = document.raw_markdown || '';
+                      let highlightedText = '';
+                      let afterText = '';
 
-                              {/* Heading hierarchy context */}
-                              {chunk.headingPath && chunk.headingPath.length > 0 && (
-                                <div className="font-mono text-[10px] uppercase text-[#666666] dark:text-[#888888] mb-1 font-semibold tracking-wider">
-                                  § {chunk.headingPath.join(' › ')}
+                      if (isHighlightedForThisDoc && activeHighlight && document.raw_markdown) {
+                        const raw = document.raw_markdown;
+                        let sChar = activeHighlight.start_char ?? 0;
+                        let eChar = activeHighlight.end_char ?? 0;
+
+                        if (sChar === 0 && eChar === 0 && activeHighlight.quote_snippet) {
+                          const cleanSnippet = activeHighlight.quote_snippet.trim().toLowerCase();
+                          const matchIdx = raw.toLowerCase().indexOf(cleanSnippet.slice(0, 40));
+                          if (matchIdx !== -1) {
+                            sChar = matchIdx;
+                            eChar = matchIdx + activeHighlight.quote_snippet.length;
+                          }
+                        }
+
+                        if (sChar < raw.length && eChar > 0 && eChar > sChar) {
+                          const relStart = Math.max(0, sChar);
+                          const relEnd = Math.min(raw.length, Math.max(relStart, eChar));
+                          beforeText = raw.slice(0, relStart);
+                          highlightedText = raw.slice(relStart, relEnd);
+                          afterText = raw.slice(relEnd);
+                        }
+                      }
+
+                      if (viewStyle === 'rich') {
+                        return (
+                          <article className={`prose dark:prose-invert max-w-2xl mx-auto font-sans ${fontSizeClass}`}>
+                            {highlightedText ? (
+                              <div className="space-y-4">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {beforeText}
+                                </ReactMarkdown>
+                                <div
+                                  ref={highlightRef}
+                                  id="active-citation-highlight"
+                                  className="bg-amber-500/15 border-l-4 border-amber-500 px-4 py-3 my-3 text-amber-900 dark:text-amber-200 ring-1 ring-amber-500/30 font-sans select-text animate-in fade-in"
+                                >
+                                  <div className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 mb-1.5 flex items-center justify-between font-mono select-none">
+                                    <span className="flex items-center gap-1.5">
+                                      <Bookmark className="w-3.5 h-3.5" /> Pasaje Citado en Documento Fuente
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setInternalHighlightTarget(null);
+                                        setActiveCitationIndex(null);
+                                        setActiveCitationSnippet(null);
+                                        onClearHighlight?.();
+                                      }}
+                                      className="text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] cursor-pointer"
+                                      title="Quitar resaltado"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {highlightedText}
+                                  </ReactMarkdown>
                                 </div>
-                              )}
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {afterText}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {document.raw_markdown || '*Documento sin contenido disponible.*'}
+                              </ReactMarkdown>
+                            )}
+                          </article>
+                        );
+                      }
 
-                              {/* Chunk Content */}
-                              <p className={`whitespace-pre-wrap font-sans text-[#1A1A1A] dark:text-[#EDEDED] ${fontSizeClass}`}>
-                                {chunk.content}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </article>
-                    )}
+                      return (
+                        /* Raw Synchronized Chunks with Coordinates */
+                        <article className="space-y-5 max-w-2xl mx-auto font-sans">
+                          {chunks.map((chunk, idx) => {
+                            const chunkNum = idx + 1;
+                            const matchesChar =
+                              activeHighlight &&
+                              activeHighlight.source_id === document.id &&
+                              activeHighlight.start_char !== undefined &&
+                              activeHighlight.start_char > 0 &&
+                              chunk.startChar !== undefined &&
+                              chunk.endChar !== undefined &&
+                              activeHighlight.start_char >= chunk.startChar &&
+                              activeHighlight.start_char < chunk.endChar;
+
+                            const matchesSnippet =
+                              Boolean(activeCitationSnippet) &&
+                              chunk.content.toLowerCase().includes(activeCitationSnippet!.toLowerCase().slice(0, 30));
+
+                            const isActive =
+                              matchesChar ||
+                              matchesSnippet ||
+                              (activeCitationIndex === chunkNum && !activeHighlight?.start_char && !activeCitationSnippet);
+
+                            return (
+                              <div
+                                key={chunk.id}
+                                ref={(el) => {
+                                  if (el) chunkRefs.current.set(chunkNum, el);
+                                  else chunkRefs.current.delete(chunkNum);
+                                }}
+                                className={`group relative pl-10 pr-3 py-2.5 border-l-2 transition-all ${
+                                  isActive
+                                    ? 'border-[#1A56DB] bg-amber-500/15 dark:bg-[#1A56DB]/20 text-[#1A1A1A] dark:text-[#EDEDED] ring-1 ring-amber-500/30'
+                                    : 'border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
+                                }`}
+                              >
+                                {/* Margin Coordinate Anchor */}
+                                <div className="absolute left-0 top-2.5 font-mono text-[10px] text-[#999999] dark:text-[#555555] select-none flex items-center gap-1">
+                                  <span className="font-bold text-[#666666] dark:text-[#888888]">
+                                    [{String(chunkNum).padStart(2, '0')}]
+                                  </span>
+                                  {chunk.pageNumber && (
+                                    <span className="text-[9px]">P{chunk.pageNumber}</span>
+                                  )}
+                                </div>
+
+                                {/* Heading hierarchy context */}
+                                {chunk.headingPath && chunk.headingPath.length > 0 && (
+                                  <div className="font-mono text-[10px] uppercase text-[#666666] dark:text-[#888888] mb-1 font-semibold tracking-wider">
+                                    § {chunk.headingPath.join(' › ')}
+                                  </div>
+                                )}
+
+                                {/* Chunk Content with Clickable Timestamps */}
+                                <p className={`whitespace-pre-wrap font-sans text-[#1A1A1A] dark:text-[#EDEDED] ${fontSizeClass}`}>
+                                  {renderTextWithClickableTimestamps(chunk.content)}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </article>
+                      );
+                    })()}
                   </div>
                 </>
               )}
@@ -1033,6 +1348,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
             messages.map((msg, idx) => (
               <div
                 key={msg.id}
+                id={`archival-msg-${msg.id}`}
                 className={`flex flex-col space-y-2 p-3.5 border transition-colors ${
                   msg.sender === 'user'
                     ? 'bg-[#EBEBE8] dark:bg-[#222226] border-[#E0E0DC] dark:border-[#2A2A2E] self-end max-w-[90%]'
@@ -1074,7 +1390,16 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                       <button
                         key={cit.index}
                         type="button"
-                        onClick={() => handleCitationClick(cit.index, cit.snippet, cit.chunkId)}
+                        onClick={() =>
+                          handleCitationClick(
+                            cit.index,
+                            cit.snippet,
+                            cit.chunkId,
+                            cit.sourceId,
+                            cit.startChar,
+                            cit.endChar
+                          )
+                        }
                         onMouseEnter={() => {
                           setActiveCitationIndex(cit.index);
                           if (cit.snippet) setActiveCitationSnippet(cit.snippet);
