@@ -97,7 +97,6 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
     if (!clean.startsWith('#')) {
       clean = `#${clean}`;
     }
-    // Replace spaces with hyphens for clean hashtags
     clean = clean.replace(/\s+/g, '-');
 
     if (!tags.includes(clean)) {
@@ -162,11 +161,10 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
       if (result.thematic_summary) setSummary(result.thematic_summary);
 
       setAiSuccessMessage(
-        `Clasificación generada con éxito (${Math.round(result.confidence * 100)}% certeza). ¡Guardá los cambios o editalos si querés!`
+        `Autoclasificación completada: categoría "${result.category}" y ${result.tags.length} etiquetas generadas con éxito.`
       );
 
-      // Create a cloned doc to inform parent
-      const updatedDoc: SourceDocument = {
+      const updatedDoc = {
         ...document,
         metadata: {
           ...document.metadata,
@@ -177,6 +175,7 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
           summary: result.thematic_summary || document.metadata?.summary,
         },
       };
+
       if (onMetadataUpdated) {
         onMetadataUpdated(updatedDoc);
       }
@@ -188,20 +187,20 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-900/40 overflow-y-auto p-6 space-y-6">
+    <div className="h-full flex flex-col bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] overflow-y-auto p-6 space-y-5 font-sans">
       {/* Top Banner */}
-      <div className="flex items-start justify-between bg-slate-900/90 border border-slate-800 rounded-xl p-5 backdrop-blur shadow-sm">
+      <div className="flex items-start justify-between bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] p-4 shrink-0 gap-3 flex-wrap sm:flex-nowrap">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <FolderTree className="w-4 h-4" />
+            <span className="p-1 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E]">
+              <FolderTree className="w-3.5 h-3.5" />
             </span>
-            <h3 className="text-base font-semibold text-slate-100">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
               Organización Taxonómica & Metadatos
             </h3>
           </div>
-          <p className="text-xs text-slate-400 max-w-xl">
-            Asigná categorías, autores y etiquetas conceptuales a <span className="font-semibold text-slate-200">{document.filename}</span> para organizar tu biblioteca y realizar consultas RAG filtradas por temática.
+          <p className="text-xs text-[#666666] dark:text-[#888888] max-w-xl leading-relaxed">
+            Asigná categorías, autores y etiquetas conceptuales a <span className="font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">{document.filename}</span> para organizar tu biblioteca y realizar consultas RAG filtradas por temática.
           </p>
         </div>
 
@@ -210,16 +209,16 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
           type="button"
           onClick={handleAutoclassify}
           disabled={isClassifying || isSaving}
-          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium tracking-wide uppercase bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] transition-colors cursor-pointer disabled:opacity-50 shrink-0"
         >
           {isClassifying ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Analizando Obra con IA...</span>
+              <span>Analizando con IA...</span>
             </>
           ) : (
             <>
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <Sparkles className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
               <span>Autoclasificar con IA</span>
             </>
           )}
@@ -228,37 +227,37 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
 
       {/* Notifications */}
       {saveSuccess && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs animate-in fade-in">
+        <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-mono">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>¡Metadatos guardados correctamente en la base de datos!</span>
         </div>
       )}
 
       {aiSuccessMessage && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-300 text-xs animate-in fade-in">
-          <Sparkles className="w-4 h-4 shrink-0 text-amber-300" />
+        <div className="flex items-center gap-2 p-3 bg-teal-500/10 border border-teal-500/20 text-teal-700 dark:text-teal-400 text-xs font-mono">
+          <Sparkles className="w-4 h-4 shrink-0" />
           <span>{aiSuccessMessage}</span>
         </div>
       )}
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+        <div className="flex items-center gap-2 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-mono">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Main Grid: Category, Author, Era */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Category Selector */}
-        <div className="space-y-2 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+        <div className="space-y-2.5 p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214]">
+          <label className="text-xs font-mono font-semibold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider flex items-center justify-between">
             <span className="flex items-center gap-1.5">
-              <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
-              Categoría Principal
+              <FolderTree className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+              § Categoría Principal
             </span>
             {category && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+              <span className="text-[10px] px-2 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] font-mono">
                 {category}
               </span>
             )}
@@ -269,14 +268,14 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder="Ej: Hardware & Eurorack, Teoría & Afinación, Historia & Pioneros..."
-            className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full px-3 py-1.5 text-xs font-mono bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
           />
 
           {/* Quick Category Suggestions */}
           {availableCategories.length > 0 && (
-            <div className="pt-2">
-              <span className="text-[11px] text-slate-400 block mb-1.5 flex items-center gap-1">
-                <Lightbulb className="w-3 h-3 text-amber-400" /> Categorías del proyecto:
+            <div className="pt-1.5">
+              <span className="text-[11px] font-mono text-[#666666] dark:text-[#888888] block mb-1.5 flex items-center gap-1">
+                <Lightbulb className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Categorías registradas en este proyecto:
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {availableCategories.map((c) => (
@@ -284,10 +283,10 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
                     key={c}
                     type="button"
                     onClick={() => setCategory(c)}
-                    className={`px-2 py-0.5 text-[11px] rounded-md transition cursor-pointer border ${
+                    className={`px-2 py-0.5 text-xs font-mono transition cursor-pointer border ${
                       category === c
-                        ? 'bg-indigo-600 text-white border-indigo-500'
-                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-750'
+                        ? 'bg-[#1A1A1A] dark:bg-[#EDEDED] text-[#F9F9F8] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED]'
+                        : 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]'
                     }`}
                   >
                     {c}
@@ -299,45 +298,45 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
         </div>
 
         {/* Author and Year/Era */}
-        <div className="space-y-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+        <div className="space-y-3 p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214]">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-indigo-400" />
-              Autor / Creador / Entidad
+            <label className="text-xs font-mono font-semibold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+              § Autor / Creador / Entidad
             </label>
             <input
               type="text"
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               placeholder="Ej: Harry Partch, Dieter Doepfer, Heinz Bohlen..."
-              className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-1.5 text-xs font-mono bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-              Época / Año / Tendencia
+            <label className="text-xs font-mono font-semibold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+              § Época / Año / Tendencia
             </label>
             <input
               type="text"
               value={yearOrEra}
               onChange={(e) => setYearOrEra(e.target.value)}
               placeholder="Ej: 1949, Pioneros siglo XX, Síntesis modular moderna..."
-              className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-1.5 text-xs font-mono bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
             />
           </div>
         </div>
       </div>
 
       {/* Tags Manager */}
-      <div className="space-y-3 p-5 rounded-xl bg-slate-900/60 border border-slate-800">
-        <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+      <div className="space-y-3 p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214]">
+        <label className="text-xs font-mono font-semibold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider flex items-center justify-between">
           <span className="flex items-center gap-1.5">
-            <Tags className="w-3.5 h-3.5 text-indigo-400" />
-            Etiquetas Conceptuales ({tags.length})
+            <Tags className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+            § Etiquetas Conceptuales ({tags.length})
           </span>
-          <span className="text-[11px] text-slate-500">
+          <span className="text-[11px] font-mono text-[#666666] dark:text-[#888888]">
             Presioná Enter o coma para añadir cada etiqueta
           </span>
         </label>
@@ -345,42 +344,42 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
         {/* Tag Input */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Hash className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+            <Hash className="w-3.5 h-3.5 text-[#666666] dark:text-[#888888] absolute left-3 top-2.5" />
             <input
               type="text"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={handleKeyDownTag}
               placeholder="Escribí una etiqueta (ej: Eurorack, Escalas, Just-Intonation)..."
-              className="w-full pl-8 pr-3 py-2 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full pl-8 pr-3 py-1.5 text-xs font-mono bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
             />
           </div>
           <button
             type="button"
             onClick={() => handleAddTag()}
-            className="px-3 py-2 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer flex items-center gap-1 shrink-0"
+            className="px-3 py-1.5 text-xs font-mono font-medium bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] transition-colors cursor-pointer flex items-center gap-1 shrink-0"
           >
             <Plus className="w-3.5 h-3.5" /> Añadir
           </button>
         </div>
 
         {/* Current Tag Chips */}
-        <div className="flex flex-wrap gap-2 pt-1 min-h-[38px] p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
+        <div className="flex flex-wrap gap-1.5 pt-1 min-h-[36px] p-2 bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E]">
           {tags.length === 0 ? (
-            <span className="text-xs text-slate-500 italic p-1">
+            <span className="text-xs font-mono text-[#666666] dark:text-[#888888] italic p-1">
               No hay etiquetas asignadas todavía. Añadí etiquetas o pulsá "Autoclasificar con IA".
             </span>
           ) : (
             tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 group transition hover:border-indigo-400"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors"
               >
                 <span>{tag}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveTag(tag)}
-                  className="p-0.5 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 transition cursor-pointer"
+                  className="hover:text-rose-600 cursor-pointer transition-colors p-0.5"
                   title="Eliminar etiqueta"
                 >
                   <X className="w-3 h-3" />
@@ -392,20 +391,20 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
 
         {/* Suggestions from project */}
         {availableTags.length > 0 && (
-          <div className="pt-2">
-            <span className="text-[11px] text-slate-400 block mb-1.5 flex items-center gap-1">
-              <Lightbulb className="w-3 h-3 text-amber-400" /> Etiquetas usadas en este proyecto (hacé clic para sumar):
+          <div className="pt-1.5">
+            <span className="text-[11px] font-mono text-[#666666] dark:text-[#888888] block mb-1.5 flex items-center gap-1">
+              <Lightbulb className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Etiquetas usadas en este proyecto (hacé clic para sumar):
             </span>
             <div className="flex flex-wrap gap-1.5">
               {availableTags
                 .filter((t) => !tags.includes(t))
-                .slice(0, 12)
+                .slice(0, 14)
                 .map((t) => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => handleAddTag(t)}
-                    className="px-2 py-0.5 text-[11px] rounded-md bg-slate-800/80 hover:bg-indigo-900/40 text-slate-300 hover:text-indigo-200 border border-slate-750 hover:border-indigo-500/40 transition cursor-pointer flex items-center gap-1"
+                    className="px-2 py-0.5 text-xs font-mono bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white text-[#666666] dark:text-[#888888] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <Plus className="w-2.5 h-2.5 opacity-60" />
                     <span>{t}</span>
@@ -417,27 +416,27 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
       </div>
 
       {/* Thematic Summary / Scope */}
-      <div className="space-y-2 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5 text-indigo-400" />
-          Resumen Temático Breve
+      <div className="space-y-2 p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214]">
+        <label className="text-xs font-mono font-semibold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider flex items-center gap-1.5">
+          <FileText className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+          § Resumen Temático Breve
         </label>
         <textarea
           rows={2}
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           placeholder="Síntesis de una o dos oraciones sobre el foco conceptual de la obra..."
-          className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 leading-relaxed resize-none"
+          className="w-full px-3 py-1.5 text-xs font-mono bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED] leading-relaxed resize-none"
         />
       </div>
 
       {/* Bottom Save Action */}
-      <div className="flex items-center justify-end pt-2 pb-6">
+      <div className="flex items-center justify-end pt-1 pb-4">
         <button
           type="button"
           onClick={handleSave}
           disabled={isSaving || isClassifying}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md hover:shadow-indigo-500/20 transition-all cursor-pointer disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-mono font-medium tracking-wide uppercase bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] transition-colors cursor-pointer disabled:opacity-50"
         >
           {isSaving ? (
             <>
@@ -447,7 +446,7 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
           ) : (
             <>
               <Save className="w-3.5 h-3.5" />
-              <span>Guardar Cambios</span>
+              <span>Guardar Metadatos</span>
             </>
           )}
         </button>

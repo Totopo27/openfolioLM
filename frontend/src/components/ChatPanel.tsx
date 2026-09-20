@@ -192,14 +192,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       message.citations.forEach((c) => citationMap.set(c.index, c));
     }
 
-    // Split text by citation pattern [^N]
-    const parts = message.text.split(/(\[\^\d+\])/g);
+    // Split text by citation pattern [^N] or [N]
+    const parts = message.text.split(/(\[\^?\d+\])/g);
 
     return (
       <div className="space-y-3">
         <p className="whitespace-pre-wrap leading-relaxed">
           {parts.map((part, i) => {
-            const match = part.match(/\[\^(\d+)\]/);
+            const match = part.match(/\[\^?(\d+)\]/);
             if (match) {
               const index = parseInt(match[1], 10);
               const citation = citationMap.get(index);

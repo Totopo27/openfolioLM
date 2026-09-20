@@ -32,55 +32,39 @@ interface DossierViewerProps {
 
 const TYPE_CONFIG: Record<
   DocumentTypeEnum,
-  { label: string; bg: string; text: string; border: string }
+  { label: string; badge: string }
 > = {
   book: {
-    label: '📚 Libro / Obra',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/30',
+    label: 'Libro / Obra',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   textbook: {
-    label: '📖 Libro de Texto / Manual',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/30',
+    label: 'Manual / Texto',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   research_paper: {
-    label: '🔬 Paper Científico',
-    bg: 'bg-indigo-500/10',
-    text: 'text-indigo-400',
-    border: 'border-indigo-500/30',
+    label: 'Paper Científico',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   monograph: {
-    label: '📑 Monografía Académica',
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-400',
-    border: 'border-amber-500/30',
+    label: 'Monografía',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   technical_report: {
-    label: '⚙️ Reporte Técnico',
-    bg: 'bg-cyan-500/10',
-    text: 'text-cyan-400',
-    border: 'border-cyan-500/30',
+    label: 'Reporte Técnico',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   policy_plan: {
-    label: '🏛️ Propuesta / Plan',
-    bg: 'bg-slate-500/10',
-    text: 'text-slate-400',
-    border: 'border-slate-500/30',
+    label: 'Propuesta / Plan',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   legal_regulatory: {
-    label: '⚖️ Normativa / Marco Legal',
-    bg: 'bg-purple-500/10',
-    text: 'text-purple-400',
-    border: 'border-purple-500/30',
+    label: 'Marco Legal',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
   general: {
-    label: '📄 Documento General',
-    bg: 'bg-slate-500/10',
-    text: 'text-slate-400',
-    border: 'border-slate-500/30',
+    label: 'Documento General',
+    badge: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]',
   },
 };
 
@@ -152,7 +136,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
     }
     updatedModules[moduleIdx] = targetModule;
     setDossier({ ...dossier, thematic_modules: updatedModules });
-    setNewConceptInputs(prev => ({ ...prev, [moduleIdx]: '' }));
+    setNewConceptInputs((prev) => ({ ...prev, [moduleIdx]: '' }));
   };
 
   const handleSaveDossier = async () => {
@@ -175,45 +159,48 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
 
   if (isLoading) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-slate-500">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mb-3" />
-        <p className="text-sm font-medium text-slate-400">Consultando estructura y guía de estudio...</p>
+      <div className="h-full flex flex-col items-center justify-center p-8 bg-[#F9F9F8] dark:bg-[#121214] text-[#666666] dark:text-[#888888] font-mono select-none">
+        <Loader2 className="w-6 h-6 animate-spin text-[#1A1A1A] dark:text-[#EDEDED] mb-3" />
+        <p className="text-xs uppercase tracking-wider">Cargando guía de estudio estructurada...</p>
       </div>
     );
   }
 
   if (!dossier) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-slate-400 max-w-lg mx-auto text-center">
-        <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 text-indigo-400 mb-4 shadow-lg shadow-indigo-950/20">
-          <BookOpen className="w-12 h-12 stroke-[1.5]" />
+      <div className="h-full flex flex-col items-center justify-center p-8 bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] max-w-lg mx-auto text-center select-none font-sans">
+        <div className="p-4 bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A56DB] dark:text-[#60A5FA] mb-4">
+          <BookOpen className="w-8 h-8 stroke-[1.5]" />
         </div>
-        <h3 className="text-lg font-semibold text-slate-200">Estructura & Guía de Estudio de la Obra</h3>
-        <p className="text-sm text-slate-400 mt-2 leading-relaxed">
+        <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+          Estructura & Guía de Estudio de la Obra
+        </h3>
+        <p className="text-xs text-[#666666] dark:text-[#888888] mt-2 leading-relaxed">
           Generá automáticamente un dossier conceptual estructurado para libros, textos y papers:
           resumen ejecutivo, prerrequisitos, guía de lectura, mapa de módulos temáticos y dictamen crítico editorial.
         </p>
 
         {error && (
-          <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs rounded-lg">
+          <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-mono">
             {error}
           </div>
         )}
 
         <button
+          type="button"
           onClick={handleGenerate}
           disabled={isGenerating}
-          className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white shadow-lg shadow-indigo-950/40 hover:shadow-indigo-900/60 transition-all disabled:opacity-50 cursor-pointer"
+          className="mt-6 inline-flex items-center gap-2 px-4 py-2 text-xs font-mono font-medium tracking-wide uppercase bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] transition-colors disabled:opacity-50 cursor-pointer"
         >
           {isGenerating ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Analizando Arquitectura Conceptual y Guía...</span>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Analizando Arquitectura Conceptual...</span>
             </>
           ) : (
             <>
-              <GraduationCap className="w-4 h-4 text-amber-300" />
-              <span>Generar Guía de Estudio & Estructura</span>
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Generar Guía de Estudio</span>
             </>
           )}
         </button>
@@ -225,22 +212,22 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
   const confidencePercent = Math.round(dossier.confidence_score * 100);
 
   return (
-    <div className="h-full overflow-y-auto px-8 py-6 space-y-8 max-w-4xl mx-auto text-slate-300 font-sans">
+    <div className="h-full overflow-y-auto p-6 space-y-6 max-w-4xl mx-auto bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] font-sans">
       {/* Header Banner */}
-      <div className="p-6 rounded-2xl bg-slate-800/40 border border-slate-700/60 backdrop-blur space-y-4">
+      <div className="p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold border ${typeConfig.bg} ${typeConfig.text} ${typeConfig.border}`}
+              className={`px-2.5 py-0.5 text-[11px] font-mono font-medium border ${typeConfig.badge}`}
             >
               {typeConfig.label}
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-400 border border-slate-700">
+            <span className="px-2 py-0.5 text-[11px] font-mono text-[#666666] dark:text-[#888888] bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] tabular-nums">
               {confidencePercent}% confianza
             </span>
             {saveSuccess && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-in fade-in">
-                <Check className="w-3 h-3 text-emerald-400" /> Guardado
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                <Check className="w-3 h-3" /> Guardado
               </span>
             )}
           </div>
@@ -251,7 +238,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
                 type="button"
                 onClick={handleSaveDossier}
                 disabled={isSaving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 transition disabled:opacity-50 shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-medium text-white bg-emerald-700 hover:bg-emerald-600 transition disabled:opacity-50 cursor-pointer"
                 title="Guardar correcciones del dossier en la base de datos"
               >
                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -262,10 +249,10 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
             <button
               type="button"
               onClick={() => setIsEditing(!isEditing)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer border ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-medium transition cursor-pointer border ${
                 isEditing
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                  : 'text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700'
+                  ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                  : 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E]'
               }`}
               title={isEditing ? 'Finalizar edición' : 'Editar conceptos axiomáticos de la obra'}
             >
@@ -277,63 +264,67 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
               type="button"
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-medium bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] transition disabled:opacity-50 cursor-pointer"
               title="Regenerar análisis con el modelo actual"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin text-indigo-400' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin text-[#1A56DB] dark:text-[#60A5FA]' : ''}`} />
               <span>{isGenerating ? 'Regenerando...' : 'Regenerar'}</span>
             </button>
           </div>
         </div>
 
         <div>
-          <h1 className="text-xl font-bold text-slate-100 leading-snug">{dossier.title}</h1>
+          <h1 className="text-base font-bold font-sans text-[#1A1A1A] dark:text-[#EDEDED] leading-snug">
+            {dossier.title}
+          </h1>
           {dossier.authors_or_entities && dossier.authors_or_entities.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {dossier.authors_or_entities.map((auth, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-300 border border-slate-700/50"
+                  className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] border border-[#E0E0DC] dark:border-[#2A2A2E]"
                 >
-                  <Building2 className="w-3 h-3 text-slate-400" />
+                  <Building2 className="w-3 h-3 text-[#666666] dark:text-[#888888]" />
                   {auth}
                 </span>
               ))}
             </div>
           )}
         </div>
-
-        {/* Executive Summary */}
-        <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-indigo-400" /> Resumen Ejecutivo de la Obra
-          </h4>
-          <p className="text-sm text-slate-200 leading-relaxed">{dossier.executive_summary}</p>
-        </div>
       </div>
 
-      {/* Study Guide & Pedagogical Roadmap */}
+      {/* § 01 Resumen Ejecutivo */}
+      <div className="p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] space-y-2">
+        <h4 className="text-[11px] font-mono font-semibold uppercase tracking-wider text-[#666666] dark:text-[#888888] flex items-center gap-1.5">
+          <BookOpen className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" /> § 01 Resumen Ejecutivo de la Obra
+        </h4>
+        <p className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] leading-relaxed font-sans">
+          {dossier.executive_summary}
+        </p>
+      </div>
+
+      {/* § 02 Guía de Aprendizaje & Prerrequisitos */}
       {dossier.study_guide && (
-        <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/20 via-slate-800/40 to-slate-900/60 border border-indigo-500/20 space-y-5">
+        <div className="p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
-              <GraduationCap className="w-4 h-4 text-indigo-400" /> Guía de Aprendizaje & Prerrequisitos
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED] flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" /> § 02 Guía de Aprendizaje & Prerrequisitos
             </h3>
             {dossier.study_guide.difficulty_level && (
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
+              <span className="px-2.5 py-0.5 font-mono text-[10px] uppercase font-bold bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E]">
                 Nivel: {dossier.study_guide.difficulty_level}
               </span>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Target Audience */}
             {dossier.study_guide.target_audience && (
-              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 space-y-1.5">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-indigo-400" /> Público Objetivo
+              <div className="p-3 bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] space-y-1">
+                <h4 className="text-[10px] font-mono font-semibold text-[#666666] dark:text-[#888888] uppercase tracking-wide flex items-center gap-1.5">
+                  <Target className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" /> Público Objetivo
                 </h4>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] leading-relaxed">
                   {dossier.study_guide.target_audience}
                 </p>
               </div>
@@ -341,11 +332,11 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
 
             {/* Reading Path */}
             {dossier.study_guide.recommended_reading_path && (
-              <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 space-y-1.5">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-cyan-400" /> Ruta de Lectura Recomendada
+              <div className="p-3 bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] space-y-1">
+                <h4 className="text-[10px] font-mono font-semibold text-[#666666] dark:text-[#888888] uppercase tracking-wide flex items-center gap-1.5">
+                  <Compass className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" /> Ruta de Lectura Recomendada
                 </h4>
-                <p className="text-xs text-slate-200 leading-relaxed">
+                <p className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] leading-relaxed">
                   {dossier.study_guide.recommended_reading_path}
                 </p>
               </div>
@@ -354,15 +345,15 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
 
           {/* Prerequisites */}
           {dossier.study_guide.prerequisites && dossier.study_guide.prerequisites.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" /> Prerrequisitos Indispensables
+            <div className="space-y-1.5">
+              <h4 className="text-[10px] font-mono font-semibold text-[#666666] dark:text-[#888888] uppercase tracking-wide flex items-center gap-1.5">
+                <Key className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Prerrequisitos Indispensables
               </h4>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {dossier.study_guide.prerequisites.map((prereq, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center text-xs px-3 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                    className="inline-flex items-center text-xs font-mono px-2.5 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border border-[#E0E0DC] dark:border-[#2A2A2E]"
                   >
                     {prereq}
                   </span>
@@ -373,17 +364,17 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
 
           {/* Key Takeaways */}
           {dossier.study_guide.key_takeaways && dossier.study_guide.key_takeaways.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Competencias & Aprendizajes Clave
+            <div className="space-y-1.5 pt-1">
+              <h4 className="text-[10px] font-mono font-semibold text-[#666666] dark:text-[#888888] uppercase tracking-wide flex items-center gap-1.5">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Competencias & Aprendizajes Clave
               </h4>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {dossier.study_guide.key_takeaways.map((takeaway, idx) => (
                   <li
                     key={idx}
-                    className="text-xs text-slate-300 leading-relaxed p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 flex items-start gap-2"
+                    className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] leading-relaxed p-2.5 bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] flex items-start gap-2"
                   >
-                    <span className="text-emerald-400 mt-0.5">&bull;</span>
+                    <span className="text-[#1A56DB] dark:text-[#60A5FA] mt-0.5 font-bold">&bull;</span>
                     <span>{takeaway}</span>
                   </li>
                 ))}
@@ -393,27 +384,27 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         </div>
       )}
 
-      {/* Thematic Modules & Conceptual Breakdown */}
+      {/* § 03 Módulos & Arquitectura Conceptual */}
       {dossier.thematic_modules && dossier.thematic_modules.length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-400" /> Módulos & Arquitectura Conceptual
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED] flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" /> § 03 Módulos & Arquitectura Conceptual
             </h3>
-            <span className="text-xs text-slate-500">
+            <span className="text-[11px] font-mono text-[#666666] dark:text-[#888888] tabular-nums">
               {dossier.thematic_modules.length} módulos identificados
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             {dossier.thematic_modules.map((mod, idx) => (
               <div
                 key={idx}
-                className="p-5 rounded-xl bg-slate-800/20 border border-slate-700/50 space-y-3 hover:border-slate-600 transition"
+                className="p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] space-y-2.5"
               >
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 text-[11px] flex items-center justify-center font-mono">
+                  <h4 className="text-xs font-mono font-bold text-[#1A1A1A] dark:text-[#EDEDED] flex items-center gap-2">
+                    <span className="w-4 h-4 bg-[#1A1A1A] dark:bg-[#EDEDED] text-[#F9F9F8] dark:text-[#121214] text-[10px] flex items-center justify-center font-mono font-bold">
                       {idx + 1}
                     </span>
                     {mod.topic}
@@ -426,38 +417,38 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
                         const terms = [mod.topic, ...(mod.core_concepts?.slice(0, 2) || [])].join(' ');
                         onExploreTopic(terms);
                       }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono font-medium text-[#1A56DB] dark:text-[#60A5FA] bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
                       title={`Explorar papers y literatura científica sobre: ${mod.topic}`}
                     >
-                      <Search className="w-3.5 h-3.5 text-indigo-400" />
+                      <Search className="w-3 h-3" />
                       <span>Explorar Papers</span>
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">{mod.summary}</p>
+                <p className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] leading-relaxed font-sans">{mod.summary}</p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                      <span className="text-[10px] font-mono font-semibold text-[#666666] dark:text-[#888888] uppercase tracking-wide">
                         Conceptos Axiomáticos:
                       </span>
                       {isEditing && (
-                        <span className="text-[10px] text-amber-400 font-medium">Editando</span>
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-medium">Editando</span>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1.5 items-center">
                       {(mod.core_concepts || []).map((concept, cIdx) => (
                         <span
                           key={cIdx}
-                          className="text-[11px] pl-2.5 pr-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 inline-flex items-center gap-1.5"
+                          className="text-xs font-mono px-2 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] inline-flex items-center gap-1.5"
                         >
                           <span>{concept}</span>
                           {isEditing && (
                             <button
                               type="button"
                               onClick={() => handleDeleteConcept(idx, cIdx)}
-                              className="text-slate-400 hover:text-rose-400 cursor-pointer transition-colors p-0.5 rounded"
+                              className="text-[#666666] dark:text-[#888888] hover:text-rose-600 cursor-pointer transition-colors p-0.5"
                               title={`Eliminar '${concept}'`}
                             >
                               <X className="w-3 h-3" />
@@ -471,7 +462,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
                           <input
                             type="text"
                             value={newConceptInputs[idx] || ''}
-                            onChange={(e) => setNewConceptInputs(prev => ({ ...prev, [idx]: e.target.value }))}
+                            onChange={(e) => setNewConceptInputs((prev) => ({ ...prev, [idx]: e.target.value }))}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -479,12 +470,12 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
                               }
                             }}
                             placeholder="Añadir concepto..."
-                            className="text-[11px] px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-slate-200 focus:outline-none focus:border-indigo-500 placeholder:text-slate-500 w-32"
+                            className="text-xs font-mono px-2 py-0.5 bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] w-32"
                           />
                           <button
                             type="button"
                             onClick={() => handleAddConcept(idx)}
-                            className="p-1 text-indigo-300 hover:text-indigo-200 bg-indigo-500/20 hover:bg-indigo-500/30 rounded border border-indigo-500/30 cursor-pointer"
+                            className="p-1 text-[#1A56DB] dark:text-[#60A5FA] bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#1A56DB] hover:text-white border border-[#E0E0DC] dark:border-[#2A2A2E] cursor-pointer transition-colors"
                             title="Agregar concepto a este módulo"
                           >
                             <Plus className="w-3 h-3" />
@@ -496,13 +487,13 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
 
                   {mod.practical_applications && mod.practical_applications.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                      <span className="text-[10px] font-mono font-semibold text-[#666666] dark:text-[#888888] uppercase tracking-wide">
                         Aplicaciones & Prácticas:
                       </span>
-                      <ul className="text-xs text-slate-300 space-y-1">
+                      <ul className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] space-y-1">
                         {mod.practical_applications.map((app, aIdx) => (
-                          <li key={aIdx} className="flex items-start gap-1.5 text-[11px] text-cyan-200/90">
-                            <span className="text-cyan-400 mt-0.5">&bull;</span>
+                          <li key={aIdx} className="flex items-start gap-1.5 text-xs text-[#1A1A1A] dark:text-[#EDEDED]">
+                            <span className="text-[#1A56DB] dark:text-[#60A5FA] mt-0.5 font-bold">&bull;</span>
                             <span>{app}</span>
                           </li>
                         ))}
@@ -516,17 +507,17 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         </div>
       )}
 
-      {/* Key Claims & Methodology */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* § 04 Tesis y Fundamentos Principales & Enfoque Metodológico */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Key Claims */}
-        <div className="p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-3">
-          <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Tesis y Fundamentos Principales
+        <div className="p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] space-y-2.5">
+          <h3 className="text-xs font-mono font-bold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wide flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> § 04 Tesis & Fundamentos
           </h3>
           <ul className="space-y-2">
             {dossier.key_claims.map((claim, idx) => (
-              <li key={idx} className="text-xs leading-relaxed text-slate-300 flex items-start gap-2">
-                <span className="text-indigo-400 mt-0.5">&bull;</span>
+              <li key={idx} className="text-xs leading-relaxed text-[#1A1A1A] dark:text-[#EDEDED] flex items-start gap-2">
+                <span className="text-[#1A56DB] dark:text-[#60A5FA] mt-0.5 font-bold">&bull;</span>
                 <span>{claim}</span>
               </li>
             ))}
@@ -534,26 +525,26 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         </div>
 
         {/* Methodology */}
-        <div className="p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-3">
-          <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-            <Scale className="w-4 h-4 text-cyan-400" /> Enfoque Didáctico / Metodológico
+        <div className="p-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] space-y-2.5">
+          <h3 className="text-xs font-mono font-bold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wide flex items-center gap-2">
+            <Scale className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" /> § 05 Enfoque Metodológico
           </h3>
-          <p className="text-xs leading-relaxed text-slate-300">
+          <p className="text-xs leading-relaxed text-[#1A1A1A] dark:text-[#EDEDED]">
             {dossier.methodology_or_approach || 'No se especificó una metodología formal en los fragmentos analizados.'}
           </p>
         </div>
       </div>
 
-      {/* Limitations */}
+      {/* § 05 Límites & Alcance */}
       {dossier.limitations && dossier.limitations.length > 0 && (
-        <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
-          <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Límites & Alcance Temático de la Obra
+        <div className="p-4 border border-amber-500/30 bg-amber-500/5 text-amber-900 dark:text-amber-200 space-y-2 font-mono">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="w-3.5 h-3.5" /> § 06 Límites & Alcance Temático de la Obra
           </h4>
-          <ul className="space-y-1">
+          <ul className="space-y-1 font-sans text-xs">
             {dossier.limitations.map((lim, idx) => (
-              <li key={idx} className="text-xs text-slate-300 flex items-start gap-2">
-                <span className="text-amber-400">&bull;</span>
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-amber-600 dark:text-amber-400 font-bold">&bull;</span>
                 <span>{lim}</span>
               </li>
             ))}
@@ -561,12 +552,14 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
         </div>
       )}
 
-      {/* Final Verdict */}
-      <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 space-y-2 shadow-xl shadow-indigo-950/30">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-amber-300" /> Dictamen Editorial & Juicio Crítico
+      {/* § 06 Dictamen Editorial & Juicio Crítico */}
+      <div className="p-4 border border-[#1A56DB]/30 bg-[#1A56DB]/5 dark:bg-[#1A56DB]/10 space-y-2">
+        <h4 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#1A56DB] dark:text-[#60A5FA] flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5" /> § 07 Dictamen Editorial & Juicio Crítico
         </h4>
-        <p className="text-sm font-medium text-slate-100 leading-relaxed">{dossier.verdict}</p>
+        <p className="text-xs font-medium text-[#1A1A1A] dark:text-[#EDEDED] leading-relaxed font-sans">
+          {dossier.verdict}
+        </p>
       </div>
     </div>
   );

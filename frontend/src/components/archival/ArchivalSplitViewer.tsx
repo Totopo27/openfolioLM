@@ -258,7 +258,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     if (!onSaveToNotebook) return;
     setSavingMsgId(msg.id);
     try {
-      const firstLine = msg.text.replace(/\[\^\d+\]/g, '').trim().split('\n')[0];
+      const firstLine = msg.text.replace(/\[\^?\d+\]/g, '').trim().split('\n')[0];
       const cleanTitle = firstLine.slice(0, 50).trim() + (firstLine.length > 50 ? '...' : '');
       const cIds = msg.citations?.map((c) => c.chunkId) || [];
 
@@ -274,6 +274,53 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     } finally {
       setSavingMsgId(null);
     }
+  };
+
+  const renderMessageTextWithCitations = (text: string, citations?: ChunkCitation[]) => {
+    if (!text) return null;
+    const citationMap = new Map<number, ChunkCitation>();
+    if (citations) {
+      citations.forEach((c) => citationMap.set(c.index, c));
+    }
+
+    const parts = text.split(/(\[\^?\d+\])/g);
+
+    return parts.map((part, i) => {
+      const match = part.match(/\[\^?(\d+)\]/);
+      if (match) {
+        const citIndex = parseInt(match[1], 10);
+        const cit = citationMap.get(citIndex);
+        const isSelected = activeCitationIndex === citIndex;
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => handleCitationClick(citIndex, cit?.snippet, cit?.chunkId)}
+            onMouseEnter={() => {
+              setActiveCitationIndex(citIndex);
+              if (cit?.snippet) setActiveCitationSnippet(cit.snippet);
+            }}
+            onMouseLeave={() => {
+              setActiveCitationIndex(null);
+              setActiveCitationSnippet(null);
+            }}
+            className={`inline-flex items-center justify-center px-1.5 py-0.5 mx-0.5 text-[10px] font-mono font-bold transition-all cursor-pointer border select-none align-baseline ${
+              isSelected
+                ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                : 'bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#1A56DB] hover:text-white dark:hover:bg-[#1A56DB] dark:hover:text-white'
+            }`}
+            title={
+              cit
+                ? `Cita [${citIndex}] en ${cit.sourceFilename}${cit.pageNumber ? ` (Pág. ${cit.pageNumber})` : ''}: "${cit.snippet || ''}"`
+                : `Ir a cita [${citIndex}] en texto fuente`
+            }
+          >
+            [{citIndex}]
+          </button>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
   };
 
   const handleCopyMessage = async (msgId: string, text: string) => {
@@ -776,9 +823,9 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                 </div>
 
                 {/* Message Body */}
-                <p className="whitespace-pre-wrap leading-relaxed text-xs text-[#1A1A1A] dark:text-[#EDEDED]">
-                  {msg.text}
-                </p>
+                <div className="whitespace-pre-wrap leading-relaxed text-xs text-[#1A1A1A] dark:text-[#EDEDED]">
+                  {renderMessageTextWithCitations(msg.text, msg.citations)}
+                </div>
 
                 {/* Interactive Citation Chips */}
                 {msg.citations && msg.citations.length > 0 && (

@@ -163,6 +163,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleNavigateToSourceFromNote = (sourceCitationId?: string, _citationIndex?: number) => {
+    if (sourceCitationId) {
+      const targetDoc = sources.find((s) => s.id === sourceCitationId);
+      if (targetDoc) {
+        setSelectedDoc(targetDoc);
+      }
+    } else if (!selectedDoc && sources.length > 0) {
+      setSelectedDoc(sources[0]);
+    }
+    setArchivalTab('split');
+    setDocViewerTab('reading');
+    setRightPaneMode('chat');
+  };
+
   // Literature Discovery Modal
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
   const [discoveryInitialQuery, setDiscoveryInitialQuery] = useState<string | undefined>(undefined);
@@ -1177,6 +1191,7 @@ export const App: React.FC = () => {
                 initialNewNote={draftNote}
                 onClearInitialNote={() => setDraftNote(null)}
                 onNavigateToChat={handleNavigateToChat}
+                onNavigateToSource={handleNavigateToSourceFromNote}
               />
             )}
 
@@ -1691,6 +1706,7 @@ export const App: React.FC = () => {
               initialNewNote={draftNote}
               onClearInitialNote={() => setDraftNote(null)}
               onNavigateToChat={handleNavigateToChat}
+              onNavigateToSource={handleNavigateToSourceFromNote}
             />
           )}
 
