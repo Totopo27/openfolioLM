@@ -1141,6 +1141,11 @@ export const App: React.FC = () => {
                   projectName={activeProject?.name}
                   selectedEngine={selectedEngine}
                   allSources={sources}
+                  activeSourceIds={activeSourceIds}
+                  onToggleActiveSource={handleToggleActive}
+                  onToggleAllSources={handleToggleAll}
+                  onSetOnlyThisSourceActive={(id) => setActiveSourceIds([id])}
+                  onSetAllSourcesActive={() => setActiveSourceIds(sources.map((s) => s.id))}
                   activeTab={docViewerTab}
                   onTabChange={(tab) => setDocViewerTab(tab)}
                   onExploreTopic={handleSendMessage}

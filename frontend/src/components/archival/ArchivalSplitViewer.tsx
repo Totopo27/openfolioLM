@@ -17,6 +17,10 @@ import {
   X,
   Copy,
   Check,
+  Layers,
+  ChevronDown,
+  AlertTriangle,
+  Search,
 } from 'lucide-react';
 import { SourceDocument, ChatMessage, HighlightTarget } from '../../types';
 import { DossierViewer } from '../DossierViewer';
@@ -53,11 +57,12 @@ export interface DocumentSourceChunk {
 }
 
 const formatSeconds = (totalSecs: number): string => {
-  const hours = Math.floor(totalSecs / 3600);
-  const mins = Math.floor((totalSecs % 3600) / 60);
+  const mins = Math.floor(totalSecs / 60);
   const secs = totalSecs % 60;
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  if (mins >= 60) {
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hours.toString().padStart(2, '0')}:${remMins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
@@ -77,6 +82,11 @@ interface ArchivalSplitViewerProps {
   projectName?: string;
   selectedEngine?: string;
   allSources?: SourceDocument[];
+  activeSourceIds?: string[];
+  onToggleActiveSource?: (id: string) => void;
+  onToggleAllSources?: () => void;
+  onSetOnlyThisSourceActive?: (id: string) => void;
+  onSetAllSourcesActive?: () => void;
   activeTab?: 'reading' | 'dossier' | 'taxonomy';
   onTabChange?: (tab: 'reading' | 'dossier' | 'taxonomy') => void;
   onExploreTopic?: (query: string) => void;
@@ -107,6 +117,11 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   projectName,
   selectedEngine,
   allSources = [],
+  activeSourceIds = [],
+  onToggleActiveSource,
+  onToggleAllSources,
+  onSetOnlyThisSourceActive,
+  onSetAllSourcesActive,
   activeTab: controlledActiveTab,
   onTabChange,
   onExploreTopic,
@@ -124,6 +139,42 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   const [activeCitationSnippet, setActiveCitationSnippet] = useState<string | null>(null);
   const [inputQuery, setInputQuery] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
+
+  // Source selector state
+  const [isSourcesDropdownOpen, setIsSourcesDropdownOpen] = useState<boolean>(false);
+  const [sourceSearchQuery, setSourceSearchQuery] = useState<string>('');
+  const sourcesDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close sources dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        sourcesDropdownRef.current &&
+        !sourcesDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsSourcesDropdownOpen(false);
+      }
+    };
+    if (isSourcesDropdownOpen) {
+      window.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSourcesDropdownOpen]);
+
+  const currentActiveSourceIds = activeSourceIds || [];
+  const activeCount = currentActiveSourceIds.length;
+  const isAllActive = allSources.length > 0 && activeCount === allSources.length;
+  const isOnlyCurrentDoc = activeCount === 1 && currentActiveSourceIds.includes(document.id);
+
+  const filteredDropdownSources = allSources.filter((s) => {
+    if (!sourceSearchQuery.trim()) return true;
+    const q = sourceSearchQuery.toLowerCase();
+    const title = (s.metadata?.title || s.filename || '').toLowerCase();
+    const author = (s.metadata?.author || '').toLowerCase();
+    return title.includes(q) || author.includes(q);
+  });
 
   // Formatting & text sizing states
   const [viewStyle, setViewStyle] = useState<'raw' | 'rich'>('raw');
@@ -722,12 +773,171 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
         aria-label="Panel de Síntesis y Chat Científico"
       >
         {/* Right Header & Chat Actions Toolbar */}
-        <header className="p-3 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] flex items-center justify-between shrink-0 gap-2">
+        <header className="p-3 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] flex items-center justify-between shrink-0 gap-2 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" aria-hidden="true" />
+            <Sparkles className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA] shrink-0" aria-hidden="true" />
             <h3 className="text-xs font-semibold tracking-tight font-sans text-[#1A1A1A] dark:text-[#EDEDED] truncate">
-              Chat de Evidencia Científica
+              Chat de Evidencia
             </h3>
+
+            {/* Source Selector Button & Dropdown */}
+            <div className="relative" ref={sourcesDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsSourcesDropdownOpen(!isSourcesDropdownOpen)}
+                className={`px-2 py-0.5 text-[10px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                  activeCount === 0
+                    ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                    : isOnlyCurrentDoc
+                    ? 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border-[#1A56DB]/40 dark:border-[#60A5FA]/40 font-bold'
+                    : 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E]'
+                }`}
+                title="Hacé clic para elegir con qué fuentes interactúa el modelo"
+              >
+                <Layers className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" />
+                <span className="truncate max-w-[120px] sm:max-w-[160px]">
+                  {activeCount === 0
+                    ? '0 fuentes (Sin grounding)'
+                    : isOnlyCurrentDoc
+                    ? 'Solo este documento'
+                    : isAllActive
+                    ? `Todo el corpus (${allSources.length})`
+                    : `${activeCount} de ${allSources.length} activas`}
+                </span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${isSourcesDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Source Selection Popover Dropdown */}
+              {isSourcesDropdownOpen && (
+                <div className="absolute left-0 mt-1.5 w-80 sm:w-96 bg-[#F9F9F8] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] shadow-2xl z-40 text-xs font-sans animate-in fade-in select-none">
+                  {/* Dropdown Header */}
+                  <div className="p-2.5 bg-[#F2F2F0] dark:bg-[#141416] border-b border-[#E0E0DC] dark:border-[#2A2A2E] flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider">
+                      <Layers className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+                      <span>Fuentes para Grounding RAG</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 bg-[#EBEBE8] dark:bg-[#222226] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888] tabular-nums">
+                      {activeCount} / {allSources.length} activas
+                    </span>
+                  </div>
+
+                  {/* Preset Buttons Toolbar */}
+                  <div className="p-2 bg-[#F9F9F8] dark:bg-[#19191C] border-b border-[#E0E0DC] dark:border-[#2A2A2E] flex items-center gap-1.5 flex-wrap font-mono text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => onSetOnlyThisSourceActive && onSetOnlyThisSourceActive(document.id)}
+                      className={`px-2 py-0.5 border transition cursor-pointer ${
+                        isOnlyCurrentDoc
+                          ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                          : 'bg-[#EBEBE8] dark:bg-[#222226] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#E0E0DC]'
+                      }`}
+                      title="Activar únicamente el documento que estás leyendo en pantalla"
+                    >
+                      Solo este doc
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSetAllSourcesActive && onSetAllSourcesActive()}
+                      className={`px-2 py-0.5 border transition cursor-pointer ${
+                        isAllActive
+                          ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                          : 'bg-[#EBEBE8] dark:bg-[#222226] text-[#1A1A1A] dark:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#E0E0DC]'
+                      }`}
+                      title="Activar todos los documentos del proyecto"
+                    >
+                      Todo el corpus
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onToggleAllSources && onToggleAllSources()}
+                      className="px-2 py-0.5 border bg-[#EBEBE8] dark:bg-[#222226] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E] transition cursor-pointer"
+                      title="Invertir o limpiar selección activa"
+                    >
+                      {isAllActive ? 'Desactivar todas' : 'Invertir'}
+                    </button>
+                  </div>
+
+                  {/* Filter Search Input */}
+                  {allSources.length > 4 && (
+                    <div className="p-2 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#141416]">
+                      <div className="relative">
+                        <Search className="w-3 h-3 text-[#666666] dark:text-[#888888] absolute left-2 top-2" />
+                        <input
+                          type="text"
+                          placeholder="Filtrar fuentes..."
+                          value={sourceSearchQuery}
+                          onChange={(e) => setSourceSearchQuery(e.target.value)}
+                          className="w-full bg-[#F9F9F8] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] pl-7 pr-2 py-1 text-[11px] font-mono text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scrollable Sources List */}
+                  <div className="max-h-56 overflow-y-auto divide-y divide-[#E0E0DC]/60 dark:divide-[#2A2A2E]/60 p-1">
+                    {filteredDropdownSources.length === 0 ? (
+                      <div className="p-4 text-center text-[#666666] dark:text-[#888888] text-[11px] font-mono">
+                        No se encontraron fuentes con ese filtro.
+                      </div>
+                    ) : (
+                      filteredDropdownSources.map((s) => {
+                        const isSelected = currentActiveSourceIds.includes(s.id);
+                        const isCurrent = s.id === document.id;
+                        const sTitle = s.metadata?.title || s.filename;
+                        const sAuthor = s.metadata?.author || (Array.isArray(s.metadata?.authors) ? s.metadata?.authors[0] : null);
+
+                        return (
+                          <div
+                            key={s.id}
+                            onClick={() => onToggleActiveSource && onToggleActiveSource(s.id)}
+                            className={`p-2 flex items-start gap-2.5 cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-[#1A56DB]/5 dark:bg-[#1A56DB]/10'
+                                : 'hover:bg-[#EBEBE8] dark:hover:bg-[#222226]'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by parent click
+                              className="mt-0.5 accent-[#1A56DB] cursor-pointer"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`text-xs truncate font-medium ${
+                                    isSelected
+                                      ? 'text-[#1A1A1A] dark:text-[#EDEDED] font-semibold'
+                                      : 'text-[#666666] dark:text-[#888888]'
+                                  }`}
+                                  title={sTitle}
+                                >
+                                  {sTitle}
+                                </span>
+                                {isCurrent && (
+                                  <span className="px-1 py-0.2 text-[9px] font-mono uppercase bg-[#1A56DB] text-white">
+                                    En Lectura
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-[#666666] dark:text-[#888888] truncate">
+                                {sAuthor && <span>{sAuthor}</span>}
+                                {s.metadata?.doi && <span>DOI: {s.metadata.doi}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Footer explanation */}
+                  <div className="p-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#141416] text-[10px] text-[#666666] dark:text-[#888888] font-mono leading-tight">
+                    El modelo solo recuperará citas y responderá en base a las fuentes marcadas arriba.
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -769,13 +979,42 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
           </div>
         </header>
 
-        {/* Grounding Status Indicator Strip */}
-        <div className="px-4 py-1.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] flex items-center justify-between text-[10px] font-mono text-[#666666] dark:text-[#888888] shrink-0">
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            <span>GROUNDING ESTRICTO ACTIVO</span>
+        {/* Grounding Status & Active Sources Strip */}
+        <div className="px-3.5 py-1.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] flex items-center justify-between text-[10px] font-mono text-[#666666] dark:text-[#888888] shrink-0 gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${activeCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`} aria-hidden="true" />
+            <span className="font-bold uppercase tracking-wider text-[9px] shrink-0">FUENTES EN RAG:</span>
+            {activeCount === 0 ? (
+              <span className="text-amber-700 dark:text-amber-400 font-semibold truncate flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                Ninguna fuente activa seleccionada
+              </span>
+            ) : isOnlyCurrentDoc ? (
+              <span className="text-[#1A56DB] dark:text-[#60A5FA] font-medium truncate" title={documentTitle}>
+                Solo este doc ({documentTitle})
+              </span>
+            ) : isAllActive ? (
+              <span className="text-emerald-700 dark:text-emerald-400 font-medium truncate">
+                Todo el corpus ({allSources.length} docs activos)
+              </span>
+            ) : (
+              <span className="text-[#1A56DB] dark:text-[#60A5FA] font-medium truncate">
+                {activeCount} de {allSources.length} docs activos
+              </span>
+            )}
           </div>
-          <div>{messages.length} mensajes</div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSourcesDropdownOpen(true)}
+              className="text-[#1A56DB] dark:text-[#60A5FA] hover:underline cursor-pointer flex items-center gap-0.5"
+              title="Abrir selector de fuentes"
+            >
+              <span>[Cambiar]</span>
+            </button>
+            <span className="tabular-nums">· {messages.length} msgs</span>
+          </div>
         </div>
 
         {/* Chat Messages Stream */}
@@ -898,6 +1137,38 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
 
         {/* Input Bar */}
         <footer className="p-3 border-t border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C]">
+          {/* Active Sources Zero Warning */}
+          {activeCount === 0 && (
+            <div className="mb-2 p-2 border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-2 text-[11px] font-mono text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="truncate">Sin fuentes seleccionadas para RAG. La respuesta no tendrá citas auditables.</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {document && onSetOnlyThisSourceActive && (
+                  <button
+                    type="button"
+                    onClick={() => onSetOnlyThisSourceActive(document.id)}
+                    className="px-1.5 py-0.5 border border-amber-300 dark:border-amber-700/80 bg-white dark:bg-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-100 uppercase text-[10px] font-bold cursor-pointer transition-colors"
+                    title="Activar solo el documento actual"
+                  >
+                    [Activar este doc]
+                  </button>
+                )}
+                {onSetAllSourcesActive && (
+                  <button
+                    type="button"
+                    onClick={onSetAllSourcesActive}
+                    className="px-1.5 py-0.5 border border-amber-300 dark:border-amber-700/80 bg-white dark:bg-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-100 uppercase text-[10px] font-bold cursor-pointer transition-colors"
+                    title="Activar todos los documentos del corpus"
+                  >
+                    [Activar todo]
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-end gap-2 bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] p-2 focus-within:border-[#1A1A1A] dark:focus-within:border-[#EDEDED] transition-colors">
             <textarea
               value={inputQuery}
@@ -909,7 +1180,15 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                 }
               }}
               rows={2}
-              placeholder="Hacé una consulta sobre el documento fuente… (Shift+Enter para salto de línea)"
+              placeholder={
+                activeCount === 0
+                  ? 'Sin fuentes seleccionadas (consulta general sin grounding)… (Shift+Enter para salto)'
+                  : isOnlyCurrentDoc
+                  ? `Consultar sobre "${documentTitle}"… (Shift+Enter para salto)`
+                  : isAllActive
+                  ? `Consultar sobre todo el corpus (${allSources.length} documentos)… (Shift+Enter para salto)`
+                  : `Consultar sobre las ${activeCount} fuentes seleccionadas… (Shift+Enter para salto)`
+              }
               className="flex-1 bg-transparent border-none focus:outline-none resize-none font-sans text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555]"
               aria-label="Preguntar al asistente sobre el documento"
             />
