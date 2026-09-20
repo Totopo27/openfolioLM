@@ -64,7 +64,7 @@ export const App: React.FC = () => {
     return new URLSearchParams(window.location.search).get('share');
   });
 
-  // UI Mode: 'archival' (Are.na Index & Archival Brutalism) vs 'classic' (Legacy)
+  // UI Mode: 'archival' (Paper & Ink Minimalist) vs 'classic' (Legacy)
   const [uiMode, setUiMode] = useState<'archival' | 'classic'>(() => {
     const saved = localStorage.getItem('openfolio_ui_mode');
     return saved === 'classic' || saved === 'archival' ? saved : 'archival';
@@ -840,14 +840,14 @@ export const App: React.FC = () => {
             {/* Left: Brand & Project Selector */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold tracking-widest text-[#1A1A1A] dark:text-[#EDEDED]">
-                  [ OPENFOLIO // ARCHIVAL ]
+                <span className="font-mono text-xs font-bold tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+                  OpenFolioLM
                 </span>
               </div>
 
               <span className="text-[#E0E0DC] dark:text-[#2A2A2E]">|</span>
 
-              {/* Project Switcher Dropdown (Are.na Style) */}
+              {/* Project Switcher Dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
@@ -946,7 +946,7 @@ export const App: React.FC = () => {
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [02 // SPLIT-VIEWER]
+                [02 // LECTURA & CHAT]
                 {selectedDoc && (
                   <span className="ml-1 opacity-70 truncate max-w-[100px] inline-block align-bottom">
                     · {selectedDoc.metadata?.title || selectedDoc.filename}
@@ -985,7 +985,7 @@ export const App: React.FC = () => {
                     : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
                 }`}
               >
-                [05 // RED]
+                [05 // RED SEMÁNTICA]
               </button>
             </nav>
 
@@ -1049,14 +1049,14 @@ export const App: React.FC = () => {
                 [LOGS]
               </button>
 
-              {/* UI Mode Toggle (Are.na Archival vs Classic) */}
+              {/* UI Mode Toggle (Minimalista vs Clásico) */}
               <div className="flex items-center border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-[10px] font-mono">
                 <button
                   type="button"
                   onClick={() => handleToggleUiMode('archival')}
                   className="px-2 py-0.5 bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold transition-colors"
                 >
-                  ARE.NA ARCHIVO
+                  MINIMALISTA
                 </button>
                 <button
                   type="button"
@@ -1096,10 +1096,10 @@ export const App: React.FC = () => {
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F9F9F8] dark:bg-[#121214] select-none">
                   <div className="p-6 border border-dashed border-[#E0E0DC] dark:border-[#2A2A2E] max-w-md space-y-3 font-mono">
                     <p className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED]">
-                      [NO SOURCE SELECTED // REPOSITORY READY]
+                      [ NINGÚN DOCUMENTO SELECCIONADO ]
                     </p>
                     <p className="text-xs text-[#666666] dark:text-[#888888] font-sans">
-                      Seleccioná un documento del catálogo archivístico para abrir el visor sincronizado con coordenadas marginales y citas auditables.
+                      Seleccioná un documento del catálogo de fuentes para abrir el visor sincronizado de lectura y chat con citas auditables.
                     </p>
                     <button
                       type="button"
@@ -1380,9 +1380,9 @@ export const App: React.FC = () => {
               type="button"
               onClick={() => handleToggleUiMode('archival')}
               className="px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition"
-              title="Cambiar a la interfaz estética Are.na Index & Archival Brutalism"
+              title="Cambiar a la interfaz minimalista Paper & Ink"
             >
-              ARE.NA ARCHIVO
+              MINIMALISTA
             </button>
             <button
               type="button"

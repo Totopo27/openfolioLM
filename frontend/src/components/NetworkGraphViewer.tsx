@@ -404,25 +404,25 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-200 overflow-hidden relative select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] overflow-hidden relative select-none">
       {/* Top Controls & Metrics Bar */}
-      <div className="p-3 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between gap-4 flex-wrap z-10">
+      <div className="p-3 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] flex items-center justify-between gap-4 flex-wrap z-10">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-            <Share2 className="w-4 h-4 text-indigo-400" />
+          <div className="flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+            <Share2 className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" />
             <span>Red Semántica & Co-citaciones</span>
           </div>
 
           {/* Metrics Pills */}
           {graphData && (
-            <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-              <span className="bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60">
+            <div className="hidden sm:flex items-center gap-2 text-[10px] text-[#666666] dark:text-[#888888] font-mono">
+              <span className="bg-[#EBEBE8] dark:bg-[#1E1E22] px-2 py-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E] tabular-nums">
                 {graphData.metrics.node_count} nodos
               </span>
-              <span className="bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60">
+              <span className="bg-[#EBEBE8] dark:bg-[#1E1E22] px-2 py-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E] tabular-nums">
                 {filteredEdges.length} aristas
               </span>
-              <span className="bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60">
+              <span className="bg-[#EBEBE8] dark:bg-[#1E1E22] px-2 py-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E] tabular-nums">
                 densidad: {graphData.metrics.density}
               </span>
             </div>
@@ -432,9 +432,9 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         {/* View Tools & Sliders */}
         <div className="flex items-center gap-3">
           {/* Similarity threshold slider */}
-          <div className="flex items-center gap-2 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
-            <Sliders className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-[11px] text-slate-400 font-mono">Similitud min:</span>
+          <div className="flex items-center gap-2 bg-[#EBEBE8] dark:bg-[#1E1E22] px-2.5 py-1 border border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono">
+            <Sliders className="w-3.5 h-3.5 text-[#666666] dark:text-[#888888]" />
+            <span className="text-[10px] text-[#666666] dark:text-[#888888]">Similitud min:</span>
             <input
               type="range"
               min="0.50"
@@ -442,19 +442,19 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
               step="0.05"
               value={minSimilarity}
               onChange={(e) => setMinSimilarity(parseFloat(e.target.value))}
-              className="w-16 accent-indigo-500 cursor-pointer"
+              className="w-16 accent-[#1A56DB] cursor-pointer"
             />
-            <span className="text-[11px] text-indigo-300 font-mono font-medium">
+            <span className="text-[10px] text-[#1A56DB] dark:text-[#60A5FA] font-bold tabular-nums">
               {Math.round(minSimilarity * 100)}%
             </span>
           </div>
 
           {/* Zoom buttons */}
-          <div className="flex items-center bg-slate-900 rounded-lg border border-slate-800 p-0.5 text-xs">
+          <div className="flex items-center bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] p-0.5 text-xs font-mono">
             <button
               type="button"
               onClick={() => setScale((s) => Math.min(2.5, s * 1.15))}
-              className="p-1.5 text-slate-400 hover:text-white rounded transition cursor-pointer"
+              className="p-1.5 text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition cursor-pointer"
               title="Acercar"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -462,7 +462,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
             <button
               type="button"
               onClick={() => setScale((s) => Math.max(0.4, s * 0.85))}
-              className="p-1.5 text-slate-400 hover:text-white rounded transition cursor-pointer"
+              className="p-1.5 text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition cursor-pointer"
               title="Alejar"
             >
               <ZoomOut className="w-3.5 h-3.5" />
@@ -470,7 +470,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
             <button
               type="button"
               onClick={handleResetView}
-              className="p-1.5 text-slate-400 hover:text-white rounded transition cursor-pointer"
+              className="p-1.5 text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition cursor-pointer"
               title="Restablecer vista"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -480,9 +480,9 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
       </div>
 
       {/* Legend & Filter Badges */}
-      <div className="px-4 py-2 border-b border-slate-900 bg-slate-950/80 flex items-center justify-between text-[11px] gap-2 flex-wrap z-10">
+      <div className="px-4 py-2 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] flex items-center justify-between text-[10px] font-mono gap-2 flex-wrap z-10">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-slate-500 font-medium mr-1">Roles:</span>
+          <span className="text-[#666666] dark:text-[#888888] uppercase mr-1">Roles:</span>
           {(['foundation', 'frontier', 'bridge', 'corpus'] as GraphRole[]).map((role) => {
             const config = ROLE_COLORS[role];
             const isVisible = visibleRoles[role];
@@ -491,14 +491,14 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
                 key={role}
                 type="button"
                 onClick={() => setVisibleRoles((prev) => ({ ...prev, [role]: !prev[role] }))}
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 border transition cursor-pointer ${
                   isVisible
-                    ? 'bg-slate-900 text-slate-200 border-slate-700'
-                    : 'bg-slate-950 text-slate-600 border-slate-900 opacity-50'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                    : 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#999999] dark:text-[#666666] border-[#E0E0DC] dark:border-[#2A2A2E] opacity-60'
                 }`}
               >
                 <span
-                  className="w-2.5 h-2.5 rounded-full"
+                  className="w-2 h-2"
                   style={{ backgroundColor: config.fill }}
                 />
                 <span>{config.label}</span>
@@ -508,7 +508,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         </div>
 
         {/* Edge Types Toggles */}
-        <div className="flex items-center gap-2 text-slate-400">
+        <div className="flex items-center gap-3 text-[#666666] dark:text-[#888888] font-mono text-[10px]">
           <label className="inline-flex items-center gap-1 cursor-pointer">
             <input
               type="checkbox"
@@ -516,9 +516,9 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
               onChange={(e) =>
                 setVisibleEdgeTypes((p) => ({ ...p, citation: e.target.checked }))
               }
-              className="rounded accent-slate-400 w-3 h-3"
+              className="accent-[#1A1A1A] dark:accent-[#EDEDED] w-3 h-3"
             />
-            <span className="text-[10px]">Citas</span>
+            <span>Citas</span>
           </label>
           <label className="inline-flex items-center gap-1 cursor-pointer">
             <input
@@ -527,9 +527,9 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
               onChange={(e) =>
                 setVisibleEdgeTypes((p) => ({ ...p, semantic_similarity: e.target.checked }))
               }
-              className="rounded accent-indigo-500 w-3 h-3"
+              className="accent-[#1A56DB] w-3 h-3"
             />
-            <span className="text-[10px]">Similitud</span>
+            <span>Similitud</span>
           </label>
           <label className="inline-flex items-center gap-1 cursor-pointer">
             <input
@@ -538,25 +538,25 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
               onChange={(e) =>
                 setVisibleEdgeTypes((p) => ({ ...p, co_authorship: e.target.checked }))
               }
-              className="rounded accent-pink-400 w-3 h-3"
+              className="accent-pink-500 w-3 h-3"
             />
-            <span className="text-[10px]">Co-autoría</span>
+            <span>Co-autoría</span>
           </label>
         </div>
       </div>
 
       {/* Main Interactive Canvas */}
-      <div className="flex-1 relative overflow-hidden bg-slate-950 cursor-grab active:cursor-grabbing">
+      <div className="flex-1 relative overflow-hidden bg-[#F4F4F2] dark:bg-[#0E0E10] cursor-grab active:cursor-grabbing">
         {isLoading && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm">
-            <Sparkles className="w-8 h-8 text-indigo-400 animate-spin mb-2" />
-            <p className="text-xs text-slate-400">Calculando topología y centralidades...</p>
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#F9F9F8]/80 dark:bg-[#121214]/80 backdrop-blur-sm">
+            <Sparkles className="w-6 h-6 text-[#1A56DB] dark:text-[#60A5FA] animate-spin mb-2" />
+            <p className="text-xs font-mono text-[#666666] dark:text-[#888888]">Calculando topología y centralidades...</p>
           </div>
         )}
 
         {error && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center text-rose-400 text-xs">
-            <Info className="w-8 h-8 mb-2 opacity-80" />
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center text-rose-600 dark:text-rose-400 text-xs font-mono">
+            <Info className="w-6 h-6 mb-2 opacity-80" />
             <p>{error}</p>
           </div>
         )}
@@ -573,7 +573,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         {/* Hover Tooltip Card */}
         {hoveredNode && !draggedNodeId && (
           <div
-            className="fixed z-50 pointer-events-none bg-slate-900/95 border border-slate-800 rounded-xl p-3.5 shadow-2xl max-w-xs text-xs space-y-2 backdrop-blur-md"
+            className="fixed z-50 pointer-events-none bg-[#F9F9F8] dark:bg-[#18181B] border border-[#E0E0DC] dark:border-[#2A2A2E] p-3.5 shadow-2xl max-w-xs text-xs space-y-2 backdrop-blur-md font-mono"
             style={{
               left: Math.min(window.innerWidth - 300, mousePos.x + 15),
               top: Math.min(window.innerHeight - 200, mousePos.y + 15),
@@ -581,35 +581,35 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
           >
             <div className="flex items-center justify-between gap-2">
               <span
-                className="px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider rounded-full"
+                className="px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider border"
                 style={{
                   backgroundColor: `${ROLE_COLORS[hoveredNode.role as GraphRole].fill}25`,
                   color: ROLE_COLORS[hoveredNode.role as GraphRole].stroke,
-                  border: `1px solid ${ROLE_COLORS[hoveredNode.role as GraphRole].stroke}40`,
+                  borderColor: `${ROLE_COLORS[hoveredNode.role as GraphRole].stroke}60`,
                 }}
               >
                 {ROLE_COLORS[hoveredNode.role as GraphRole].label}
               </span>
               {hoveredNode.year && (
-                <span className="text-[10px] text-slate-400 font-mono">{hoveredNode.year}</span>
+                <span className="text-[10px] text-[#666666] dark:text-[#888888] tabular-nums">{hoveredNode.year}</span>
               )}
             </div>
 
-            <h4 className="font-semibold text-slate-100 line-clamp-2 leading-snug">
+            <h4 className="font-bold text-[#1A1A1A] dark:text-[#EDEDED] line-clamp-2 leading-snug font-sans">
               {hoveredNode.title}
             </h4>
 
             {hoveredNode.authors?.length > 0 && (
-              <p className="text-[11px] text-slate-400 truncate">
+              <p className="text-[11px] text-[#666666] dark:text-[#888888] truncate font-sans">
                 {hoveredNode.authors.join(', ')}
               </p>
             )}
 
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+            <div className="pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E] flex items-center justify-between text-[10px] text-[#666666] dark:text-[#888888] tabular-nums">
               <span>Citaciones: {hoveredNode.citations_count || 'N/D'}</span>
               <span>Centralidad: {hoveredNode.centrality}</span>
             </div>
-            <p className="text-[10px] text-indigo-400 font-medium pt-1">
+            <p className="text-[10px] text-[#1A56DB] dark:text-[#60A5FA] font-medium pt-1">
               Haz clic para inspeccionar documento en panel izquierdo
             </p>
           </div>

@@ -269,49 +269,49 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   });
 
   return (
-    <div className="flex-1 flex h-full bg-slate-950 text-slate-200 overflow-hidden">
+    <div className="flex-1 flex h-full bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] overflow-hidden select-none">
       {/* Left Column: Notes List & Filter */}
-      <div className="w-80 h-full border-r border-slate-800 flex flex-col bg-slate-900/40 shrink-0">
+      <div className="w-80 h-full border-r border-[#E0E0DC] dark:border-[#2A2A2E] flex flex-col bg-[#F9F9F8] dark:bg-[#121214] shrink-0">
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-3.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <BookOpen className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider font-mono text-[#1A1A1A] dark:text-[#EDEDED]">
               Cuaderno de Síntesis
             </h3>
           </div>
           <button
             type="button"
             onClick={() => handleCreateNewDraft()}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-sm transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Nota</span>
+            <span>+ Nota</span>
           </button>
         </div>
 
         {/* Search & Tags Filter */}
-        <div className="p-3 border-b border-slate-800 space-y-2">
+        <div className="p-3 border-b border-[#E0E0DC] dark:border-[#2A2A2E] space-y-2 bg-[#F9F9F8] dark:bg-[#121214]">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-[#666666] dark:text-[#888888] absolute left-2.5 top-2.5" />
             <input
               type="text"
               placeholder="Buscar en notas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] pl-8 pr-3 py-1.5 text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] font-mono focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
             />
           </div>
 
           {allTags.length > 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none font-mono text-[10px]">
               <button
                 type="button"
                 onClick={() => setSelectedTag(null)}
-                className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
+                className={`px-2 py-0.5 border transition cursor-pointer ${
                   selectedTag === null
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED]'
+                    : 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] border-[#E0E0DC] dark:border-[#2A2A2E]'
                 }`}
               >
                 Todas
@@ -321,10 +321,10 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                   key={t}
                   type="button"
                   onClick={() => setSelectedTag(selectedTag === t ? null : t)}
-                  className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
+                  className={`px-2 py-0.5 border transition cursor-pointer ${
                     selectedTag === t
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED]'
+                      : 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] border-[#E0E0DC] dark:border-[#2A2A2E]'
                   }`}
                 >
                   #{t}
@@ -337,10 +337,10 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
         {/* Notes Scroll List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
           {isLoading ? (
-            <div className="p-6 text-center text-xs text-slate-500">Cargando notas...</div>
+            <div className="p-6 text-center text-xs font-mono text-[#666666] dark:text-[#888888]">Cargando notas...</div>
           ) : filteredNotes.length === 0 ? (
-            <div className="p-6 text-center text-xs text-slate-500 space-y-2">
-              <Layers className="w-8 h-8 text-slate-600 mx-auto opacity-50" />
+            <div className="p-6 text-center text-xs font-mono text-[#666666] dark:text-[#888888] space-y-2">
+              <Layers className="w-8 h-8 text-[#999999] dark:text-[#555555] mx-auto opacity-50" />
               <p>No hay notas que coincidan con la búsqueda.</p>
             </div>
           ) : (
@@ -350,16 +350,16 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                 <div
                   key={note.id}
                   onClick={() => selectNote(note)}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer group relative ${
+                  className={`p-3 border transition-all cursor-pointer group relative ${
                     isSelected
-                      ? 'bg-indigo-950/40 border-indigo-500/50 shadow-sm'
-                      : 'bg-slate-900/30 border-slate-800/60 hover:bg-slate-800/40 hover:border-slate-700'
+                      ? 'bg-[#EBEBE8] dark:bg-[#222226] border-[#1A1A1A] dark:border-[#EDEDED] border-l-4 border-l-[#1A56DB] dark:border-l-[#60A5FA]'
+                      : 'bg-[#FFFFFF] dark:bg-[#18181B] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#F2F2F0] dark:hover:bg-[#1E1E22]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h4
                       className={`text-xs font-semibold truncate ${
-                        isSelected ? 'text-indigo-300' : 'text-slate-200'
+                        isSelected ? 'text-[#1A56DB] dark:text-[#60A5FA]' : 'text-[#1A1A1A] dark:text-[#EDEDED]'
                       }`}
                     >
                       {note.title}
@@ -370,36 +370,36 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                         e.stopPropagation();
                         handleDelete(note.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 transition-opacity cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 text-[#999999] hover:text-rose-600 p-1 transition-opacity cursor-pointer"
                       title="Eliminar nota"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                  <p className="text-[11px] text-[#666666] dark:text-[#888888] line-clamp-2 mt-1 leading-relaxed font-sans">
                     {note.content.replace(/[#*`_]/g, '') || 'Nota sin contenido...'}
                   </p>
 
-                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap font-mono text-[9px]">
                     {note.origin_prompt && (
                       <span
-                        className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/30 font-medium"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E] font-medium"
                         title="Nota generada desde el Chat"
                       >
-                        <MessageSquare className="w-2.5 h-2.5 text-indigo-400" />
+                        <MessageSquare className="w-2.5 h-2.5" />
                         Chat
                       </span>
                     )}
                     {note.tags?.map((t) => (
                       <span
                         key={t}
-                        className="inline-flex items-center text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50"
+                        className="inline-flex items-center px-1.5 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] border border-[#E0E0DC] dark:border-[#2A2A2E]"
                       >
                         #{t}
                       </span>
                     ))}
-                    <span className="text-[9px] text-slate-500 ml-auto">
+                    <span className="text-[9px] text-[#999999] dark:text-[#666666] ml-auto tabular-nums">
                       {new Date(note.updated_at).toLocaleDateString()}
                     </span>
                   </div>
@@ -411,19 +411,19 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
       </div>
 
       {/* Right Column: Active Note Editor & Exporter */}
-      <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden">
+      <div className="flex-1 flex flex-col h-full bg-[#F9F9F8] dark:bg-[#121214] overflow-hidden">
         {/* Top Control Bar */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-4 bg-slate-900/20">
+        <div className="p-3.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] flex items-center justify-between gap-4 bg-[#F2F2F0] dark:bg-[#19191C]">
           <div className="flex items-center gap-2">
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
+            <div className="flex items-center border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-xs font-mono">
               <button
                 type="button"
                 onClick={() => setViewMode('edit')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 transition cursor-pointer ${
                   viewMode === 'edit'
-                    ? 'bg-indigo-600 text-white font-medium shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
+                    : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                 }`}
               >
                 <Edit3 className="w-3.5 h-3.5" />
@@ -432,10 +432,10 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMode('preview')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 border-l border-[#E0E0DC] dark:border-[#2A2A2E] transition cursor-pointer ${
                   viewMode === 'preview'
-                    ? 'bg-indigo-600 text-white font-medium shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
+                    : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
@@ -444,37 +444,37 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
             </div>
 
             {saveSuccess && (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 animate-in fade-in">
+              <span className="inline-flex items-center gap-1 text-xs font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 border border-emerald-500/20">
                 <Check className="w-3 h-3" /> Guardado
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Export Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
                 disabled={isExporting}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] text-xs font-mono font-medium border border-[#E0E0DC] dark:border-[#2A2A2E] transition cursor-pointer disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                <Download className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
                 <span>Exportar Proyecto</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
+                <ChevronDown className="w-3 h-3 text-[#666666] dark:text-[#888888]" />
               </button>
 
               {isExportDropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-60 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-30 py-1 text-xs animate-in fade-in">
+                <div className="absolute right-0 mt-1.5 w-60 bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] shadow-xl z-30 py-1 text-xs font-mono">
                   <button
                     type="button"
                     onClick={() => handleExport('markdown')}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-800 flex items-start gap-2 text-slate-200 cursor-pointer"
+                    className="w-full text-left px-3 py-2 hover:bg-[#EBEBE8] dark:hover:bg-[#1E1E22] flex items-start gap-2 text-[#1A1A1A] dark:text-[#EDEDED] cursor-pointer"
                   >
-                    <FileText className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <FileText className="w-4 h-4 text-[#1A56DB] shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium">Dossier Ejecutivo (.md)</p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="font-bold">Dossier Ejecutivo (.md)</p>
+                      <p className="text-[10px] text-[#666666] dark:text-[#888888]">
                         Corpus, Guías de Estudio, Módulos y Notas
                       </p>
                     </div>
@@ -482,12 +482,12 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
                   <button
                     type="button"
                     onClick={() => handleExport('bibtex')}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-800 flex items-start gap-2 text-slate-200 cursor-pointer border-t border-slate-800"
+                    className="w-full text-left px-3 py-2 hover:bg-[#EBEBE8] dark:hover:bg-[#1E1E22] flex items-start gap-2 text-[#1A1A1A] dark:text-[#EDEDED] cursor-pointer border-t border-[#E0E0DC] dark:border-[#2A2A2E]"
                   >
-                    <BookOpen className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <BookOpen className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium">Bibliografía BibTeX (.bib)</p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="font-bold">Bibliografía BibTeX (.bib)</p>
+                      <p className="text-[10px] text-[#666666] dark:text-[#888888]">
                         Citas estándar con DOI y metadatos
                       </p>
                     </div>
@@ -501,7 +501,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
               type="button"
               onClick={handleSave}
               disabled={isSaving || !title.trim()}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium tracking-wide uppercase transition cursor-pointer disabled:opacity-40"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Guardando...' : 'Guardar Nota'}</span>
@@ -510,27 +510,27 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
         </div>
 
         {/* Note Title & Tags Bar */}
-        <div className="px-6 pt-5 pb-3 border-b border-slate-900 space-y-3">
+        <div className="px-6 pt-4 pb-3 border-b border-[#E0E0DC] dark:border-[#2A2A2E] space-y-2.5 bg-[#F9F9F8] dark:bg-[#121214]">
           <input
             type="text"
             placeholder="Título de la síntesis o hallazgo..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-transparent text-lg font-bold text-white placeholder-slate-600 focus:outline-none tracking-tight"
+            className="w-full bg-transparent text-lg font-bold text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none tracking-tight font-sans"
           />
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Tag className="w-3 h-3 text-slate-500 shrink-0" />
+          <div className="flex items-center gap-2 flex-wrap font-mono text-xs">
+            <Tag className="w-3 h-3 text-[#666666] dark:text-[#888888] shrink-0" />
             {tags.map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-950/60 text-indigo-300 border border-indigo-500/30"
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A1A1A] dark:text-[#EDEDED] border border-[#E0E0DC] dark:border-[#2A2A2E]"
               >
                 #{t}
                 <button
                   type="button"
                   onClick={() => handleRemoveTag(t)}
-                  className="hover:text-rose-400 ml-0.5 cursor-pointer"
+                  className="hover:text-rose-600 ml-0.5 cursor-pointer"
                 >
                   ×
                 </button>
@@ -542,33 +542,33 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={handleAddTag}
-              className="bg-transparent text-xs text-slate-300 placeholder-slate-600 focus:outline-none w-44"
+              className="bg-transparent text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none w-44 font-mono"
             />
           </div>
         </div>
 
         {/* Origin Prompt Context Card */}
         {originPrompt && (
-          <div className="mx-6 mt-4 p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex flex-col gap-2 shadow-sm shrink-0">
+          <div className="mx-6 mt-4 p-3 bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] flex flex-col gap-2 shrink-0">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-300">
-                <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="flex items-center gap-1.5 text-xs font-semibold font-mono text-[#1A56DB] dark:text-[#60A5FA]">
+                <HelpCircle className="w-3.5 h-3.5" />
                 Consulta de Origen (Chat)
               </span>
               {onNavigateToChat && (
                 <button
                   type="button"
                   onClick={() => onNavigateToChat(sourceMessageId || undefined)}
-                  className="inline-flex items-center gap-1.5 text-xs text-indigo-300 hover:text-indigo-100 bg-indigo-600/30 hover:bg-indigo-600/50 px-2.5 py-1 rounded-lg border border-indigo-500/40 transition-all font-medium cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-xs font-mono text-[#1A1A1A] dark:text-[#EDEDED] bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] px-2.5 py-1 border border-[#E0E0DC] dark:border-[#2A2A2E] transition-all font-medium cursor-pointer"
                   title="Regresar a la conversación del chat donde se generó esta respuesta"
                 >
-                  <MessageSquare className="w-3 h-3 text-indigo-400" />
+                  <MessageSquare className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
                   <span>Ver en Chat</span>
-                  <ExternalLink className="w-3 h-3 text-indigo-400" />
+                  <ExternalLink className="w-3 h-3 text-[#666666] dark:text-[#888888]" />
                 </button>
               )}
             </div>
-            <p className="text-xs text-slate-200 italic font-sans leading-relaxed pl-3 border-l-2 border-indigo-500/40">
+            <p className="text-xs text-[#1A1A1A] dark:text-[#EDEDED] italic font-sans leading-relaxed pl-3 border-l-2 border-[#1A56DB] dark:border-[#60A5FA]">
               "{originPrompt}"
             </p>
           </div>
@@ -579,7 +579,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToChat(sourceMessageId || undefined)}
-              className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-lg border border-indigo-500/30 transition-all font-medium cursor-pointer"
+              className="inline-flex items-center gap-1 text-[11px] font-mono text-[#1A56DB] dark:text-[#60A5FA] bg-[#EBEBE8] dark:bg-[#1E1E22] px-2.5 py-1 border border-[#E0E0DC] dark:border-[#2A2A2E] transition-all font-medium cursor-pointer"
               title="Regresar al chat"
             >
               <MessageSquare className="w-3 h-3" />
@@ -590,20 +590,20 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
         )}
 
         {/* Note Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 bg-[#F9F9F8] dark:bg-[#121214]">
           {viewMode === 'edit' ? (
             <textarea
               placeholder="Escribe tu análisis, síntesis de evidencia, hipótesis de investigación o conclusiones en Markdown..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full h-full bg-transparent text-sm text-slate-200 placeholder-slate-600 font-mono leading-relaxed resize-none focus:outline-none focus:ring-0"
+              className="w-full h-full bg-transparent text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] font-mono leading-relaxed resize-none focus:outline-none focus:ring-0"
             />
           ) : (
-            <div className="prose prose-invert prose-slate max-w-none text-sm leading-relaxed space-y-3">
+            <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed space-y-3 font-sans text-[#1A1A1A] dark:text-[#EDEDED]">
               {content.trim() ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               ) : (
-                <p className="text-slate-600 italic">No hay contenido para previsualizar...</p>
+                <p className="text-[#999999] dark:text-[#555555] italic">No hay contenido para previsualizar...</p>
               )}
             </div>
           )}

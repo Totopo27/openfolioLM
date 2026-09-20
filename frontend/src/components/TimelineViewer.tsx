@@ -36,27 +36,27 @@ const ROLE_CONFIG: Record<
 > = {
   foundation: {
     label: 'Fundacional / Landmark',
-    badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-    borderClass: 'hover:border-amber-500/50',
-    icon: <Award className="w-3.5 h-3.5 text-amber-400" />,
+    badgeClass: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20',
+    borderClass: 'hover:border-amber-500/40',
+    icon: <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />,
   },
   frontier: {
     label: 'Frontera SOTA',
-    badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-    borderClass: 'hover:border-emerald-500/50',
-    icon: <Zap className="w-3.5 h-3.5 text-emerald-400" />,
+    badgeClass: 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/20',
+    borderClass: 'hover:border-emerald-500/40',
+    icon: <Zap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />,
   },
   bridge: {
     label: 'Puente Interdisciplinario',
-    badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-    borderClass: 'hover:border-purple-500/50',
-    icon: <GitMerge className="w-3.5 h-3.5 text-purple-400" />,
+    badgeClass: 'bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-500/20',
+    borderClass: 'hover:border-purple-500/40',
+    icon: <GitMerge className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />,
   },
   corpus: {
     label: 'Corpus Científico',
-    badgeClass: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-    borderClass: 'hover:border-blue-500/50',
-    icon: <BookOpen className="w-3.5 h-3.5 text-blue-400" />,
+    badgeClass: 'bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#AAAAAA] border-[#E0E0DC] dark:border-[#2A2A2E]',
+    borderClass: 'hover:border-[#1A1A1A] dark:hover:border-[#EDEDED]',
+    icon: <BookOpen className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />,
   },
 };
 
@@ -163,24 +163,24 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
   }, [filteredEras]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] overflow-hidden select-none">
       {/* Top Header Bar */}
-      <div className="flex flex-col gap-3 px-5 py-3.5 bg-slate-900/80 border-b border-slate-800 shrink-0">
+      <div className="flex flex-col gap-3 px-5 py-3.5 bg-[#F2F2F0] dark:bg-[#19191C] border-b border-[#E0E0DC] dark:border-[#2A2A2E] shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              <History className="w-5 h-5" />
+            <div className="p-2 bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A56DB] dark:text-[#60A5FA]">
+              <History className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED] flex items-center gap-2">
                 Línea de Tiempo Evolutiva & Genealogía
                 {timeline && timeline.total_events > 0 && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                  <span className="text-[10px] px-2 py-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] font-mono tabular-nums">
                     {timeline.year_span[0]} — {timeline.year_span[1]} ({totalFilteredEvents} hitos)
                   </span>
                 )}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#666666] dark:text-[#888888]">
                 Evolución de hitos científicos, linaje intelectual e impactos metodológicos
               </p>
             </div>
@@ -191,7 +191,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
               type="button"
               onClick={handleSynthesizeNarrative}
               disabled={isNarrativeLoading || !timeline || timeline.total_events === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] disabled:opacity-50 text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium tracking-wide uppercase transition cursor-pointer border border-[#1A1A1A] dark:border-[#EDEDED]"
               title="Generar síntesis de la evolución intelectual con LLM"
             >
               <Sparkles className={`w-3.5 h-3.5 ${isNarrativeLoading ? 'animate-spin' : ''}`} />
@@ -202,7 +202,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
               type="button"
               onClick={loadTimeline}
               disabled={isLoading}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+              className="p-1.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition cursor-pointer"
               title="Actualizar cronología"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -211,27 +211,27 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#E0E0DC] dark:border-[#2A2A2E]">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#666666] dark:text-[#888888]" />
             <input
               type="text"
               placeholder="Buscar por tesis, autor o título..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 bg-slate-950 border border-slate-800 rounded-md text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full pl-8 pr-3 py-1 bg-[#FFFFFF] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
             />
           </div>
 
           {/* Role Filters */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
+          <div className="flex items-center gap-1 bg-[#EBEBE8] dark:bg-[#1E1E22] p-1 border border-[#E0E0DC] dark:border-[#2A2A2E] font-mono text-[10px]">
             <button
               type="button"
               onClick={() => setSelectedRole('all')}
-              className={`px-2 py-0.5 rounded cursor-pointer transition ${
+              className={`px-2 py-0.5 cursor-pointer transition ${
                 selectedRole === 'all'
-                  ? 'bg-indigo-600 text-white font-medium'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
+                  : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
               }`}
             >
               Todos ({timeline ? timeline.total_events : 0})
@@ -241,10 +241,10 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
                 key={role}
                 type="button"
                 onClick={() => setSelectedRole(role)}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition ${
+                className={`flex items-center gap-1 px-2 py-0.5 cursor-pointer transition ${
                   selectedRole === role
-                    ? 'bg-slate-800 text-slate-100 font-medium'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
+                    : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                 }`}
               >
                 {ROLE_CONFIG[role].icon}
@@ -259,16 +259,16 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
         {/* Loading Skeleton */}
         {isLoading && !timeline && (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-3">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-400" />
-            <p className="text-sm font-medium">Reconstruyendo linaje y cronología del corpus...</p>
+          <div className="flex flex-col items-center justify-center py-20 text-[#666666] dark:text-[#888888] space-y-3 font-mono">
+            <RefreshCw className="w-6 h-6 animate-spin text-[#1A56DB] dark:text-[#60A5FA]" />
+            <p className="text-xs">Reconstruyendo linaje y cronología del corpus...</p>
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs">
-            <p className="font-semibold mb-1">Error al compilar cronología:</p>
+          <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-mono">
+            <p className="font-bold mb-1">Error al compilar cronología:</p>
             <p>{error}</p>
           </div>
         )}
@@ -276,11 +276,11 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
         {/* Empty Corpus State */}
         {!isLoading && timeline && timeline.total_events === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center max-w-md mx-auto space-y-3">
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-full text-slate-400">
-              <Calendar className="w-8 h-8" />
+            <div className="p-3 bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888]">
+              <Calendar className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-semibold text-slate-200">Sin documentos con año de publicación</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <h3 className="text-sm font-bold font-mono text-[#1A1A1A] dark:text-[#EDEDED]">Sin documentos con año de publicación</h3>
+            <p className="text-xs text-[#666666] dark:text-[#888888] leading-relaxed">
               Para visualizar la cronología evolutiva, añade papers con metadatos de publicación o utiliza el
               buscador académico de OpenAlex para importar literatura con linaje indexado.
             </p>
@@ -289,11 +289,11 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
 
         {/* Narrative Arc Banner (if generated) */}
         {narrative && (
-          <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-b from-indigo-950/20 to-slate-900/60 overflow-hidden shadow-lg transition-all">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-950/40 border-b border-indigo-500/20">
+          <div className="border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] overflow-hidden transition-all">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-[#EBEBE8] dark:bg-[#1E1E22] border-b border-[#E0E0DC] dark:border-[#2A2A2E]">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-semibold text-indigo-200 uppercase tracking-wider">
+                <Sparkles className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" />
+                <span className="text-xs font-mono font-bold text-[#1A56DB] dark:text-[#60A5FA] uppercase tracking-wider">
                   Narrativa Evolutiva del Corpus
                 </span>
               </div>
@@ -301,11 +301,11 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyNarrative}
-                  className="p-1 rounded text-indigo-300 hover:text-indigo-100 hover:bg-indigo-900/40 transition cursor-pointer"
+                  className="p-1 text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition cursor-pointer"
                   title="Copiar narrativa"
                 >
                   {hasCopiedNarrative ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   ) : (
                     <Copy className="w-3.5 h-3.5" />
                   )}
@@ -313,7 +313,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsNarrativeOpen(!isNarrativeOpen)}
-                  className="p-1 rounded text-indigo-300 hover:text-indigo-100 hover:bg-indigo-900/40 transition cursor-pointer"
+                  className="p-1 text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition cursor-pointer"
                   title={isNarrativeOpen ? 'Colapsar' : 'Expandir'}
                 >
                   {isNarrativeOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -322,7 +322,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
             </div>
 
             {isNarrativeOpen && (
-              <div className="p-4 text-xs text-slate-200 prose prose-invert max-w-none prose-p:leading-relaxed prose-headings:text-indigo-200">
+              <div className="p-4 text-xs text-[#1A1A1A] dark:text-[#EDEDED] font-sans prose dark:prose-invert max-w-none prose-p:leading-relaxed">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{narrative}</ReactMarkdown>
               </div>
             )}
@@ -333,7 +333,7 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
         {timeline && timeline.total_events > 0 && (
           <div className="relative pl-6">
             {/* Vertical Spine Line */}
-            <div className="absolute left-[11px] top-2 bottom-4 w-0.5 bg-gradient-to-b from-indigo-500 via-purple-500/70 to-slate-800" />
+            <div className="absolute left-[11px] top-2 bottom-4 w-px bg-[#E0E0DC] dark:bg-[#2A2A2E]" />
 
             {/* Eras loop */}
             <div className="space-y-8">
@@ -341,13 +341,13 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
                 <div key={era.year} className="relative group">
                   {/* Era Header Marker */}
                   <div className="flex items-center gap-3 mb-4 -ml-[23px]">
-                    <div className="w-6 h-6 rounded-full bg-indigo-950 border-2 border-indigo-400 flex items-center justify-center shadow-[0_0_12px_rgba(99,102,241,0.5)] z-10">
-                      <GitCommit className="w-3.5 h-3.5 text-indigo-300" />
+                    <div className="w-5 h-5 bg-[#F9F9F8] dark:bg-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] flex items-center justify-center z-10 text-[#1A1A1A] dark:text-[#EDEDED]">
+                      <GitCommit className="w-3 h-3" />
                     </div>
-                    <div className="flex items-baseline gap-2 bg-slate-900/90 px-3 py-1 rounded-lg border border-indigo-500/20 shadow-sm">
-                      <span className="text-sm font-bold text-indigo-300 font-mono">{era.year}</span>
-                      <span className="text-xs text-slate-300 font-medium">{era.era_name}</span>
-                      <span className="text-[10px] text-slate-500">
+                    <div className="flex items-baseline gap-2 bg-[#F2F2F0] dark:bg-[#19191C] px-3 py-1 border border-[#E0E0DC] dark:border-[#2A2A2E]">
+                      <span className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED] font-mono">{era.year}</span>
+                      <span className="text-xs text-[#666666] dark:text-[#888888] font-medium">{era.era_name}</span>
+                      <span className="text-[10px] text-[#999999] dark:text-[#666666] font-mono">
                         ({era.events.length} {era.events.length === 1 ? 'hito' : 'hitos'})
                       </span>
                     </div>
@@ -363,44 +363,44 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
                         <div
                           key={event.id}
                           onClick={() => onSelectDocument(event.source_id)}
-                          className={`p-4 rounded-xl border transition-all cursor-pointer select-text relative ${
+                          className={`p-4 border transition-colors cursor-pointer select-text relative ${
                             isSelected
-                              ? 'bg-slate-900/95 border-indigo-500 shadow-md ring-1 ring-indigo-500/40'
-                              : `bg-slate-900/60 border-slate-800/80 ${roleMeta.borderClass} hover:bg-slate-900/90`
+                              ? 'bg-[#F2F2F0] dark:bg-[#222226] border-[#1A1A1A] dark:border-[#EDEDED] border-l-4 border-l-[#1A56DB] dark:border-l-[#60A5FA]'
+                              : `bg-[#FFFFFF] dark:bg-[#18181B] border-[#E0E0DC] dark:border-[#2A2A2E] ${roleMeta.borderClass} hover:border-[#1A1A1A] dark:hover:border-[#EDEDED]`
                           }`}
                         >
                           {/* Card Top: Role Badge, Year & Citations */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2 font-mono">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${roleMeta.badgeClass}`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium border ${roleMeta.badgeClass}`}
                               >
                                 {roleMeta.icon}
                                 <span>{roleMeta.label}</span>
                               </span>
 
                               {event.citations_count > 0 && (
-                                <span className="text-[11px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 font-mono border border-slate-700/50">
+                                <span className="text-[10px] px-1.5 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] border border-[#E0E0DC] dark:border-[#2A2A2E] tabular-nums">
                                   {event.citations_count.toLocaleString()} citas
                                 </span>
                               )}
                             </div>
 
-                            <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-slate-500" />
+                            <span className="text-[10px] text-[#666666] dark:text-[#888888] flex items-center gap-1 tabular-nums">
+                              <Calendar className="w-3 h-3 text-[#999999] dark:text-[#555555]" />
                               {event.year}
                             </span>
                           </div>
 
                           {/* Paper Title */}
-                          <h4 className="text-sm font-semibold text-slate-100 group-hover:text-indigo-300 transition flex items-start justify-between gap-2">
+                          <h4 className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED] group-hover:text-[#1A56DB] dark:group-hover:text-[#60A5FA] transition-colors flex items-start justify-between gap-2 font-sans">
                             <span>{event.title}</span>
-                            <ExternalLink className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition shrink-0 mt-0.5" />
+                            <ExternalLink className="w-3.5 h-3.5 text-[#999999] dark:text-[#555555] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
                           </h4>
 
                           {/* Authors */}
                           {event.authors && event.authors.length > 0 && (
-                            <p className="text-[11px] text-slate-400 mt-1">
+                            <p className="text-[11px] text-[#666666] dark:text-[#888888] mt-1 font-sans">
                               {event.authors.slice(0, 4).join(', ')}
                               {event.authors.length > 4 ? ' et al.' : ''}
                             </p>
@@ -408,27 +408,27 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
 
                           {/* Paradigm Shift / Headline */}
                           {event.headline && (
-                            <div className="mt-2.5 p-2.5 rounded-lg bg-indigo-950/20 border border-indigo-500/20 text-xs text-indigo-200/90 font-medium italic">
+                            <div className="mt-2.5 p-2.5 bg-[#F2F2F0] dark:bg-[#19191C] border-l-2 border-[#1A56DB] dark:border-[#60A5FA] text-xs text-[#1A1A1A] dark:text-[#EDEDED] font-sans italic">
                               "{event.headline}"
                             </div>
                           )}
 
                           {/* Executive Summary */}
-                          <p className="text-xs text-slate-300 mt-2.5 leading-relaxed line-clamp-3">
+                          <p className="text-xs text-[#444444] dark:text-[#BBBBBB] mt-2.5 leading-relaxed line-clamp-3 font-sans">
                             {event.summary}
                           </p>
 
                           {/* Methodology and Limitations */}
                           {(event.methodology || (event.limitations && event.limitations.length > 0)) && (
-                            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60">
+                            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E] font-mono text-[10px]">
                               {event.methodology && (
-                                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
-                                  <Layers className="w-2.5 h-2.5 text-indigo-400" />
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] border border-[#E0E0DC] dark:border-[#2A2A2E]">
+                                  <Layers className="w-2.5 h-2.5 text-[#1A56DB] dark:text-[#60A5FA]" />
                                   <span>{event.methodology}</span>
                                 </span>
                               )}
                               {event.limitations && event.limitations.length > 0 && (
-                                <span className="text-[10px] text-amber-400/90 bg-amber-950/30 px-2 py-0.5 rounded border border-amber-800/40">
+                                <span className="text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 border border-amber-500/20">
                                   Brecha: {event.limitations[0]}
                                 </span>
                               )}
@@ -437,9 +437,9 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
 
                           {/* Intellectual Lineage / Antecesores */}
                           {event.built_upon_sources && event.built_upon_sources.length > 0 && (
-                            <div className="mt-3 pt-2.5 border-t border-slate-800/80">
-                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-1.5">
-                                <GitMerge className="w-3.5 h-3.5 text-purple-400" />
+                            <div className="mt-3 pt-2.5 border-t border-[#E0E0DC] dark:border-[#2A2A2E]">
+                              <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-[#666666] dark:text-[#888888] mb-1.5">
+                                <GitMerge className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" />
                                 <span>Construye o fundamenta sobre:</span>
                               </div>
                               <div className="flex flex-wrap gap-1.5">
@@ -451,12 +451,12 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
                                       e.stopPropagation();
                                       onSelectDocument(link.source_id);
                                     }}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 hover:border-purple-400 text-purple-200 text-[11px] transition cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] text-[10px] font-mono transition-colors cursor-pointer"
                                     title={`Abrir ${link.title}`}
                                   >
-                                    <FileText className="w-3 h-3 text-purple-400" />
+                                    <FileText className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" />
                                     <span className="font-medium truncate max-w-[220px]">{link.title}</span>
-                                    {link.year && <span className="text-[10px] opacity-70">({link.year})</span>}
+                                    {link.year && <span className="opacity-70 tabular-nums">({link.year})</span>}
                                   </button>
                                 ))}
                               </div>

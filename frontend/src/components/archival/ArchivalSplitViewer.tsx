@@ -251,13 +251,13 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" aria-hidden="true" />
             <h3 className="text-xs font-semibold tracking-tight font-sans text-[#1A1A1A] dark:text-[#EDEDED]">
-              Grounded Synthesis & Research Chat
+              Chat de Evidencia Científica
             </h3>
           </div>
 
           <div className="font-mono text-[10px] text-[#666666] dark:text-[#888888] flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            <span>STRICT GROUNDING ON</span>
+            <span>GROUNDING ESTRICTO ACTIVO</span>
           </div>
         </header>
 
@@ -267,10 +267,10 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
             <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-[#E0E0DC] dark:border-[#2A2A2E]">
               <Bookmark className="w-5 h-5 text-[#999999] dark:text-[#555555] mb-2" aria-hidden="true" />
               <p className="font-mono text-xs font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">
-                [STUDIO WORKSPACE READY]
+                [ESPACIO DE INVESTIGACIÓN ACTIVO]
               </p>
               <p className="text-xs text-[#666666] dark:text-[#888888] mt-1 max-w-xs">
-                Hacé una pregunta sobre el documento fuente. Todas las respuestas incluyen citas numéricas auditables.
+                Hacé una consulta sobre el documento fuente. Las respuestas se fundamentan con citas numéricas auditables.
               </p>
             </div>
           ) : (
@@ -286,7 +286,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                 {/* Sender Header */}
                 <div className="flex items-center justify-between font-mono text-[10px] text-[#666666] dark:text-[#888888]">
                   <span className="font-bold uppercase tracking-wider">
-                    {msg.sender === 'user' ? '[RESEARCHER]' : '[OPENFOLIO SINTERIS]'}
+                    {msg.sender === 'user' ? '[INVESTIGADOR]' : '[OPENFOLIO SÍNTESIS]'}
                   </span>
                   <span className="tabular-nums">{msg.timestamp}</span>
                 </div>
@@ -299,7 +299,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                 {/* Interactive Citation Chips */}
                 {msg.citations && msg.citations.length > 0 && (
                   <div className="pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E] flex flex-wrap gap-1.5 items-center font-mono text-[10px]">
-                    <span className="text-[#666666] dark:text-[#888888] uppercase font-bold">CITATIONS:</span>
+                    <span className="text-[#666666] dark:text-[#888888] uppercase font-bold">CITAS:</span>
                     {msg.citations.map((cit) => (
                       <button
                         key={cit.index}
@@ -320,7 +320,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                         }`}
                         title={`Cita [${cit.index}] en ${cit.sourceFilename}`}
                       >
-                        [{cit.index}] {cit.pageNumber ? `P${cit.pageNumber}` : 'Src'}
+                        [{cit.index}] {cit.pageNumber ? `P${cit.pageNumber}` : 'Fuente'}
                       </button>
                     ))}
                   </div>
@@ -330,7 +330,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                 {msg.factualScore !== undefined && (
                   <div className="flex items-center gap-1 font-mono text-[9px] text-emerald-700 dark:text-emerald-400">
                     <ShieldCheck className="w-3 h-3" aria-hidden="true" />
-                    <span>GROUNDED SCORE: {(msg.factualScore * 100).toFixed(0)}% VERIFIED</span>
+                    <span>PRECISIÓN FUNDAMENTADA: {(msg.factualScore * 100).toFixed(0)}% VERIFICADA</span>
                   </div>
                 )}
               </div>
@@ -341,7 +341,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
           {(isSending || isLoading) && (
             <div className="p-3 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] flex items-center gap-2.5 font-mono text-xs text-[#1A56DB] dark:text-[#60A5FA] animate-pulse">
               <span className="w-2 h-2 rounded-full bg-[#1A56DB] dark:bg-[#60A5FA]" />
-              <span>[GENERATING SYNTHESIS // STRICT CITATION EXTRACTION ACTIVE]</span>
+              <span>[GENERANDO SÍNTESIS CON CITAS AUDITABLES...]</span>
             </div>
           )}
         </div>
@@ -359,7 +359,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                 }
               }}
               rows={2}
-              placeholder="Ask a question about the document… (Shift+Enter for newline)"
+              placeholder="Hacé una consulta sobre el documento fuente… (Shift+Enter para salto de línea)"
               className="flex-1 bg-transparent border-none focus:outline-none resize-none font-sans text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555]"
               aria-label="Preguntar al asistente sobre el documento"
             />
@@ -368,14 +368,14 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
               type="button"
               onClick={handleSend}
               disabled={!inputQuery.trim() || isSending}
-              className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium tracking-wide uppercase transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A1A1A] dark:focus-visible:ring-[#EDEDED] shrink-0"
+              className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium tracking-wide uppercase transition-colors disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A1A1A] dark:focus-visible:ring-[#EDEDED] shrink-0 cursor-pointer"
               aria-label="Enviar consulta"
             >
               {isSending ? (
-                <span className="animate-pulse">SENDING…</span>
+                <span className="animate-pulse">ENVIANDO…</span>
               ) : (
                 <span className="flex items-center gap-1">
-                  <span>SEND</span>
+                  <span>ENVIAR</span>
                   <CornerDownLeft className="w-3 h-3" aria-hidden="true" />
                 </span>
               )}
