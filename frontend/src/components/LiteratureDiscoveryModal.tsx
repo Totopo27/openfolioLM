@@ -174,87 +174,91 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
+      <div className="bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden font-sans">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+        <div className="px-5 py-3.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] flex items-center justify-between bg-[#F2F2F0] dark:bg-[#19191C]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-1.5 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] text-[#1A56DB] dark:text-[#60A5FA]">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                Descubrimiento de Literatura Científica
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
-                  OpenAlex &bull; 250M+ Papers
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+                  Descubrimiento de Literatura Científica
+                </h3>
+                <span className="text-[10px] px-1.5 py-0.2 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] font-mono text-[#666666] dark:text-[#888888]">
+                  OpenAlex · 250M+ Papers
                 </span>
-              </h3>
-              <p className="text-[11px] text-slate-400">
+              </div>
+              <p className="text-[11px] text-[#666666] dark:text-[#888888] font-sans">
                 Buscá literatura académica por lenguaje natural e indexala a tu proyecto en un solo clic.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] p-1 cursor-pointer"
+            title="Cerrar ventana"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Search Bar & Controls */}
-        <div className="p-6 border-b border-slate-800 space-y-3 bg-slate-900/50">
+        <div className="p-4 border-b border-[#E0E0DC] dark:border-[#2A2A2E] space-y-3 bg-[#F9F9F8] dark:bg-[#121214]">
           {/* Provider Selector Tabs */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-medium text-slate-400">Motor de búsqueda:</span>
-              <div className="inline-flex p-0.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#666666] dark:text-[#888888]">
+                Motor:
+              </span>
+              <div className="inline-flex border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] p-0.5">
                 <button
                   type="button"
                   onClick={() => setProvider('all')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 text-[11px] font-mono font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
                     provider === 'all'
-                      ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214]'
+                      : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                   }`}
                   title="Consulta Semantic Scholar y OpenAlex en simultáneo con desduplicación RRF"
                 >
-                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                  <Sparkles className="w-3 h-3" />
                   <span>Todos (Federado)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProvider('semanticscholar')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 text-[11px] font-mono font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
                     provider === 'semanticscholar'
-                      ? 'bg-blue-600/30 text-blue-200 border border-blue-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214]'
+                      : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                   }`}
                   title="Semantic Scholar (Allen Institute for AI) con IA TL;DR y PDF Open Access"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
                   <span>Semantic Scholar (S2)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProvider('openalex')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 text-[11px] font-mono font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
                     provider === 'openalex'
-                      ? 'bg-teal-600/30 text-teal-200 border border-teal-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214]'
+                      : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                   }`}
                   title="Catálogo global OpenAlex"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
                   <span>OpenAlex</span>
                 </button>
               </div>
             </div>
           </div>
 
+          {/* Search Input Bar */}
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Search className="w-3.5 h-3.5 text-[#666666] dark:text-[#888888] absolute left-3 top-2.5" />
               <input
                 type="text"
                 autoFocus
@@ -262,17 +266,17 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={isSearching}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all disabled:opacity-50"
+                className="w-full bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] pl-9 pr-3 py-1.5 text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED] font-sans disabled:opacity-50"
               />
             </div>
 
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 py-2 text-xs border rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-mono border flex items-center gap-1.5 transition-colors cursor-pointer ${
                 showFilters || minYear || minCitations !== '0'
-                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                  : 'border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] bg-[#EBEBE8] dark:bg-[#1E1E22]'
               }`}
               title="Filtros cienciométricos"
             >
@@ -283,15 +287,17 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
             <button
               type="submit"
               disabled={!query.trim() || isSearching}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-emerald-900/30 disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium tracking-wide uppercase transition-colors disabled:opacity-40 cursor-pointer"
             >
               {isSearching ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Buscando…</span>
                 </>
               ) : (
                 <>
-                  <Search className="w-3.5 h-3.5" /> Buscar Papers
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Buscar Papers</span>
                 </>
               )}
             </button>
@@ -299,24 +305,24 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
 
           {/* Collapsible Filter Bar */}
           {showFilters && (
-            <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-slate-300 animate-in fade-in duration-100">
+            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#666666] dark:text-[#888888]">
               <div className="flex items-center gap-2">
-                <label className="text-[11px] text-slate-400">Año desde:</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider">Año desde:</label>
                 <input
                   type="number"
                   placeholder="2020"
                   value={minYear}
                   onChange={(e) => setMinYear(e.target.value)}
-                  className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                  className="w-20 bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-2 py-1 text-xs text-[#1A1A1A] dark:text-[#EDEDED] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
                 />
               </div>
 
               <div className="flex items-center gap-2">
-                <label className="text-[11px] text-slate-400">Citas mínimas:</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider">Citas mínimas:</label>
                 <select
                   value={minCitations}
                   onChange={(e) => setMinCitations(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                  className="bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-2 py-1 text-xs text-[#1A1A1A] dark:text-[#EDEDED] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
                 >
                   <option value="0">Cualquiera</option>
                   <option value="5">&ge; 5 citas</option>
@@ -327,11 +333,11 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
               </div>
 
               <div className="flex items-center gap-2">
-                <label className="text-[11px] text-slate-400">Cantidad:</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider">Cantidad:</label>
                 <select
                   value={limit}
                   onChange={(e) => setLimit(Number(e.target.value))}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                  className="bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-2 py-1 text-xs text-[#1A1A1A] dark:text-[#EDEDED] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
                 >
                   <option value={10}>10 resultados</option>
                   <option value={15}>15 resultados</option>
@@ -342,21 +348,22 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
             </div>
           )}
 
-          {/* Suggested Topics from Compendium / Books */}
+          {/* Suggested Topics from Compendium */}
           {((suggestedTopics && suggestedTopics.length > 0) || isLoadingTopics) && (
-            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+            <div className="pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <Lightbulb className="w-3.5 h-3.5 text-amber-400" /> Conceptos de tu Compendio (Clic para inyectar a la búsqueda):
-                  {isLoadingTopics && <Loader2 className="w-3 h-3 animate-spin text-slate-400 ml-1" />}
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#666666] dark:text-[#888888] flex items-center gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Conceptos de tu Compendio (Clic para inyectar):</span>
+                  {isLoadingTopics && <Loader2 className="w-3 h-3 animate-spin text-[#666666] ml-1" />}
                 </span>
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
-                    className="text-[10px] text-slate-400 hover:text-slate-200 underline cursor-pointer"
+                    className="text-[10px] font-mono text-[#1A56DB] dark:text-[#60A5FA] hover:underline cursor-pointer"
                   >
-                    Limpiar consulta
+                    [Limpiar consulta]
                   </button>
                 )}
               </div>
@@ -366,10 +373,10 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                     <button
                       type="button"
                       onClick={() => handleApplyTopicChip(top.topic)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 inline-flex items-center gap-1 cursor-pointer transition hover:border-indigo-500/50"
+                      className="text-[10px] font-mono px-2 py-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] inline-flex items-center gap-1 cursor-pointer transition-colors"
                       title={`Módulo: ${top.topic} (${top.source_title})`}
                     >
-                      <BookOpen className="w-3 h-3 text-indigo-400" />
+                      <BookOpen className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" />
                       <span className="font-medium">{top.topic}</span>
                     </button>
                     {(top.concepts || []).slice(0, 3).map((concept, cIdx) => (
@@ -377,10 +384,10 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                         key={`${idx}-${cIdx}`}
                         type="button"
                         onClick={() => handleApplyTopicChip(concept)}
-                        className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 inline-flex items-center gap-1 cursor-pointer transition hover:border-indigo-400/40"
+                        className="text-[10px] font-mono px-1.5 py-0.5 border border-[#1A56DB]/30 bg-[#1A56DB]/5 hover:bg-[#1A56DB]/15 text-[#1A56DB] dark:text-[#60A5FA] inline-flex items-center gap-1 cursor-pointer transition-colors"
                         title={`Concepto de '${top.topic}'`}
                       >
-                        <Tag className="w-2.5 h-2.5 text-indigo-400" />
+                        <Tag className="w-2.5 h-2.5" />
                         <span>{concept}</span>
                       </button>
                     ))}
@@ -391,21 +398,21 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
           )}
 
           {searchError && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+            <div className="p-2.5 border border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-400 text-xs font-mono">
               {searchError}
             </div>
           )}
         </div>
 
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F9F9F8] dark:bg-[#121214]">
           {searchResults.length === 0 && !isSearching ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500 space-y-2">
-              <BookOpen className="w-10 h-10 text-slate-600 stroke-1" />
-              <p className="text-sm font-medium text-slate-300">
-                Explorá la frontera científica global
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-[#E0E0DC] dark:border-[#2A2A2E]">
+              <BookOpen className="w-8 h-8 text-[#999999] dark:text-[#555555] mb-2 stroke-1" />
+              <p className="font-mono text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider">
+                [EXPLORACIÓN DE LITERATURA GLOBAL]
               </p>
-              <p className="text-xs text-slate-500 max-w-md">
+              <p className="text-xs text-[#666666] dark:text-[#888888] mt-1 max-w-md font-sans">
                 Escribí un tema de investigación o términos clave. OpenFolioLM consultará Semantic Scholar y OpenAlex con IA para recuperar síntesis TL;DR, citas de impacto y PDFs Open Access listos para indexar en tu base de conocimiento.
               </p>
             </div>
@@ -413,33 +420,35 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
             <>
               {/* Batch Action Toolbar */}
               {searchResults.length > 0 && (
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs text-slate-400">
+                <div className="flex items-center justify-between pb-2 border-b border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#666666] dark:text-[#888888]">
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={toggleSelectAll}
-                      className="hover:text-slate-200 transition-colors font-medium flex items-center gap-1.5 cursor-pointer"
+                      className="hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition-colors font-medium cursor-pointer"
                     >
-                      <span>
-                        {selectedDois.length === searchResults.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
-                      </span>
+                      [{selectedDois.length === searchResults.length ? 'Deseleccionar todos' : 'Seleccionar todos'}]
                     </button>
-                    <span className="text-slate-600">&bull;</span>
-                    <span>{searchResults.length} artículos encontrados</span>
+                    <span>·</span>
+                    <span className="tabular-nums">{searchResults.length} artículos encontrados</span>
                   </div>
 
                   {selectedDois.length > 0 && (
                     <button
+                      type="button"
                       onClick={() => handleIngest(selectedDois)}
                       disabled={ingestingDois.length > 0}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium shadow transition-all cursor-pointer disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1 bg-[#1A56DB] hover:bg-[#1644A8] text-white text-xs font-mono uppercase tracking-wide transition-colors cursor-pointer disabled:opacity-50"
                     >
                       {ingestingDois.length > 0 ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Indexando ({selectedDois.length})...
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Indexando ({selectedDois.length})…</span>
                         </>
                       ) : (
                         <>
-                          <BookOpen className="w-3.5 h-3.5" /> Indexar Seleccionados ({selectedDois.length})
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Indexar Seleccionados ({selectedDois.length})</span>
                         </>
                       )}
                     </button>
@@ -448,7 +457,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
               )}
 
               {/* Paper Cards */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {searchResults.map((paper) => {
                   const isSelected = selectedDois.includes(paper.doi);
                   const isIngesting = ingestingDois.includes(paper.doi);
@@ -458,12 +467,12 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                   return (
                     <div
                       key={paper.doi}
-                      className={`p-4 rounded-xl border transition-all ${
+                      className={`p-3.5 border transition-colors ${
                         isIngested
-                          ? 'bg-slate-900/30 border-slate-800/50 opacity-80'
+                          ? 'bg-[#EBEBE8] dark:bg-[#1E1E22] border-[#E0E0DC] dark:border-[#2A2A2E] opacity-75'
                           : isSelected
-                          ? 'bg-slate-800/80 border-emerald-500/40 shadow-sm'
-                          : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                          ? 'bg-[#1A56DB]/5 dark:bg-[#1A56DB]/10 border-[#1A56DB]'
+                          : 'bg-[#F9F9F8] dark:bg-[#121214] border-[#E0E0DC] dark:border-[#2A2A2E] hover:bg-[#F2F2F0] dark:hover:bg-[#19191C]'
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -472,34 +481,37 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                           checked={isSelected}
                           disabled={isIngested || isIngesting}
                           onChange={() => toggleSelectDoi(paper.doi)}
-                          className="mt-1 rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 bg-slate-950 cursor-pointer"
+                          className="mt-0.5 accent-[#1A56DB] cursor-pointer"
                         />
 
-                        <div className="flex-1 space-y-1.5 min-w-0">
+                        <div className="flex-1 space-y-1.5 min-w-0 font-sans">
                           <div className="flex items-start justify-between gap-3">
-                            <h4 className="text-xs font-semibold text-slate-100 leading-snug">
+                            <h4 className="text-xs font-semibold text-[#1A1A1A] dark:text-[#EDEDED] leading-snug">
                               {paper.title}
                             </h4>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0 font-mono">
                               {isIngested ? (
-                                <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-medium">
-                                  <Check className="w-3 h-3 text-emerald-400" /> Indexado
+                                <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium">
+                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>INDEXADO</span>
                                 </span>
                               ) : (
                                 <button
                                   type="button"
                                   disabled={isIngesting}
                                   onClick={() => handleIngest([paper.doi])}
-                                  className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                                  className="flex items-center gap-1 text-[10px] px-2.5 py-1 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] uppercase tracking-wider font-medium transition-colors disabled:opacity-50 cursor-pointer"
                                 >
                                   {isIngesting ? (
                                     <>
-                                      <Loader2 className="w-3 h-3 animate-spin" /> Indexando...
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Indexando…</span>
                                     </>
                                   ) : (
                                     <>
-                                      <BookOpen className="w-3 h-3" /> Indexar
+                                      <BookOpen className="w-3.5 h-3.5" />
+                                      <span>Indexar</span>
                                     </>
                                   )}
                                 </button>
@@ -507,56 +519,56 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-[#666666] dark:text-[#888888]">
                             {paper.authors.length > 0 && (
-                              <span className="text-slate-300">
+                              <span className="text-[#1A1A1A] dark:text-[#CCCCCC]">
                                 {paper.authors.slice(0, 3).join(', ')}
                                 {paper.authors.length > 3 && ` +${paper.authors.length - 3}`}
                               </span>
                             )}
                             {paper.venue && (
                               <>
-                                <span className="text-slate-600">&bull;</span>
-                                <span className="italic text-slate-400">{paper.venue}</span>
+                                <span>·</span>
+                                <span className="italic">{paper.venue}</span>
                               </>
                             )}
                             {paper.publication_year && (
                               <>
-                                <span className="text-slate-600">&bull;</span>
-                                <span>{paper.publication_year}</span>
+                                <span>·</span>
+                                <span className="tabular-nums">{paper.publication_year}</span>
                               </>
                             )}
 
                             {/* Metadata Badges */}
-                            <span className="text-slate-600">&bull;</span>
+                            <span>·</span>
                             {paper.source_provider === 'both' && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/30 font-semibold inline-flex items-center gap-1">
-                                <Sparkles className="w-2.5 h-2.5 text-purple-400" /> S2 + OpenAlex
+                              <span className="text-[10px] px-1.5 py-0.2 border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold inline-flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5" /> S2 + OpenAlex
                               </span>
                             )}
                             {paper.source_provider === 'semanticscholar' && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30 font-medium inline-flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span> S2
+                              <span className="text-[10px] px-1.5 py-0.2 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] font-medium">
+                                S2
                               </span>
                             )}
                             {paper.source_provider === 'openalex' && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30 font-medium inline-flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span> OpenAlex
+                              <span className="text-[10px] px-1.5 py-0.2 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-teal-700 dark:text-teal-400 font-medium">
+                                OpenAlex
                               </span>
                             )}
 
                             {paper.is_open_access ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                              <span className="text-[10px] px-1.5 py-0.2 border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium">
                                 🔓 Open Access PDF
                               </span>
                             ) : (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-medium">
-                                🔒 Paywall / Ficha
+                              <span className="text-[10px] px-1.5 py-0.2 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#666666] dark:text-[#888888] font-medium">
+                                🔒 Ficha / Paywall
                               </span>
                             )}
 
                             {paper.citations_count !== undefined && paper.citations_count !== null && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                              <span className="text-[10px] px-1.5 py-0.2 border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 font-medium tabular-nums">
                                 ⭐ {paper.citations_count.toLocaleString()} citas
                               </span>
                             )}
@@ -566,7 +578,7 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                                 href={paper.landing_page_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300 ml-auto"
+                                className="inline-flex items-center gap-0.5 text-[#1A56DB] dark:text-[#60A5FA] hover:underline ml-auto"
                                 title="Ver página canónica"
                               >
                                 <span>DOI</span>
@@ -577,18 +589,20 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
 
                           {/* Semantic Scholar AI TLDR */}
                           {paper.tldr && (
-                            <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-800/40 text-[11px] text-indigo-200 flex items-start gap-2">
-                              <Lightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
-                                <span className="font-semibold text-indigo-300">TL;DR: </span>
-                                <span className="text-slate-200 leading-relaxed">{paper.tldr}</span>
+                            <div className="p-2.5 border border-[#1A56DB]/20 bg-[#1A56DB]/5 text-[11px] text-[#1A1A1A] dark:text-[#EDEDED] flex items-start gap-2">
+                              <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5 font-sans">
+                                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#1A56DB] dark:text-[#60A5FA]">
+                                  TL;DR SÍNTESIS:{' '}
+                                </span>
+                                <span className="leading-relaxed">{paper.tldr}</span>
                               </div>
                             </div>
                           )}
 
                           {/* Abstract */}
                           {paper.abstract && (
-                            <div className="text-[11px] text-slate-400 pt-1">
+                            <div className="text-[11px] text-[#666666] dark:text-[#888888] pt-0.5">
                               <p className={isExpanded ? '' : 'line-clamp-2'}>
                                 {paper.abstract}
                               </p>
@@ -596,15 +610,15 @@ export const LiteratureDiscoveryModal: React.FC<LiteratureDiscoveryModalProps> =
                                 <button
                                   type="button"
                                   onClick={() => toggleAbstract(paper.doi)}
-                                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium mt-0.5 flex items-center gap-0.5 cursor-pointer"
+                                  className="text-[10px] font-mono text-[#1A56DB] dark:text-[#60A5FA] hover:underline mt-0.5 flex items-center gap-0.5 cursor-pointer"
                                 >
                                   {isExpanded ? (
                                     <>
-                                      Menos <ChevronUp className="w-2.5 h-2.5" />
+                                      <span>[Menos]</span> <ChevronUp className="w-2.5 h-2.5" />
                                     </>
                                   ) : (
                                     <>
-                                      Ver resumen completo <ChevronDown className="w-2.5 h-2.5" />
+                                      <span>[Ver resumen completo]</span> <ChevronDown className="w-2.5 h-2.5" />
                                     </>
                                   )}
                                 </button>

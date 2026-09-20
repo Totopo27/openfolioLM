@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Upload, FileCode, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { importProjectChat } from '../services/api';
 import { ChatMessage } from '../types';
@@ -66,26 +66,24 @@ export const ImportChatModal: React.FC<ImportChatModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2.5 text-white font-semibold text-base">
-            <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
-              <Upload className="w-4 h-4" />
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
+      <div className="bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] shadow-2xl w-full max-w-md p-5 space-y-4 font-sans">
+        <div className="flex items-center justify-between border-b border-[#E0E0DC] dark:border-[#2A2A2E] pb-3">
+          <div className="flex items-center gap-2 text-[#1A1A1A] dark:text-[#EDEDED] font-semibold text-xs font-mono uppercase tracking-wider">
+            <Upload className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" />
             <span>Importar Conversación al Proyecto</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            className="text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] p-1 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Seleccioná un archivo <span className="font-mono text-teal-300">.json</span> exportado desde OpenFolioLM para cargar sus mensajes, respuestas fundamentadas y citas directamente en <span className="font-semibold text-slate-200">{projectName}</span>.
+        <p className="text-xs text-[#666666] dark:text-[#888888] leading-relaxed font-sans">
+          Seleccioná un archivo <span className="font-mono text-[#1A56DB] dark:text-[#60A5FA]">.json</span> exportado desde OpenFolioLM para cargar sus mensajes, respuestas fundamentadas y citas directamente en <span className="font-semibold text-[#1A1A1A] dark:text-[#EDEDED]">{projectName}</span>.
         </p>
 
         <input
@@ -103,45 +101,45 @@ export const ImportChatModal: React.FC<ImportChatModalProps> = ({
         {/* Drop / Select zone */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="p-6 border-2 border-dashed border-slate-750 hover:border-teal-500/60 rounded-xl bg-slate-950/60 hover:bg-slate-950/80 text-center transition cursor-pointer flex flex-col items-center justify-center gap-2 group"
+          className="p-6 border border-dashed border-[#E0E0DC] dark:border-[#2A2A2E] hover:border-[#1A1A1A] dark:hover:border-[#EDEDED] bg-[#EBEBE8] dark:bg-[#1E1E22] text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 group"
         >
-          <div className="p-2.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20 group-hover:scale-110 transition-transform">
+          <div className="p-2 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] text-[#1A56DB] dark:text-[#60A5FA]">
             <FileCode className="w-5 h-5" />
           </div>
-          <p className="text-xs font-semibold text-slate-300">
+          <p className="text-xs font-semibold text-[#1A1A1A] dark:text-[#EDEDED] font-mono">
             {selectedFile ? selectedFile.name : 'Hacé clic para seleccionar archivo .json'}
           </p>
-          <p className="text-[10px] text-slate-500">
+          <p className="text-[10px] text-[#666666] dark:text-[#888888] font-sans">
             Exportación de OpenFolioLM con historial de chat
           </p>
         </div>
 
         {parseError && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+          <div className="p-2.5 border border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-400 text-xs font-mono flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{parseError}</span>
           </div>
         )}
 
         {parsedBundle && !parseError && (
-          <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-xs space-y-1">
-            <div className="font-semibold text-teal-300 flex items-center gap-1.5">
-              <Check className="w-4 h-4" /> Conversación detectada
+          <div className="p-3 border border-emerald-500/30 bg-emerald-500/10 text-xs font-mono space-y-1 text-[#1A1A1A] dark:text-[#EDEDED]">
+            <div className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+              <Check className="w-3.5 h-3.5" /> Conversación detectada
             </div>
-            <p className="text-slate-300">
-              <span className="text-slate-400">Título:</span> {parsedBundle.title}
+            <p className="text-[#1A1A1A] dark:text-[#EDEDED]">
+              <span className="text-[#666666] dark:text-[#888888]">Título:</span> {parsedBundle.title}
             </p>
-            <p className="text-slate-300">
-              <span className="text-slate-400">Total mensajes:</span> {parsedBundle.messages.length}
+            <p className="text-[#1A1A1A] dark:text-[#EDEDED]">
+              <span className="text-[#666666] dark:text-[#888888]">Total mensajes:</span> {parsedBundle.messages.length}
             </p>
           </div>
         )}
 
-        <div className="flex justify-end items-center gap-2 pt-2 border-t border-slate-800">
+        <div className="flex justify-end items-center gap-2 pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E]">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            className="px-3 py-1.5 border border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] cursor-pointer"
           >
             Cancelar
           </button>
@@ -149,7 +147,7 @@ export const ImportChatModal: React.FC<ImportChatModalProps> = ({
             type="button"
             onClick={handleImport}
             disabled={!parsedBundle || isImporting}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-teal-600 hover:bg-teal-500 text-white rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-mono font-medium tracking-wide uppercase bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] transition-colors disabled:opacity-40 cursor-pointer"
           >
             {isImporting ? (
               <>
