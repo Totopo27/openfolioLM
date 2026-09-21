@@ -1,6 +1,6 @@
 # OpenFolioLM
 
-> Plataforma de investigación documental y síntesis en dominio cerrado con anclaje factual estricto, verificación de inferencia lógica (NLI) y exploración sincronizada de fuentes en interfaz Paper & Ink.
+> Plataforma de investigación documental y síntesis en dominio cerrado con anclaje factual estricto, verificación de inferencia lógica (NLI) y exploración sincronizada de fuentes.
 
 Para consultar la guía operativa completa paso a paso con todos los flujos de trabajo detallados, revise el [Manual de Uso de OpenFolioLM](docs/MANUAL_DE_USO.md).
 
