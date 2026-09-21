@@ -62,12 +62,12 @@ def test_get_models_ollama_offline():
 
 
 def test_get_models_gemini_dynamic_discovery(monkeypatch):
-    import app.main as main_mod
+    import app.api.routes_system as system_mod
 
     # Set mock api key and clear cache
     monkeypatch.setattr(settings, "gemini_api_key", "test-gemini-key")
-    monkeypatch.setattr(main_mod, "_gemini_models_cache", [])
-    monkeypatch.setattr(main_mod, "_gemini_models_cache_time", 0.0)
+    monkeypatch.setattr(system_mod, "_gemini_models_cache", [])
+    monkeypatch.setattr(system_mod, "_gemini_models_cache_time", 0.0)
 
     app = create_app()
     client = TestClient(app)
@@ -106,12 +106,12 @@ def test_get_models_gemini_dynamic_discovery(monkeypatch):
 
 
 def test_get_models_gemini_fallback_catalog(monkeypatch):
-    import app.main as main_mod
+    import app.api.routes_system as system_mod
 
     # Set mock api key, clear cache, and simulate Google API failure
     monkeypatch.setattr(settings, "gemini_api_key", "test-gemini-key")
-    monkeypatch.setattr(main_mod, "_gemini_models_cache", [])
-    monkeypatch.setattr(main_mod, "_gemini_models_cache_time", 0.0)
+    monkeypatch.setattr(system_mod, "_gemini_models_cache", [])
+    monkeypatch.setattr(system_mod, "_gemini_models_cache_time", 0.0)
 
     app = create_app()
     client = TestClient(app)

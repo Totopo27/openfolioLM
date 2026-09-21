@@ -55,7 +55,11 @@ class LanceDBVectorStore(VectorStorePort):
                 return list(res.tables)
             return list(res)
         except Exception:
-            return list(db.table_names())
+            try:
+                return list(db.table_names())
+            except Exception as e:
+                logger.warning("Failed to list LanceDB tables: %s", e)
+                return []
 
     def _get_schema(self, dim: int) -> pa.Schema:
         return pa.schema([
@@ -146,8 +150,8 @@ class LanceDBVectorStore(VectorStorePort):
         safe_sid = source_id.replace("'", "''")
         try:
             tbl.delete(f"source_id = '{safe_sid}'")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to delete LanceDB chunks for source '%s': %s", source_id, e)
 
     def search_vectors(
         self,
@@ -186,8 +190,8 @@ class LanceDBVectorStore(VectorStorePort):
                     existing_dim
                 )
                 return []
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not check LanceDB vector dimension: %s", e)
 
         safe_sids = [sid.replace("'", "''") for sid in active_source_ids]
         where_in = ", ".join(f"'{sid}'" for sid in safe_sids)
@@ -195,7 +199,8 @@ class LanceDBVectorStore(VectorStorePort):
 
         try:
             results = tbl.search(q_vec_list).where(where_clause).limit(top_k).to_list()
-        except Exception:
+        except Exception as e:
+            logger.warning("LanceDB vector search failed: %s", e)
             return []
 
         output: list[tuple[DocumentChunk, float]] = []
@@ -245,7 +250,7 @@ class LanceDBVectorStore(VectorStorePort):
             existing_dim = getattr(tbl.schema.field("vector").type, "list_size", None)
             if existing_dim is not None:
                 return existing_dim == self.get_dimension()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not check LanceDB dimension match: %s", e)
         return True
 

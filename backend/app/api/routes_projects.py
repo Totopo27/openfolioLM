@@ -1,6 +1,7 @@
 import os
 import logging
 import re
+import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional, Union
@@ -438,6 +439,17 @@ def create_projects_router(
         vector_store = project_manager.get_vector_store(project_id)
         success = store.delete_document(source_id)
         vector_store.delete_document_chunks(source_id)
+
+        # Clean up extracted assets (figures, diagrams) for this document
+        proj_dir = project_manager._get_project_dir(project_id)
+        assets_dir = os.path.join(proj_dir, "assets", source_id)
+        if os.path.isdir(assets_dir):
+            try:
+                shutil.rmtree(assets_dir)
+                logger.info("Cleaned up assets directory for source '%s'", source_id)
+            except OSError as e:
+                logger.warning("Failed to clean up assets for source '%s': %s", source_id, e)
+
         if not success:
             raise HTTPException(status_code=404, detail="Source not found in project")
         return {"status": "deleted", "id": source_id}

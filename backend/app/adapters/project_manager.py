@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import logging
 import shutil
 import uuid
 from datetime import datetime, timezone
@@ -10,6 +11,8 @@ from app.core.models import Project, SourceDocument
 from app.adapters.sqlite_store import SQLiteDocumentStore
 from app.adapters.lancedb_store import LanceDBVectorStore
 from app.adapters.academic_resolver import normalize_doi
+
+logger = logging.getLogger(__name__)
 from app.adapters.task_manager import IngestionTaskManager
 
 STOPWORDS = {
@@ -140,7 +143,11 @@ class ProjectManager:
                 doc_count=doc_count,
                 message_count=message_count
             )
-        except Exception:
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning("Corrupt or invalid project metadata for '%s': %s", project_id, e)
+            return None
+        except OSError as e:
+            logger.warning("Failed to read project '%s': %s", project_id, e)
             return None
 
     def list_projects(self) -> list[Project]:
@@ -338,8 +345,8 @@ class ProjectManager:
                 snapshot_json=json.dumps(snapshot, ensure_ascii=False),
                 created_at=now
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to persist shared conversation '%s' to SQLite: %s", share_id, e)
 
         return snapshot
 
@@ -350,8 +357,8 @@ class ProjectManager:
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning("Failed to read shared conversation file '%s': %s", share_id, e)
 
         # 2. Fallback: check project stores
         for proj in self.list_projects():
@@ -360,7 +367,8 @@ class ProjectManager:
                 found = store.get_shared_conversation(share_id)
                 if found:
                     return found.get("snapshot")
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to check project '%s' for shared conversation '%s': %s", proj.id, share_id, e)
                 continue
 
         return None
