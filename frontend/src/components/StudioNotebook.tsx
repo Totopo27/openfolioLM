@@ -68,7 +68,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
 
   // Form state
   const [title, setTitle] = useState('');
@@ -251,6 +251,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
     setSourceCitationIds(note.source_citation_ids || []);
     setOriginPrompt(note.origin_prompt || null);
     setSourceMessageId(note.source_message_id || null);
+    setViewMode('preview');
     setSaveSuccess(false);
   };
 
@@ -302,6 +303,7 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
         setSelectedNoteId(created.id);
         onNotesCountChange?.(notes.length + 1);
       }
+      setViewMode('preview');
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
@@ -523,20 +525,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
             <div className="flex items-center border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-xs font-mono">
               <button
                 type="button"
-                onClick={() => setViewMode('edit')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 transition cursor-pointer ${
-                  viewMode === 'edit'
-                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
-                    : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
-                }`}
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Editar</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setViewMode('preview')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 border-l border-[#E0E0DC] dark:border-[#2A2A2E] transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 transition cursor-pointer ${
                   viewMode === 'preview'
                     ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
                     : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
@@ -544,6 +534,18 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>Vista Previa</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('edit')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 border-l border-[#E0E0DC] dark:border-[#2A2A2E] transition cursor-pointer ${
+                  viewMode === 'edit'
+                    ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
+                    : 'text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
+                }`}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Editar</span>
               </button>
             </div>
 
