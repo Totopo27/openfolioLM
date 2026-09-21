@@ -25,32 +25,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 3rem 2rem;
+      padding: 1.5rem 1rem;
     }
 
     .frame {
-      max-width: 1100px;
+      max-width: 1280px;
       width: 100%;
-    }
-
-    .eyebrow {
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--color-muted);
-      margin-bottom: 0.5rem;
-    }
-
-    h1 {
-      font-family: var(--font-serif);
-      font-size: clamp(1.8rem, 2.8vw + 0.8rem, 2.5rem);
-      font-weight: 400;
-      letter-spacing: -0.02em;
-      line-height: 1.15;
-      color: var(--color-ink);
-      margin-bottom: 1.5rem;
     }
 
     .diagram-container {
@@ -58,6 +38,7 @@
       border: 1px solid rgba(45, 49, 66, 0.12);
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
     }
 
     svg {
@@ -69,26 +50,24 @@
 </head>
 <body>
   <div class="frame">
-    <p class="eyebrow">Arquitectura Hexagonal · Diagram Design</p>
-    <h1>OpenFolioLM — Estación de Síntesis en Dominio Cerrado</h1>
-
     <div class="diagram-container">
-      <svg viewBox="0 0 1040 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arch-title arch-desc">
+      <svg viewBox="0 0 1040 575" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arch-title arch-desc">
         <title id="arch-title">Arquitectura Hexagonal de OpenFolioLM</title>
-        <desc id="arch-desc">Diagrama editorial de arquitectura hexagonal (puertos y adaptadores) para OpenFolioLM siguiendo las especificaciones de Diagram Design.</desc>
+        <desc id="arch-desc">Diagrama editorial de arquitectura hexagonal (puertos y adaptadores) para OpenFolioLM siguiendo las especificaciones de Diagram Design con tipografía optimizada.</desc>
 
         <defs>
           <style>
-            .eyebrow-svg { font-family: 'Geist Mono', monospace; font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; fill: #4f5d75; }
-            .title-svg { font-family: 'Instrument Serif', Georgia, serif; font-size: 22px; font-weight: 400; fill: #2d3142; }
-            .node-name { font-family: 'Geist', sans-serif; font-size: 12px; font-weight: 600; fill: #2d3142; }
-            .sublabel { font-family: 'Geist Mono', monospace; font-size: 9px; fill: #4f5d75; }
-            .tag { font-family: 'Geist Mono', monospace; font-size: 7px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; }
-            .arrow-lbl { font-family: 'Geist Mono', monospace; font-size: 8px; font-weight: 500; letter-spacing: 0.08em; }
+            .eyebrow-svg { font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; fill: #4f5d75; }
+            .title-svg { font-family: 'Instrument Serif', Georgia, serif; font-size: 26px; font-weight: 400; fill: #2d3142; }
+            .node-name { font-family: 'Geist', sans-serif; font-size: 14px; font-weight: 600; fill: #2d3142; }
+            .sublabel { font-family: 'Geist Mono', monospace; font-size: 11px; fill: #4f5d75; }
+            .sublabel-small { font-family: 'Geist Mono', monospace; font-size: 10.5px; fill: #4f5d75; }
+            .tag { font-family: 'Geist Mono', monospace; font-size: 8.5px; font-weight: 600; letter-spacing: 0.10em; text-transform: uppercase; }
+            .arrow-lbl { font-family: 'Geist Mono', monospace; font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; }
           </style>
 
           <pattern id="grid-dots" width="20" height="20" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="0.8" fill="rgba(45,49,66,0.12)" />
+            <circle cx="1" cy="1" r="0.85" fill="rgba(45,49,66,0.12)" />
           </pattern>
 
           <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -106,100 +85,100 @@
         <rect width="100%" height="100%" fill="#f5f5f5" />
         <rect width="100%" height="100%" fill="url(#grid-dots)" opacity="0.65" />
 
-        <!-- Header Section -->
-        <text x="40" y="38" class="eyebrow-svg">ARQUITECTURA DEL SISTEMA · PUERTOS Y ADAPTADORES</text>
+        <!-- Header Section Inside SVG -->
+        <text x="40" y="36" class="eyebrow-svg">ARQUITECTURA DEL SISTEMA · PUERTOS Y ADAPTADORES</text>
         <text x="40" y="66" class="title-svg">OpenFolioLM — Estación de Síntesis en Dominio Cerrado</text>
 
         <!-- Connectors Layer (Z-Order: Behind Nodes) -->
-        <line x1="280" y1="130" x2="348" y2="130" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)" />
-        <line x1="470" y1="162" x2="470" y2="204" stroke="#eb6c36" stroke-width="1.3" marker-end="url(#arrow-accent)" />
-        <line x1="180" y1="316" x2="180" y2="342" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" />
-        <line x1="520" y1="316" x2="520" y2="342" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" />
-        <line x1="860" y1="316" x2="860" y2="342" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" />
-        <line x1="180" y1="384" x2="180" y2="410" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" />
-        <line x1="520" y1="384" x2="520" y2="410" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" />
-        <line x1="860" y1="384" x2="860" y2="410" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" />
+        <line x1="290" y1="132" x2="352" y2="132" stroke="#2e5aa8" stroke-width="1.3" marker-end="url(#arrow-link)" />
+        <line x1="485" y1="168" x2="485" y2="212" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)" />
+        <line x1="190" y1="338" x2="190" y2="366" stroke="#4f5d75" stroke-width="1.3" marker-end="url(#arrow)" />
+        <line x1="520" y1="338" x2="520" y2="366" stroke="#4f5d75" stroke-width="1.3" marker-end="url(#arrow)" />
+        <line x1="850" y1="338" x2="850" y2="366" stroke="#4f5d75" stroke-width="1.3" marker-end="url(#arrow)" />
+        <line x1="190" y1="412" x2="190" y2="438" stroke="#4f5d75" stroke-width="1.3" marker-end="url(#arrow)" />
+        <line x1="520" y1="412" x2="520" y2="438" stroke="#4f5d75" stroke-width="1.3" marker-end="url(#arrow)" />
+        <line x1="850" y1="412" x2="850" y2="438" stroke="#4f5d75" stroke-width="1.3" marker-end="url(#arrow)" />
 
         <!-- Arrow Labels with Masking Rects -->
-        <rect x="290" y="122" width="46" height="15" rx="2" fill="#f5f5f5" stroke="rgba(45,49,66,0.12)" stroke-width="0.7" />
-        <text x="313" y="133" class="arrow-lbl" fill="#2e5aa8" text-anchor="middle">REST/SSE</text>
+        <rect x="296" y="123" width="50" height="18" rx="2" fill="#f5f5f5" stroke="rgba(45,49,66,0.14)" stroke-width="0.8" />
+        <text x="321" y="135" class="arrow-lbl" fill="#2e5aa8" text-anchor="middle">REST/SSE</text>
 
-        <rect x="444" y="174" width="52" height="15" rx="2" fill="#f5f5f5" stroke="rgba(235,108,54,0.30)" stroke-width="0.7" />
-        <text x="470" y="185" class="arrow-lbl" fill="#eb6c36" text-anchor="middle">STREAM</text>
+        <rect x="457" y="180" width="56" height="18" rx="2" fill="#f5f5f5" stroke="rgba(235,108,54,0.35)" stroke-width="0.8" />
+        <text x="485" y="192" class="arrow-lbl" fill="#eb6c36" text-anchor="middle">STREAM</text>
 
         <!-- ==================== TIER 1: CLIENTES & GATEWAY ==================== -->
-        <rect x="40" y="98" width="240" height="64" rx="6" fill="#f5f5f5" stroke="#2d3142" stroke-width="1" />
-        <rect x="48" y="106" width="34" height="13" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
-        <text x="65" y="116" class="tag" fill="#4f5d75" text-anchor="middle">CLIENT</text>
-        <text x="145" y="127" class="node-name" text-anchor="middle">Frontend Paper &amp; Ink</text>
-        <text x="145" y="145" class="sublabel" text-anchor="middle">React 18 · Vite · Tailwind CSS</text>
+        <rect x="40" y="96" width="250" height="72" rx="6" fill="#f5f5f5" stroke="#2d3142" stroke-width="1.1" />
+        <rect x="48" y="104" width="42" height="15" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
+        <text x="69" y="115" class="tag" fill="#4f5d75" text-anchor="middle">CLIENT</text>
+        <text x="165" y="128" class="node-name" text-anchor="middle">Frontend Paper &amp; Ink</text>
+        <text x="165" y="148" class="sublabel" text-anchor="middle">React 18 · Vite · Tailwind CSS</text>
 
-        <rect x="350" y="98" width="240" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1" />
-        <rect x="358" y="106" width="44" height="13" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
-        <text x="380" y="116" class="tag" fill="#4f5d75" text-anchor="middle">GATEWAY</text>
-        <text x="470" y="127" class="node-name" text-anchor="middle">FastAPI Application</text>
-        <text x="470" y="145" class="sublabel" text-anchor="middle">Async Engine · SSE Streaming</text>
+        <rect x="360" y="96" width="250" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.1" />
+        <rect x="368" y="104" width="52" height="15" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
+        <text x="394" y="115" class="tag" fill="#4f5d75" text-anchor="middle">GATEWAY</text>
+        <text x="485" y="128" class="node-name" text-anchor="middle">FastAPI Application</text>
+        <text x="485" y="148" class="sublabel" text-anchor="middle">Async Engine · SSE Streaming</text>
 
-        <rect x="690" y="98" width="310" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.18)" stroke-dasharray="4,3" stroke-width="0.9" />
-        <text x="704" y="118" class="tag" fill="#4f5d75">PRINCIPIO ARQUITECTÓNICO</text>
-        <text x="704" y="135" class="node-name" font-size="11">Desacoplamiento Estricto</text>
-        <text x="704" y="149" class="sublabel">El dominio no conoce a la UI ni a la BD</text>
+        <rect x="680" y="96" width="320" height="72" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.18)" stroke-dasharray="4,3" stroke-width="1" />
+        <text x="696" y="116" class="tag" fill="#4f5d75">PRINCIPIO ARQUITECTÓNICO</text>
+        <text x="696" y="135" class="node-name" font-size="13">Desacoplamiento Estricto</text>
+        <text x="696" y="151" class="sublabel">El dominio no conoce a la UI ni a la BD</text>
 
         <!-- ==================== TIER 2: HEXAGONAL CORE (FOCAL) ==================== -->
-        <rect x="40" y="206" width="960" height="110" rx="8" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1.4" />
+        <rect x="40" y="214" width="960" height="124" rx="8" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1.5" />
 
-        <rect x="52" y="214" width="220" height="15" rx="2" fill="#f5f5f5" stroke="#eb6c36" stroke-width="0.8" />
-        <text x="162" y="225" class="tag" fill="#eb6c36" text-anchor="middle">NÚCLEO HEXAGONAL · DOMINIO CENTRAL</text>
+        <rect x="54" y="222" width="260" height="18" rx="3" fill="#f5f5f5" stroke="#eb6c36" stroke-width="0.9" />
+        <text x="184" y="234" class="tag" fill="#eb6c36" text-anchor="middle">NÚCLEO HEXAGONAL · DOMINIO CENTRAL</text>
 
-        <rect x="56" y="240" width="280" height="64" rx="4" fill="#ffffff" stroke="rgba(45,49,66,0.18)" stroke-width="1" />
-        <text x="70" y="258" class="tag" fill="#eb6c36">OFFSETS &amp; HIERARCHY</text>
-        <text x="70" y="275" class="node-name">Positional Chunker</text>
-        <text x="70" y="291" class="sublabel">start_char, end_char, pág, título</text>
+        <rect x="54" y="248" width="290" height="76" rx="4" fill="#ffffff" stroke="rgba(45,49,66,0.18)" stroke-width="1" />
+        <text x="68" y="267" class="tag" fill="#eb6c36">OFFSETS &amp; HIERARCHY</text>
+        <text x="68" y="287" class="node-name">Positional Chunker</text>
+        <text x="68" y="306" class="sublabel-small">start_char, end_char, pág, títulos</text>
 
-        <rect x="380" y="240" width="280" height="64" rx="4" fill="#ffffff" stroke="rgba(45,49,66,0.18)" stroke-width="1" />
-        <text x="394" y="258" class="tag" fill="#eb6c36">ZERO-HALLUCINATION</text>
-        <text x="394" y="275" class="node-name">Closed-Domain Synthesizer</text>
-        <text x="394" y="291" class="sublabel">Grounding estricto + Citas [^n]</text>
+        <rect x="375" y="248" width="290" height="76" rx="4" fill="#ffffff" stroke="rgba(45,49,66,0.18)" stroke-width="1" />
+        <text x="389" y="267" class="tag" fill="#eb6c36">ZERO-HALLUCINATION</text>
+        <text x="389" y="287" class="node-name">Closed-Domain Synthesizer</text>
+        <text x="389" y="306" class="sublabel-small">Grounding estricto + Citas [^n]</text>
 
-        <rect x="704" y="240" width="280" height="64" rx="4" fill="#ffffff" stroke="rgba(45,49,66,0.18)" stroke-width="1" />
-        <text x="718" y="258" class="tag" fill="#eb6c36">INFERENCIA LÓGICA</text>
-        <text x="718" y="275" class="node-name">NLI Factuality Verifier</text>
-        <text x="718" y="291" class="sublabel">Score porcentual de evidencia</text>
+        <rect x="696" y="248" width="290" height="76" rx="4" fill="#ffffff" stroke="rgba(45,49,66,0.18)" stroke-width="1" />
+        <text x="710" y="267" class="tag" fill="#eb6c36">INFERENCIA LÓGICA</text>
+        <text x="710" y="287" class="node-name">NLI Factuality Verifier</text>
+        <text x="710" y="306" class="sublabel-small">Validación de premisas y score %</text>
 
         <!-- ==================== TIER 3: PUERTOS DEL DOMINIO ==================== -->
-        <rect x="40" y="344" width="280" height="40" rx="5" fill="#ececec" stroke="#4f5d75" stroke-width="1" />
-        <text x="52" y="357" class="tag" fill="#4f5d75">PORT</text>
-        <text x="180" y="369" class="node-name" text-anchor="middle">Puerto de Ingesta</text>
+        <rect x="40" y="368" width="300" height="44" rx="5" fill="#ececec" stroke="#4f5d75" stroke-width="1" />
+        <text x="52" y="383" class="tag" fill="#4f5d75">PORT</text>
+        <text x="190" y="396" class="node-name" text-anchor="middle">Puerto de Ingesta</text>
 
-        <rect x="380" y="344" width="280" height="40" rx="5" fill="#ececec" stroke="#4f5d75" stroke-width="1" />
-        <text x="392" y="357" class="tag" fill="#4f5d75">PORT</text>
-        <text x="520" y="369" class="node-name" text-anchor="middle">Puerto de Recuperación</text>
+        <rect x="370" y="368" width="300" height="44" rx="5" fill="#ececec" stroke="#4f5d75" stroke-width="1" />
+        <text x="382" y="383" class="tag" fill="#4f5d75">PORT</text>
+        <text x="520" y="396" class="node-name" text-anchor="middle">Puerto de Recuperación</text>
 
-        <rect x="720" y="344" width="280" height="40" rx="5" fill="#ececec" stroke="#4f5d75" stroke-width="1" />
-        <text x="732" y="357" class="tag" fill="#4f5d75">PORT</text>
-        <text x="860" y="369" class="node-name" text-anchor="middle">Puerto de Síntesis &amp; LLM</text>
+        <rect x="700" y="368" width="300" height="44" rx="5" fill="#ececec" stroke="#4f5d75" stroke-width="1" />
+        <text x="712" y="383" class="tag" fill="#4f5d75">PORT</text>
+        <text x="850" y="396" class="node-name" text-anchor="middle">Puerto de Síntesis &amp; LLM</text>
 
         <!-- ==================== TIER 4: ADAPTADORES DE INFRAESTRUCTURA ==================== -->
-        <rect x="40" y="412" width="280" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1" />
-        <rect x="48" y="420" width="54" height="13" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
-        <text x="75" y="430" class="tag" fill="#4f5d75" text-anchor="middle">ADAPTER</text>
-        <text x="48" y="452" class="node-name">MarkItDown &amp; Multi-Source</text>
-        <text x="48" y="470" class="sublabel">PDF, DOCX, XLSX, TXT, Markdown</text>
-        <text x="48" y="486" class="sublabel">YouTube Timestamps · ArXiv Papers</text>
+        <rect x="40" y="440" width="300" height="106" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.1" />
+        <rect x="48" y="448" width="60" height="15" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
+        <text x="78" y="459" class="tag" fill="#4f5d75" text-anchor="middle">ADAPTER</text>
+        <text x="48" y="482" class="node-name">MarkItDown &amp; Multi-Source</text>
+        <text x="48" y="503" class="sublabel-small">PDF, DOCX, XLSX, TXT, Markdown, EPUB</text>
+        <text x="48" y="521" class="sublabel-small">YouTube Timestamps · ArXiv Papers</text>
 
-        <rect x="380" y="412" width="280" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1" />
-        <rect x="388" y="420" width="54" height="13" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
-        <text x="415" y="430" class="tag" fill="#4f5d75" text-anchor="middle">ADAPTER</text>
-        <text x="388" y="452" class="node-name">SQLite FTS5 + Vector + Rerank</text>
-        <text x="388" y="470" class="sublabel">BM25 Léxico + Embeddings Densos</text>
-        <text x="388" y="486" class="sublabel">FlashRank ONNX en CPU local</text>
+        <rect x="370" y="440" width="300" height="106" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.1" />
+        <rect x="378" y="448" width="60" height="15" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
+        <text x="408" y="459" class="tag" fill="#4f5d75" text-anchor="middle">ADAPTER</text>
+        <text x="378" y="482" class="node-name">SQLite FTS5 + Vector + Rerank</text>
+        <text x="378" y="503" class="sublabel-small">BM25 Léxico + Embeddings Densos</text>
+        <text x="378" y="521" class="sublabel-small">FlashRank ONNX en CPU local</text>
 
-        <rect x="720" y="412" width="280" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1" />
-        <rect x="728" y="420" width="54" height="13" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
-        <text x="755" y="430" class="tag" fill="#4f5d75" text-anchor="middle">ADAPTER</text>
-        <text x="728" y="452" class="node-name">LLM Clients &amp; Observability</text>
-        <text x="728" y="470" class="sublabel">Google Gemini · Ollama · LM Studio</text>
-        <text x="728" y="486" class="sublabel">Health Ping Reactivo (Latencia real)</text>
+        <rect x="700" y="440" width="300" height="106" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.1" />
+        <rect x="708" y="448" width="60" height="15" rx="2" fill="transparent" stroke="#7a8399" stroke-width="0.8" />
+        <text x="738" y="459" class="tag" fill="#4f5d75" text-anchor="middle">ADAPTER</text>
+        <text x="708" y="482" class="node-name">LLM Clients &amp; Observability</text>
+        <text x="708" y="503" class="sublabel-small">Google Gemini · Ollama · LM Studio</text>
+        <text x="708" y="521" class="sublabel-small">Health Ping Reactivo (Latencia real)</text>
       </svg>
     </div>
   </div>
