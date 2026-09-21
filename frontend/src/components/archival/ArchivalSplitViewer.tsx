@@ -7,6 +7,10 @@ import {
   Sparkles,
   ExternalLink,
   ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Layout,
+  AlignLeft,
   ShieldCheck,
   CornerDownLeft,
   GraduationCap,
@@ -21,6 +25,7 @@ import {
   ChevronDown,
   AlertTriangle,
   Search,
+  Maximize2,
 } from 'lucide-react';
 import { SourceDocument, ChatMessage, HighlightTarget, Citation } from '../../types';
 import { DossierViewer } from '../DossierViewer';
@@ -59,6 +64,66 @@ export interface DocumentSourceChunk {
   content: string;
 }
 
+export interface DocPage {
+  pageNumber: number;
+  content: string;
+  startChar: number;
+  endChar: number;
+}
+
+export function getDocPages(raw: string): DocPage[] {
+  if (!raw) return [];
+  const pageRegex = /<!-- PAGE: (\d+) -->/g;
+  const matches = Array.from(raw.matchAll(pageRegex));
+  if (matches.length > 1) {
+    const pages: DocPage[] = [];
+    for (let i = 0; i < matches.length; i++) {
+      const pageNum = parseInt(matches[i][1], 10);
+      const startChar = matches[i].index!;
+      const endChar = i + 1 < matches.length ? matches[i + 1].index! : raw.length;
+      pages.push({
+        pageNumber: pageNum,
+        content: raw.slice(startChar, endChar),
+        startChar,
+        endChar,
+      });
+    }
+    return pages;
+  }
+
+  // Fallback for large documents (> 40,000 chars) without explicit PAGE tags
+  if (raw.length > 40000) {
+    const CHUNK_SIZE = 15000;
+    const pages: DocPage[] = [];
+    let start = 0;
+    let pageIdx = 1;
+    while (start < raw.length) {
+      let end = Math.min(raw.length, start + CHUNK_SIZE);
+      if (end < raw.length) {
+        const nl = raw.lastIndexOf('\n', end);
+        if (nl > start + 5000) end = nl + 1;
+      }
+      pages.push({
+        pageNumber: pageIdx++,
+        content: raw.slice(start, end),
+        startChar: start,
+        endChar: end,
+      });
+      start = end;
+    }
+    return pages;
+  }
+
+  return [
+    {
+      pageNumber: 1,
+      content: raw,
+      startChar: 0,
+      endChar: raw.length,
+    },
+  ];
+}
+
 export const parseTimestampSeconds = (text?: string | null): number | null => {
   if (!text) return null;
   const match = text.match(/(?:\[|\b)(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\]|\b)/);
@@ -91,7 +156,7 @@ interface ArchivalSplitViewerProps {
   documentTitle: string;
   documentAuthors: string[];
   documentDoi?: string;
-  chunks: DocumentSourceChunk[];
+  chunks?: DocumentSourceChunk[];
   messages: GroundedChatMessage[];
   rawMessages?: ChatMessage[];
   onSendMessage: (query: string) => Promise<void>;
@@ -132,7 +197,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   documentTitle,
   documentAuthors,
   documentDoi,
-  chunks,
+  chunks: _chunks,
   messages,
   rawMessages,
   onSendMessage,
@@ -208,10 +273,13 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   });
 
   // Formatting & text sizing states
-  const [viewStyle, setViewStyle] = useState<'raw' | 'rich'>('raw');
+  const [viewStyle, setViewStyle] = useState<'raw' | 'rich'>('rich');
   const [fontSize, setFontSize] = useState<'xs' | 'sm' | 'base'>('sm');
   const [activeSeekTime, setActiveSeekTime] = useState<number | null>(null);
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
+  const [isPaginated, setIsPaginated] = useState<boolean>(true);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   // Chat sharing & importing states
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -224,18 +292,42 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
-  const chunkRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const pages = useMemo(() => {
+    if (!document?.raw_markdown) return [];
+    return getDocPages(document.raw_markdown);
+  }, [document?.raw_markdown]);
+
+  const currentPage = pages.length > 0 ? pages[Math.min(currentPageIndex, pages.length - 1)] : null;
+  const activeContent = isPaginated && currentPage ? currentPage.content : (document.raw_markdown || '');
+  const contentStartChar = isPaginated && currentPage ? currentPage.startChar : 0;
+  const contentEndChar = isPaginated && currentPage ? currentPage.endChar : (document.raw_markdown?.length || 0);
 
   const handleTabSelect = (tab: 'reading' | 'dossier' | 'taxonomy') => {
     setInternalActiveTab(tab);
     if (onTabChange) onTabChange(tab);
   };
 
-  // Reset video seek time when switching documents
+  // Reset video seek time, page index, and image modal when switching documents
   useEffect(() => {
     setActiveSeekTime(null);
+    setCurrentPageIndex(0);
+    setActiveCitationIndex(null);
+    setActiveCitationSnippet(null);
+    setSelectedImageUrl(null);
   }, [document.id]);
+
+  // Close image lightbox on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedImageUrl) {
+        setSelectedImageUrl(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageUrl]);
 
   // Handle Resizable Splitter
   const handleMouseDown = () => setIsResizing(true);
@@ -299,6 +391,24 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
       setActiveCitationSnippet(highlightTarget.quote_snippet);
     }
 
+    // Auto-jump to page containing citation if paginated
+    if (pages.length > 1) {
+      let targetPageIdx = -1;
+      if (highlightTarget.start_char !== undefined && highlightTarget.start_char > 0) {
+        targetPageIdx = pages.findIndex(
+          (p) => highlightTarget.start_char >= p.startChar && highlightTarget.start_char < p.endChar
+        );
+      }
+      // Fallback search across pages if offset not in range
+      if (targetPageIdx === -1 && highlightTarget.quote_snippet) {
+        const needle = highlightTarget.quote_snippet.trim().toLowerCase().slice(0, 30);
+        targetPageIdx = pages.findIndex((p) => p.content.toLowerCase().includes(needle));
+      }
+      if (targetPageIdx >= 0) {
+        setCurrentPageIndex(targetPageIdx);
+      }
+    }
+
     // If video, extract timestamp
     if (document.metadata?.is_youtube) {
       const raw = document.raw_markdown || '';
@@ -312,72 +422,80 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     }
 
     const timer = setTimeout(() => {
-      if (viewStyle === 'rich' && highlightRef.current) {
-        highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        let targetEl: HTMLDivElement | undefined;
-        if (highlightTarget.quote_snippet) {
-          const needle = highlightTarget.quote_snippet.trim().toLowerCase().slice(0, 30);
-          const matchIdx = chunks.findIndex((c) => c.content.toLowerCase().includes(needle));
-          if (matchIdx !== -1) {
-            targetEl = chunkRefs.current.get(matchIdx + 1);
-          }
-        }
-        if (targetEl) {
-          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    }, 150);
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
 
     return () => clearTimeout(timer);
-  }, [highlightTarget, document.id, viewStyle, chunks, activeTab]);
+  }, [highlightTarget, document.id, pages, activeTab]);
 
-  // Rich markdown highlighting computation
-  const { richBeforeText, richHighlightedText, richAfterText } = useMemo(() => {
-    const raw = document.raw_markdown || '';
-    if (!raw) return { richBeforeText: '', richHighlightedText: '', richAfterText: '' };
+  // Unified slice-based evidence highlighting computation
+  const { beforeText, highlightedText, afterText } = useMemo(() => {
+    const raw = activeContent;
+    if (!raw) return { beforeText: '', highlightedText: '', afterText: '' };
 
-    if (highlightTarget && highlightTarget.source_id === document.id) {
-      if (highlightTarget.end_char > highlightTarget.start_char && highlightTarget.end_char <= raw.length) {
+    const isCurrentDoc = !highlightTarget || highlightTarget.source_id === document.id;
+
+    // 1. Check exact character offsets if highlightTarget matches this doc
+    if (
+      isCurrentDoc &&
+      highlightTarget &&
+      highlightTarget.end_char > highlightTarget.start_char &&
+      highlightTarget.start_char < contentEndChar &&
+      highlightTarget.end_char > contentStartChar
+    ) {
+      const relStart = Math.max(0, highlightTarget.start_char - contentStartChar);
+      const relEnd = Math.min(raw.length, Math.max(relStart, highlightTarget.end_char - contentStartChar));
+      if (relEnd > relStart) {
         return {
-          richBeforeText: raw.slice(0, highlightTarget.start_char),
-          richHighlightedText: raw.slice(highlightTarget.start_char, highlightTarget.end_char),
-          richAfterText: raw.slice(highlightTarget.end_char),
+          beforeText: raw.slice(0, relStart),
+          highlightedText: raw.slice(relStart, relEnd),
+          afterText: raw.slice(relEnd),
         };
       }
-      if (highlightTarget.quote_snippet && highlightTarget.quote_snippet.trim().length > 0) {
-        const needle = highlightTarget.quote_snippet.trim();
-        const idx = raw.toLowerCase().indexOf(needle.toLowerCase().slice(0, 30));
+    }
+
+    // 2. Fallback to snippet matching (from highlightTarget or activeCitationSnippet)
+    const snippetToFind = (
+      (isCurrentDoc && highlightTarget?.quote_snippet) ||
+      activeCitationSnippet ||
+      ''
+    ).trim();
+
+    if (snippetToFind.length > 0) {
+      let idx = raw.toLowerCase().indexOf(snippetToFind.toLowerCase());
+      let matchLen = snippetToFind.length;
+
+      if (idx === -1 && snippetToFind.length > 20) {
+        const prefix = snippetToFind.toLowerCase().slice(0, 30);
+        idx = raw.toLowerCase().indexOf(prefix);
         if (idx !== -1) {
-          const matchLen = Math.min(needle.length, raw.length - idx);
-          return {
-            richBeforeText: raw.slice(0, idx),
-            richHighlightedText: raw.slice(idx, idx + matchLen),
-            richAfterText: raw.slice(idx + matchLen),
-          };
+          matchLen = Math.min(snippetToFind.length, raw.length - idx);
         }
       }
-    }
 
-    if (activeCitationSnippet && activeCitationSnippet.trim().length > 0) {
-      const needle = activeCitationSnippet.trim();
-      const idx = raw.toLowerCase().indexOf(needle.toLowerCase().slice(0, 30));
       if (idx !== -1) {
-        const matchLen = Math.min(needle.length, raw.length - idx);
         return {
-          richBeforeText: raw.slice(0, idx),
-          richHighlightedText: raw.slice(idx, idx + matchLen),
-          richAfterText: raw.slice(idx + matchLen),
+          beforeText: raw.slice(0, idx),
+          highlightedText: raw.slice(idx, idx + matchLen),
+          afterText: raw.slice(idx + matchLen),
         };
       }
     }
 
-    return { richBeforeText: raw, richHighlightedText: '', richAfterText: '' };
-  }, [document.raw_markdown, highlightTarget, document.id, activeCitationSnippet]);
+    return { beforeText: raw, highlightedText: '', afterText: '' };
+  }, [
+    activeContent,
+    contentStartChar,
+    contentEndChar,
+    highlightTarget,
+    document.id,
+    activeCitationSnippet,
+  ]);
 
   // Clickable timestamps in chunk text for YouTube sources
   const renderChunkTextWithClickableTimestamps = (text: string) => {
     if (!text) return null;
+    if (!document.metadata?.is_youtube) return text;
     const regex = /((?:\[|\b)(?:\d{1,2}:)?\d{1,2}:\d{2}(?:\]|\b))/g;
     const parts = text.split(regex);
     return parts.map((part, pIdx) => {
@@ -402,7 +520,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     });
   };
 
-  // Scroll to cited chunk on click with cross-doc routing and video seek
+  // Scroll to cited evidence on click with cross-doc routing and video seek
   const handleCitationClick = (
     citationIndex: number,
     snippet?: string,
@@ -441,15 +559,33 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     setActiveCitationIndex(citationIndex);
     setActiveCitationSnippet(snippet || null);
 
+    // If paginated, switch to target page
+    if (pages.length > 1) {
+      let targetPageIdx = -1;
+      if (startChar !== undefined && startChar > 0) {
+        targetPageIdx = pages.findIndex(
+          (p) => startChar >= p.startChar && startChar < p.endChar
+        );
+      }
+      if (targetPageIdx === -1 && snippet) {
+        const needle = snippet.trim().toLowerCase().slice(0, 30);
+        targetPageIdx = pages.findIndex((p) => p.content.toLowerCase().includes(needle));
+      }
+      if (targetPageIdx >= 0) {
+        setCurrentPageIndex(targetPageIdx);
+      }
+    }
+
     // If video source, seek to citation's timestamp
     if (document.metadata?.is_youtube) {
       const ts = parseTimestampSeconds(snippet);
       if (ts !== null) {
         setActiveSeekTime(ts);
-      } else if (chunkId) {
-        const chk = chunks.find((c) => c.id === chunkId);
-        const chkTs = parseTimestampSeconds(chk?.content);
-        if (chkTs !== null) setActiveSeekTime(chkTs);
+      } else if (startChar !== undefined && startChar > 0) {
+        const raw = document.raw_markdown || '';
+        const windowText = raw.slice(Math.max(0, startChar - 150), Math.min(raw.length, (endChar || startChar) + 150));
+        const parsedSecs = parseTimestampSeconds(windowText);
+        if (parsedSecs !== null) setActiveSeekTime(parsedSecs);
       }
     }
 
@@ -466,34 +602,77 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
       });
     }
 
-    if (viewStyle === 'rich') {
-      setTimeout(() => {
-        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 50);
-      return;
-    }
-
-    let targetEl: HTMLDivElement | undefined;
-    if (snippet && snippet.trim().length > 0) {
-      const needle = snippet.trim().toLowerCase().slice(0, 30);
-      const matchIdx = chunks.findIndex((c) =>
-        c.content.toLowerCase().includes(needle)
-      );
-      if (matchIdx !== -1) {
-        targetEl = chunkRefs.current.get(matchIdx + 1);
-      }
-    }
-    if (!targetEl && chunkId) {
-      const matchIdx = chunks.findIndex((c) => c.id === chunkId);
-      if (matchIdx !== -1) {
-        targetEl = chunkRefs.current.get(matchIdx + 1);
-      }
-    }
-
-    if (targetEl) {
-      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    setTimeout(() => {
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
   };
+
+  const markdownComponents = useMemo(
+    () => ({
+      table: ({ node, ...props }: any) => (
+        <div className="overflow-x-auto my-4 border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214]">
+          <table className="min-w-full divide-y divide-[#E0E0DC] dark:divide-[#2A2A2E] text-xs font-sans" {...props} />
+        </div>
+      ),
+      thead: ({ node, ...props }: any) => (
+        <thead className="bg-[#F2F2F0] dark:bg-[#19191C] text-[#1A1A1A] dark:text-[#EDEDED] font-mono text-[10px] uppercase tracking-wider" {...props} />
+      ),
+      tbody: ({ node, ...props }: any) => (
+        <tbody className="divide-y divide-[#E0E0DC]/60 dark:divide-[#2A2A2E]/60" {...props} />
+      ),
+      tr: ({ node, ...props }: any) => (
+        <tr className="hover:bg-[#EBEBE8]/50 dark:hover:bg-[#1E1E22]/50 transition-colors" {...props} />
+      ),
+      th: ({ node, ...props }: any) => (
+        <th className="px-3 py-2 text-left font-semibold text-[#1A1A1A] dark:text-[#EDEDED]" {...props} />
+      ),
+      td: ({ node, ...props }: any) => (
+        <td className="px-3 py-2 text-[12px] whitespace-normal" {...props} />
+      ),
+      img: ({ node, src, alt, ...props }: any) => (
+        <div className="my-5 flex flex-col items-center">
+          <div
+            className="border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] group relative cursor-pointer max-w-2xl"
+            onClick={() => setSelectedImageUrl(src || '')}
+            title="Clic para ampliar figura"
+          >
+            <img
+              src={src}
+              alt={alt || 'Figura'}
+              className="w-full h-auto max-h-[480px] object-contain transition-transform group-hover:scale-[1.01]"
+              loading="lazy"
+              {...props}
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <span className="px-2 py-1 bg-[#1A1A1A] text-white text-[10px] font-mono flex items-center gap-1">
+                <Maximize2 className="w-3 h-3 text-[#1A56DB] dark:text-[#60A5FA]" /> Ampliar figura
+              </span>
+            </div>
+          </div>
+          {alt && (
+            <span className="text-[10px] text-[#666666] dark:text-[#888888] mt-1 text-center max-w-lg italic font-mono">
+              {alt}
+            </span>
+          )}
+        </div>
+      ),
+      blockquote: ({ node, ...props }: any) => (
+        <blockquote className="border-l-2 border-[#1A56DB] bg-[#1A56DB]/5 dark:bg-[#1A56DB]/10 px-3 py-2 my-2 text-xs italic text-[#1A1A1A] dark:text-[#EDEDED]" {...props} />
+      ),
+      a: ({ node, href, children, ...props }: any) => (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[#1A56DB] dark:text-[#60A5FA] underline underline-offset-2 hover:opacity-80"
+          {...props}
+        >
+          {children}
+        </a>
+      ),
+    }),
+    []
+  );
 
   const handleSend = async () => {
     if (!inputQuery.trim() || isSending) return;
@@ -733,27 +912,29 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
               <div className="flex items-center bg-[#EBEBE8] dark:bg-[#1E1E22] p-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E] text-[10px] font-mono">
                 <button
                   type="button"
-                  onClick={() => setViewStyle('raw')}
-                  className={`px-2 py-0.5 cursor-pointer transition-colors ${
-                    viewStyle === 'raw'
-                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
-                      : 'text-[#666666] dark:text-[#888888]'
-                  }`}
-                  title="Vista de texto y fragmentos numerados"
-                >
-                  Texto
-                </button>
-                <button
-                  type="button"
                   onClick={() => setViewStyle('rich')}
-                  className={`px-2 py-0.5 cursor-pointer transition-colors ${
+                  className={`px-2 py-0.5 cursor-pointer transition-colors inline-flex items-center gap-1 ${
                     viewStyle === 'rich'
                       ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
                       : 'text-[#666666] dark:text-[#888888]'
                   }`}
                   title="Vista formateada en Markdown"
                 >
-                  Formato
+                  <Layout className="w-3 h-3" />
+                  <span>Formato</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewStyle('raw')}
+                  className={`px-2 py-0.5 cursor-pointer transition-colors inline-flex items-center gap-1 ${
+                    viewStyle === 'raw'
+                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold'
+                      : 'text-[#666666] dark:text-[#888888]'
+                  }`}
+                  title="Vista de texto plano"
+                >
+                  <AlignLeft className="w-3 h-3" />
+                  <span>Texto</span>
                 </button>
               </div>
 
@@ -924,89 +1105,141 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                       </div>
                     </div>
                   )}
+                       {/* Pagination Toolbar when multi-page */}
+                  {pages.length > 1 && (
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F2F2F0] dark:bg-[#19191C] border-b border-[#E0E0DC] dark:border-[#2A2A2E] text-xs shrink-0 select-none font-mono">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPageIndex((prev) => Math.max(0, prev - 1))}
+                          disabled={currentPageIndex === 0}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#222226] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] disabled:opacity-35 disabled:cursor-not-allowed text-[#1A1A1A] dark:text-[#EDEDED] transition cursor-pointer text-[11px]"
+                          title="Página anterior"
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                          <span className="hidden sm:inline">Anterior</span>
+                        </button>
+
+                        <span className="font-medium text-[#1A1A1A] dark:text-[#EDEDED] text-[11px]">
+                          {currentPage?.pageNumber
+                            ? `Pág. ${currentPage.pageNumber}`
+                            : `Sección ${currentPageIndex + 1}`}
+                          <span className="text-[#666666] dark:text-[#888888]"> de {pages.length}</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPageIndex((prev) => Math.min(pages.length - 1, prev + 1))}
+                          disabled={currentPageIndex === pages.length - 1}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#222226] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] disabled:opacity-35 disabled:cursor-not-allowed text-[#1A1A1A] dark:text-[#EDEDED] transition cursor-pointer text-[11px]"
+                          title="Página siguiente"
+                        >
+                          <span className="hidden sm:inline">Siguiente</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-[#666666] dark:text-[#888888] hidden sm:inline">Ir a pág:</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={pages.length}
+                            value={currentPage?.pageNumber ?? currentPageIndex + 1}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val)) {
+                                const matchIdx = pages.findIndex((p) => p.pageNumber === val);
+                                if (matchIdx >= 0) {
+                                  setCurrentPageIndex(matchIdx);
+                                } else {
+                                  setCurrentPageIndex(Math.max(0, Math.min(pages.length - 1, val - 1)));
+                                }
+                              }
+                            }}
+                            className="w-12 px-1 py-0.5 text-center font-mono text-[11px] bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsPaginated(!isPaginated)}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono border transition cursor-pointer ${
+                            isPaginated
+                              ? 'bg-[#1A56DB] text-white border-[#1A56DB]'
+                              : 'bg-[#EBEBE8] dark:bg-[#222226] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] border-[#E0E0DC] dark:border-[#2A2A2E]'
+                          }`}
+                          title={
+                            isPaginated
+                              ? 'Modo paginado activo. Clic para ver documento continuo'
+                              : 'Modo continuo activo. Clic para ver paginado'
+                          }
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          <span className="hidden md:inline">{isPaginated ? 'Paginado' : 'Continuo'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Reading Content Pane */}
                   <div ref={leftPanelRef} className="flex-1 overflow-auto p-4 md:p-6 select-text">
                     {viewStyle === 'rich' ? (
                       /* Rich Markdown Mode with Grounded Citation Highlight */
                       <article className={`prose dark:prose-invert max-w-2xl mx-auto font-sans ${fontSizeClass}`}>
-                        {richHighlightedText ? (
+                        {highlightedText ? (
                           <div className="space-y-4">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {richBeforeText}
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                              {beforeText}
                             </ReactMarkdown>
                             <div
                               ref={highlightRef}
                               id="active-citation-highlight"
                               className="bg-amber-500/15 border-l-4 border-amber-500 px-4 py-3 my-3 text-[#1A1A1A] dark:text-[#EDEDED] ring-1 ring-amber-500/30 transition-all font-sans"
                             >
-                              <div className="text-[10px] font-mono uppercase font-bold tracking-wider text-amber-700 dark:text-amber-400 mb-1 flex items-center gap-1">
+                              <div className="text-[10px] font-mono uppercase font-bold tracking-wider text-amber-700 dark:text-amber-400 mb-1.5 flex items-center gap-1">
                                 <Bookmark className="w-3.5 h-3.5" />
                                 <span>Evidencia Fundamentada {activeCitationIndex !== null ? `[${activeCitationIndex}]` : ''}</span>
                               </div>
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {richHighlightedText}
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                {highlightedText}
                               </ReactMarkdown>
                             </div>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {richAfterText}
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                              {afterText}
                             </ReactMarkdown>
                           </div>
                         ) : (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {document.raw_markdown || '*Documento sin contenido disponible.*'}
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {activeContent || '*Documento sin contenido disponible.*'}
                           </ReactMarkdown>
                         )}
                       </article>
                     ) : (
-                      /* Raw Synchronized Chunks with Coordinates */
-                      <article className="space-y-5 max-w-2xl mx-auto font-sans">
-                        {chunks.map((chunk, idx) => {
-                          const chunkNum = idx + 1;
-                          const isActive =
-                            activeCitationIndex === chunkNum ||
-                            (Boolean(activeCitationSnippet) &&
-                              chunk.content.toLowerCase().includes(activeCitationSnippet!.toLowerCase().slice(0, 30)));
-
-                          return (
+                      /* Raw Text Mode with Grounded Citation Highlight */
+                      <article className={`max-w-2xl mx-auto font-mono text-[#1A1A1A] dark:text-[#EDEDED] ${fontSizeClass}`}>
+                        {highlightedText ? (
+                          <div className="whitespace-pre-wrap">
+                            <span>{renderChunkTextWithClickableTimestamps(beforeText)}</span>
                             <div
-                              key={chunk.id}
-                              ref={(el) => {
-                                if (el) chunkRefs.current.set(chunkNum, el);
-                                else chunkRefs.current.delete(chunkNum);
-                              }}
-                              className={`group relative pl-10 pr-3 py-2.5 border-l-2 transition-all ${
-                                isActive
-                                  ? 'border-[#1A56DB] bg-[#FEF08A]/30 dark:bg-[#1A56DB]/15 text-[#1A1A1A] dark:text-[#EDEDED]'
-                                  : 'border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E]'
-                              }`}
+                              ref={highlightRef}
+                              id="active-citation-highlight"
+                              className="bg-amber-500/15 border-l-4 border-amber-500 px-3 py-2.5 my-2.5 text-[#1A1A1A] dark:text-[#EDEDED] ring-1 ring-amber-500/30 transition-all font-mono"
                             >
-                              {/* Margin Coordinate Anchor */}
-                              <div className="absolute left-0 top-2.5 font-mono text-[10px] text-[#999999] dark:text-[#555555] select-none flex items-center gap-1">
-                                <span className="font-bold text-[#666666] dark:text-[#888888]">
-                                  [{String(chunkNum).padStart(2, '0')}]
-                                </span>
-                                {chunk.pageNumber && (
-                                  <span className="text-[9px]">P{chunk.pageNumber}</span>
-                                )}
+                              <div className="text-[10px] font-mono uppercase font-bold tracking-wider text-amber-700 dark:text-amber-400 mb-1.5 flex items-center gap-1">
+                                <Bookmark className="w-3.5 h-3.5" />
+                                <span>Evidencia Fundamentada {activeCitationIndex !== null ? `[${activeCitationIndex}]` : ''}</span>
                               </div>
-
-                              {/* Heading hierarchy context */}
-                              {chunk.headingPath && chunk.headingPath.length > 0 && (
-                                <div className="font-mono text-[10px] uppercase text-[#666666] dark:text-[#888888] mb-1 font-semibold tracking-wider">
-                                  § {chunk.headingPath.join(' › ')}
-                                </div>
-                              )}
-
-                              {/* Chunk Content */}
-                              <p className={`whitespace-pre-wrap font-sans text-[#1A1A1A] dark:text-[#EDEDED] ${fontSizeClass}`}>
-                                {document.metadata?.is_youtube
-                                  ? renderChunkTextWithClickableTimestamps(chunk.content)
-                                  : chunk.content}
-                              </p>
+                              {renderChunkTextWithClickableTimestamps(highlightedText)}
                             </div>
-                          );
-                        })}
+                            <span>{renderChunkTextWithClickableTimestamps(afterText)}</span>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap">
+                            {renderChunkTextWithClickableTimestamps(activeContent || 'Documento sin contenido disponible.')}
+                          </div>
+                        )}
                       </article>
                     )}
                   </div>
@@ -1515,6 +1748,51 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
             if (onMessagesImported) onMessagesImported(newMsgs);
           }}
         />
+      )}
+      {/* Lightbox modal for enlarged image preview */}
+      {selectedImageUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in select-none"
+          onClick={() => setSelectedImageUrl(null)}
+        >
+          <div
+            className="relative max-w-5xl max-h-[90vh] bg-[#F9F9F8] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#141416]">
+              <div className="flex items-center gap-1.5 text-xs font-mono text-[#1A1A1A] dark:text-[#EDEDED]">
+                <FileText className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
+                <span>Figura extraída / Esquema</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedImageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-1 text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]"
+                  title="Abrir imagen original en nueva pestaña"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImageUrl(null)}
+                  className="p-1 text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] cursor-pointer"
+                  title="Cerrar (Esc)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 overflow-auto flex items-center justify-center bg-black/10 min-h-[300px]">
+              <img
+                src={selectedImageUrl}
+                alt="Figura ampliada"
+                className="max-w-full max-h-[75vh] object-contain"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
