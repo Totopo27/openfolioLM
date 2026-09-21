@@ -59,6 +59,39 @@ import {
   GroundedChatMessage,
 } from './components/archival/ArchivalSplitViewer';
 
+export const formatShortModelName = (name: string): string => {
+  if (!name) return 'Modelo';
+  // Strip provider prefixes e.g. "ollama:qwen2.5:3b" or "google/"
+  let clean = name.replace(/^(ollama|google|openai|anthropic|groq|openrouter):/i, '').trim();
+  // Strip parenthetical text like "(3.1B)" or "(Offline)"
+  clean = clean.replace(/\s*\([^)]*\)/g, '').trim();
+  // Strip tags like ":latest" or ":3b" or ":8b"
+  clean = clean.replace(/:[a-zA-Z0-9_.-]+/g, '').trim();
+
+  // Handle GPT models specifically: "gpt-4o", "gpt-4.5-turbo", "gpt-4o-mini", "chatgpt-4o"
+  const gptMatch = clean.match(/^(?:chat)?gpt[\s\-_]*(\d+(?:\.\d+)?(?:o)?)/i);
+  if (gptMatch) {
+    return `GPT-${gptMatch[1]}`;
+  }
+
+  // Match model name followed by version numbers e.g. "gemini 2.5", "claude-3.5", "qwen2.5", "llama3.2", "deepseek-r1"
+  const matchWithVersion = clean.match(/^([A-Za-z]+)[\s\-_]*([vr])?(\d+(?:\.\d+)?)/i);
+  if (matchWithVersion) {
+    const brand = matchWithVersion[1];
+    const formattedBrand = brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
+    const prefix = matchWithVersion[2] ? matchWithVersion[2].toUpperCase() : '';
+    const version = matchWithVersion[3];
+    return prefix ? `${formattedBrand} ${prefix}${version}` : `${formattedBrand} ${version}`;
+  }
+
+  // Fallback: take first two words or first 14 chars
+  const words = clean.split(/[\s\-_]+/);
+  if (words.length >= 2) {
+    return `${words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase()} ${words[1]}`;
+  }
+  return clean.slice(0, 14);
+};
+
 export const App: React.FC = () => {
   // Public shared conversation viewer (?share=share_xxxx)
   const [shareId, setShareId] = useState<string | null>(() => {
@@ -1050,23 +1083,30 @@ export const App: React.FC = () => {
             {/* Right: Engine Selector, Health Monitor, Logs, and UI Mode Switch */}
             <div className="flex items-center gap-2 font-mono text-xs">
               <div className="flex items-center gap-1.5 bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-2 py-0.5">
-                <span className="text-[10px] text-[#666666] dark:text-[#888888]">ENGINE:</span>
-                <select
-                  value={selectedEngine}
-                  onChange={(e) => {
-                    const newEngine = e.target.value;
-                    setSelectedEngine(newEngine);
-                    localStorage.setItem('openfolio_selected_engine', newEngine);
-                    triggerModelPing(newEngine);
-                  }}
-                  className="bg-transparent text-[11px] font-mono text-[#1A56DB] dark:text-[#60A5FA] focus:outline-none cursor-pointer max-w-[150px] truncate"
-                >
-                  {models.map((m) => (
-                    <option key={m.id} value={m.id} className="bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED]">
-                      {m.name} {!m.is_available ? '(Offline)' : ''}
-                    </option>
-                  ))}
-                </select>
+                <span className="text-[10px] text-[#666666] dark:text-[#888888]">Modelo:</span>
+                <div className="relative inline-flex items-center">
+                  <span className="text-[11px] font-mono text-[#1A56DB] dark:text-[#60A5FA] font-medium pr-3.5 pointer-events-none select-none">
+                    {formatShortModelName(activeModel?.name || selectedEngine)}
+                  </span>
+                  <ChevronDown className="w-2.5 h-2.5 text-[#666666] dark:text-[#888888] absolute right-0 pointer-events-none" />
+                  <select
+                    value={selectedEngine}
+                    onChange={(e) => {
+                      const newEngine = e.target.value;
+                      setSelectedEngine(newEngine);
+                      localStorage.setItem('openfolio_selected_engine', newEngine);
+                      triggerModelPing(newEngine);
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-xs"
+                    title="Seleccionar modelo"
+                  >
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id} className="bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED]">
+                        {m.name} {!m.is_available ? '(Offline)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 {activeModel && (
                   <span
@@ -1385,7 +1425,7 @@ export const App: React.FC = () => {
         {/* Dynamic Engine Switcher & Health Monitor */}
         <div className="flex items-center gap-3 text-xs text-slate-400 font-medium">
           <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80">
-            <span className="text-[11px] text-slate-400 font-mono">Engine:</span>
+            <span className="text-[11px] text-slate-400 font-mono">Modelo:</span>
             <select
               value={selectedEngine}
               onChange={(e) => {

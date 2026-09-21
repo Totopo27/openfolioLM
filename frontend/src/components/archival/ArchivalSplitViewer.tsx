@@ -1277,7 +1277,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA] shrink-0" aria-hidden="true" />
             <h3 className="text-xs font-semibold tracking-tight font-sans text-[#1A1A1A] dark:text-[#EDEDED] truncate">
-              Chat de Evidencia
+              Chat
             </h3>
 
             {/* Source Selector Button & Dropdown */}
@@ -1483,7 +1483,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
         <div className="px-3.5 py-1.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] flex items-center justify-between text-[10px] font-mono text-[#666666] dark:text-[#888888] shrink-0 gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${activeCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`} aria-hidden="true" />
-            <span className="font-bold uppercase tracking-wider text-[9px] shrink-0">FUENTES EN RAG:</span>
+            <span className="font-bold uppercase tracking-wider text-[9px] shrink-0">FUENTE:</span>
             {activeCount === 0 ? (
               <span className="text-amber-700 dark:text-amber-400 font-semibold truncate flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />

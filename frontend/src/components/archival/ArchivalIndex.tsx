@@ -280,7 +280,7 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
         await handleProcessFiles(files);
       }}
       className="relative w-full h-full flex flex-col bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] font-sans antialiased select-none overflow-hidden"
-      aria-label="Catálogo de Fuentes de Investigación"
+      aria-label="Catálogo de Fuentes"
     >
       {/* Hidden File Inputs for Different Modal Modalities */}
       <input
@@ -374,14 +374,14 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
             </span>
             <span aria-hidden="true" className="text-[#E0E0DC] dark:text-[#2A2A2E]">|</span>
             <h1 className="text-sm font-semibold tracking-tight font-sans">
-              Fuentes de Investigación
+              Fuentes
             </h1>
             <span className="font-mono text-xs text-[#666666] dark:text-[#888888] tabular-nums bg-[#EBEBE8] dark:bg-[#222226] px-1.5 py-0.5 border border-[#E0E0DC] dark:border-[#2A2A2E]">
               {documents.length} {documents.length === 1 ? 'fuente' : 'fuentes'}
             </span>
             {activeSourceIds.length > 0 && (
               <span className="font-mono text-xs text-emerald-700 dark:text-emerald-400 tabular-nums bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/20">
-                {activeSourceIds.length} en contexto activo
+                {activeSourceIds.length} activo
               </span>
             )}
             {autoclassifyFeedback && (
@@ -659,7 +659,7 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
               </th>
 
               <th scope="col" className="p-3 font-medium border-r border-[#E0E0DC] dark:border-[#2A2A2E]">
-                Título, Autoría y Taxonomía
+                Documento
               </th>
               <th scope="col" className="p-3 font-medium border-r border-[#E0E0DC] dark:border-[#2A2A2E] w-20 text-center">
                 Año
@@ -897,11 +897,6 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
         </table>
       </div>
 
-      {/* Footer Info */}
-      <footer className="border-t border-[#E0E0DC] dark:border-[#2A2A2E] p-2.5 px-4 font-mono text-[11px] text-[#666666] dark:text-[#888888] flex items-center justify-between bg-[#F2F2F0] dark:bg-[#19191C] shrink-0">
-        <div>ESTADO: MOTOR DE GROUNDING ACTIVO</div>
-        <div className="tabular-nums">TOTAL DE FRAGMENTOS: {documents.reduce((acc, d) => acc + d.chunkCount, 0)}</div>
-      </footer>
 
       {/* URL / DOI / YouTube Ingestion Modal */}
       {isUrlModalOpen && (
