@@ -107,32 +107,32 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   }, [fileKeys, filterQuery]);
 
   return (
-    <div className="h-full flex flex-col bg-slate-950 border-r border-slate-800/80 overflow-hidden select-text">
+    <div className="h-full flex flex-col bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] border-r border-[#E0E0DC] dark:border-[#2A2A2E] overflow-hidden select-text font-sans">
       {/* Code Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20">
-            {isRepo ? <FolderTree className="w-5 h-5" /> : <Code2 className="w-5 h-5" />}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#161618] shrink-0 font-mono">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-1.5 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E]">
+            {isRepo ? <FolderTree className="w-4 h-4" /> : <Code2 className="w-4 h-4" />}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-200 truncate font-mono" title={currentFileName}>
+              <h2 className="text-xs font-bold text-[#1A1A1A] dark:text-[#EDEDED] truncate font-mono" title={currentFileName}>
                 {currentFileName}
               </h2>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700">
+              <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 bg-[#EBEBE8] dark:bg-[#1E1E22] text-[#1A56DB] dark:text-[#60A5FA] border border-[#E0E0DC] dark:border-[#2A2A2E]">
                 {ext}
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-mono">
-              {lines.length} líneas &bull; {activeCode.length.toLocaleString()} caracteres
-              {isRepo ? ` &bull; ${fileKeys.length} archivos en repo` : ''}
+            <p className="text-[10px] text-[#666666] dark:text-[#888888] font-mono tabular-nums">
+              {lines.length} líneas · {activeCode.length.toLocaleString()} caracteres
+              {isRepo ? ` · ${fileKeys.length} archivos en paquete` : ''}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {isTargetInCurrentCode && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
               <Bookmark className="w-3 h-3" /> Cita Enfocada
             </span>
           )}
@@ -140,7 +140,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
           {highlightTarget && onClearHighlight && (
             <button
               onClick={onClearHighlight}
-              className="text-xs text-slate-400 hover:text-slate-200 underline"
+              className="text-[10px] font-mono text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] underline cursor-pointer"
             >
               Limpiar
             </button>
@@ -148,34 +148,34 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
 
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 transition-colors border border-slate-800 cursor-pointer"
-            title="Copiar código"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-mono bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
+            title="Copiar código fuente"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3 h-3" />}
             <span>{copied ? 'Copiado' : 'Copiar'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Workspace: Optional Repo Tree Sidebar + Code Pane */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Workspace: Repo File Explorer Sidebar + Code Pane */}
+      <div className="flex-1 flex overflow-hidden font-mono">
         {/* Repo File Explorer Sidebar */}
         {isRepo && (
-          <div className="w-60 border-r border-slate-800/80 bg-slate-900/40 flex flex-col shrink-0">
-            <div className="p-2 border-b border-slate-800/60">
+          <div className="w-56 border-r border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#161618] flex flex-col shrink-0">
+            <div className="p-2 border-b border-[#E0E0DC] dark:border-[#2A2A2E]">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                <Search className="w-3 h-3 text-[#666666] dark:text-[#888888] absolute left-2 top-2" />
                 <input
                   type="text"
                   placeholder="Filtrar archivos..."
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-8 pr-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  className="w-full bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] pl-7 pr-2 py-1 text-[11px] text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED]"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5 font-mono text-xs">
+            <div className="flex-1 overflow-y-auto p-1 space-y-0.5 font-mono text-xs">
               {visibleFiles.map((file) => {
                 const isSelected = file === selectedFile;
                 const fileHasActiveCitation =
@@ -188,19 +188,19 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
                   <button
                     key={file}
                     onClick={() => setSelectedFile(file)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-1.5 transition-colors cursor-pointer group ${
+                    className={`w-full text-left px-2 py-1 flex items-center justify-between gap-1.5 transition-colors cursor-pointer border ${
                       isSelected
-                        ? 'bg-cyan-950/60 text-cyan-300 font-semibold border border-cyan-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                        ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED] font-bold'
+                        : 'bg-transparent text-[#666666] dark:text-[#888888] border-transparent hover:bg-[#EBEBE8] dark:hover:bg-[#1E1E22] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED]'
                     }`}
                     title={file}
                   >
-                    <span className="truncate flex items-center gap-1.5">
-                      <FileCode className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-cyan-400' : 'text-slate-500'}`} />
-                      <span className="truncate">{file}</span>
+                    <span className="truncate flex items-center gap-1.5 min-w-0">
+                      <FileCode className={`w-3 h-3 shrink-0 ${isSelected ? 'text-[#F9F9F8] dark:text-[#121214]' : 'text-[#666666] dark:text-[#888888]'}`} />
+                      <span className="truncate text-[11px]">{file}</span>
                     </span>
                     {fileHasActiveCitation && (
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Contiene la cita citada" />
+                      <span className="w-1.5 h-1.5 bg-amber-500 shrink-0" title="Contiene cita activa" />
                     )}
                   </button>
                 );
@@ -210,7 +210,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
         )}
 
         {/* Code Content Pane with Line Numbers */}
-        <div className="flex-1 overflow-y-auto bg-slate-950 p-4 font-mono text-xs leading-relaxed">
+        <div className="flex-1 overflow-y-auto bg-[#F9F9F8] dark:bg-[#121214] p-3 font-mono text-xs leading-relaxed">
           <div className="table w-full border-collapse">
             {lines.map((line, idx) => {
               const lineNum = idx + 1;
@@ -226,16 +226,16 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
                   ref={isLineInQuote ? highlightRef : undefined}
                   className={`table-row transition-colors ${
                     isLineInQuote
-                      ? 'bg-amber-400/15 border-l-4 border-amber-400 text-amber-200'
-                      : 'hover:bg-slate-900/60 text-slate-300'
+                      ? 'bg-amber-500/15 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200 font-semibold'
+                      : 'hover:bg-[#EBEBE8]/60 dark:hover:bg-[#1E1E22]/60 text-[#1A1A1A] dark:text-[#EDEDED]'
                   }`}
                 >
                   {/* Line Number Gutter */}
-                  <span className="table-cell text-right pr-4 pl-2 select-none text-slate-600 font-mono text-[11px] w-12 shrink-0">
+                  <span className="table-cell text-right pr-3 pl-1 select-none text-[#999999] dark:text-[#555555] font-mono text-[11px] w-10 shrink-0 border-r border-[#E0E0DC] dark:border-[#2A2A2E]">
                     {lineNum}
                   </span>
                   {/* Code Content */}
-                  <span className="table-cell whitespace-pre font-mono pl-2">
+                  <span className="table-cell whitespace-pre font-mono pl-3">
                     {line || ' '}
                   </span>
                 </div>

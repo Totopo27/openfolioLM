@@ -26,10 +26,10 @@ interface SimNode extends GraphNode {
 }
 
 const ROLE_COLORS: Record<GraphRole, { fill: string; stroke: string; label: string; icon: string }> = {
-  foundation: { fill: '#f59e0b', stroke: '#fbbf24', label: 'Fundacional / Landmark', icon: 'Award' },
-  frontier: { fill: '#10b981', stroke: '#34d399', label: 'Frontera SOTA (Reciente)', icon: 'Zap' },
-  bridge: { fill: '#8b5cf6', stroke: '#a78bfa', label: 'Puente Interdisciplinario', icon: 'GitMerge' },
-  corpus: { fill: '#3b82f6', stroke: '#60a5fa', label: 'Literatura de Corpus', icon: 'BookOpen' },
+  foundation: { fill: '#d97706', stroke: '#92400e', label: 'Fundacional / Landmark', icon: 'Award' },
+  frontier: { fill: '#059669', stroke: '#065f46', label: 'Frontera SOTA (Reciente)', icon: 'Zap' },
+  bridge: { fill: '#7c3aed', stroke: '#5b21b6', label: 'Puente Interdisciplinario', icon: 'GitMerge' },
+  corpus: { fill: '#2563eb', stroke: '#1e40af', label: 'Literatura de Corpus', icon: 'BookOpen' },
 };
 
 export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
@@ -81,18 +81,19 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
       const data = await fetchProjectNetwork(projectId, minSimilarity);
       setGraphData(data);
 
-      // Initialize simulation positions
+      // Initialize simulation positions in CSS coordinates
       const canvas = canvasRef.current;
-      const width = canvas ? canvas.width : 700;
-      const height = canvas ? canvas.height : 600;
+      const rect = canvas?.getBoundingClientRect();
+      const width = rect && rect.width > 0 ? rect.width : (canvas?.clientWidth || 800);
+      const height = rect && rect.height > 0 ? rect.height : (canvas?.clientHeight || 600);
       const cx = width / 2;
       const cy = height / 2;
 
       simNodesRef.current = data.nodes.map((node, i) => {
         const angle = (i / Math.max(1, data.nodes.length)) * 2 * Math.PI;
-        const dist = 120 + Math.random() * 100;
+        const dist = 140 + Math.random() * 80;
         const radius =
-          node.role === 'foundation' ? 20 : node.role === 'bridge' ? 17 : node.role === 'frontier' ? 16 : 13;
+          node.role === 'foundation' ? 22 : node.role === 'bridge' ? 19 : node.role === 'frontier' ? 18 : 15;
 
         return {
           ...node,
@@ -134,9 +135,9 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
       const nodes = simNodesRef.current;
       const canvas = canvasRef.current;
       if (!canvas) return;
-
-      const width = canvas.width;
-      const height = canvas.height;
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width > 0 ? rect.width : (canvas.clientWidth || 800);
+      const height = rect.height > 0 ? rect.height : (canvas.clientHeight || 600);
       const cx = width / 2;
       const cy = height / 2;
 
@@ -223,6 +224,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
       ctx.scale(dpr * scale, dpr * scale);
       ctx.translate(offset.x, offset.y);
 
+      const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
       const nodes = simNodesRef.current;
 
       // Draw Edges
@@ -236,18 +238,19 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         ctx.lineTo(t.x, t.y);
 
         if (edge.type === 'citation') {
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)'; // slate-400
-          ctx.lineWidth = 1.8;
+          ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.75)' : 'rgba(71, 85, 105, 0.8)';
+          ctx.lineWidth = 2.0;
           ctx.setLineDash([]);
         } else if (edge.type === 'co_authorship') {
-          ctx.strokeStyle = 'rgba(244, 114, 182, 0.6)'; // pink-400
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isDark ? 'rgba(244, 114, 182, 0.8)' : 'rgba(190, 24, 93, 0.8)';
+          ctx.lineWidth = 1.8;
           ctx.setLineDash([4, 4]);
         } else {
           // semantic similarity
-          const alpha = Math.max(0.2, edge.weight * 0.75);
-          ctx.strokeStyle = `rgba(99, 102, 241, ${alpha})`; // indigo-500
-          ctx.lineWidth = Math.max(1, edge.weight * 3);
+          const baseAlpha = isDark ? 0.35 : 0.5;
+          const alpha = Math.min(1.0, baseAlpha + edge.weight * 0.5);
+          ctx.strokeStyle = isDark ? `rgba(96, 165, 250, ${alpha})` : `rgba(26, 86, 219, ${alpha})`;
+          ctx.lineWidth = Math.max(1.5, edge.weight * 3.5);
           ctx.setLineDash([]);
         }
         ctx.stroke();
@@ -255,7 +258,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         // Draw directed arrow for citations
         if (edge.type === 'citation') {
           const angle = Math.atan2(t.y - s.y, t.x - s.x);
-          const arrowLen = 9;
+          const arrowLen = 10;
           const arrowX = t.x - Math.cos(angle) * (t.radius + 3);
           const arrowY = t.y - Math.sin(angle) * (t.radius + 3);
 
@@ -270,7 +273,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
             arrowY - arrowLen * Math.sin(angle + Math.PI / 6)
           );
           ctx.closePath();
-          ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+          ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.9)' : 'rgba(71, 85, 105, 0.95)';
           ctx.fill();
         }
       }
@@ -287,8 +290,10 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         // Outer glow on selected or hovered
         if (isSelected || isHovered) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + 6, 0, 2 * Math.PI);
-          ctx.fillStyle = isSelected ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.2)';
+          ctx.arc(node.x, node.y, node.radius + 7, 0, 2 * Math.PI);
+          ctx.fillStyle = isSelected
+            ? 'rgba(26, 86, 219, 0.35)'
+            : (isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)');
           ctx.fill();
         }
 
@@ -297,16 +302,26 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
         ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
         ctx.fillStyle = roleConfig.fill;
         ctx.fill();
-        ctx.strokeStyle = isSelected ? '#ffffff' : roleConfig.stroke;
+        ctx.strokeStyle = isSelected ? (isDark ? '#ffffff' : '#1A1A1A') : roleConfig.stroke;
         ctx.lineWidth = isSelected ? 3 : 1.5;
         ctx.stroke();
 
-        // Node Label
-        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillStyle = isSelected ? '#ffffff' : '#cbd5e1';
+        // Node Label with protective halo
+        ctx.font = 'bold 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(node.label, node.x, node.y + node.radius + 4);
+
+        // Halo outline for maximum legibility on any background
+        ctx.strokeStyle = isDark ? '#121214' : '#F4F4F2';
+        ctx.lineWidth = 3.5;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(node.label, node.x, node.y + node.radius + 5);
+
+        // Crisp text fill
+        ctx.fillStyle = isSelected
+          ? (isDark ? '#60A5FA' : '#1A56DB')
+          : (isDark ? '#EDEDED' : '#1A1A1A');
+        ctx.fillText(node.label, node.x, node.y + node.radius + 5);
       }
 
       ctx.restore();
@@ -546,7 +561,7 @@ export const NetworkGraphViewer: React.FC<NetworkGraphViewerProps> = ({
       </div>
 
       {/* Main Interactive Canvas */}
-      <div className="flex-1 relative overflow-hidden bg-[#F4F4F2] dark:bg-[#0E0E10] cursor-grab active:cursor-grabbing">
+      <div className="flex-1 relative overflow-hidden bg-[#F4F4F2] dark:bg-[#121214] bg-[radial-gradient(#D0D0CC_1px,transparent_1px)] dark:bg-[radial-gradient(#2A2A2E_1px,transparent_1px)] [background-size:24px_24px] cursor-grab active:cursor-grabbing">
         {isLoading && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#F9F9F8]/80 dark:bg-[#121214]/80 backdrop-blur-sm">
             <Sparkles className="w-6 h-6 text-[#1A56DB] dark:text-[#60A5FA] animate-spin mb-2" />

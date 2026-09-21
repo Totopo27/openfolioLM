@@ -160,7 +160,7 @@ export const SharedConversationView: React.FC<SharedConversationViewProps> = ({
             {snapshot.title}
           </h1>
           <p className="text-[11px] font-mono text-[#666666] dark:text-[#888888]">
-            Publicado el {new Date(snapshot.created_at).toLocaleDateString()} &bull; {snapshot.messages.length} mensajes
+            Publicado el {new Date(snapshot.created_at).toLocaleDateString()} · {snapshot.messages.length} mensajes
           </p>
         </div>
 
