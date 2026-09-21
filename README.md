@@ -1,90 +1,116 @@
 # OpenFolioLM
 
-> **An open-source, local-first alternative to Google NotebookLM focused on high-precision RAG, zero-hallucination grounding, and synchronized document exploration.**
+> Plataforma de investigación documental y síntesis en dominio cerrado con anclaje factual estricto, verificación de inferencia lógica (NLI) y exploración sincronizada de fuentes en interfaz Paper & Ink.
+
+Para consultar la guía operativa completa paso a paso con todos los flujos de trabajo detallados, revise el [Manual de Uso de OpenFolioLM](docs/MANUAL_DE_USO.md).
 
 ---
 
-## 🎯 Vision & Purpose
+## Visión y Principios de Diseño
 
-Google NotebookLM redefined how we interact with complex documents by introducing **source-gated context, strict factual grounding, and interactive citations linked directly to a side-by-side document viewer**.
+OpenFolioLM es una estación de trabajo local y de código abierto orientada al análisis riguroso de documentos complejos sin fugas de privacidad ni dependencia de servicios propietarios en la nube:
 
-However, relying on proprietary cloud services exposes sensitive documents and limits customization. **OpenFolioLM** brings this exact core experience to your local machine:
-
-1. **Strict Grounding & Zero Hallucination**: The LLM answers strictly within the boundary of active documents (`Closed-Domain Synthesis`). Missing information triggers explicit missing evidence reporting rather than plausible confabulation.
-2. **Positional Chunking & Verifiable Citations**: Every extracted chunk preserves exact character offsets (`start_char`, `end_char`) and Markdown heading hierarchies. When the model outputs `[^1]`, the UI highlights the verbatim passage in the original document.
-3. **Source-Gated Context**: Checkbox-level control over which uploaded documents participate in any given query.
-4. **Interactive Split-Screen Viewer**: Read documents on the left while conversing on the right. Clicking any citation smoothly auto-scrolls the viewer and highlights the source evidence.
-
----
-
-## 🏗️ Architecture: Hexagonal (Ports & Adapters)
-
-OpenFolioLM separates business domain logic from infrastructure details:
-
-```
-                          ┌───────────────────────────────┐
-                          │          CORE DOMAIN          │
-                          │  SourceDocument, Chunk,       │
-                          │  Citation, GroundedResponse   │
-                          └───────────────┬───────────────┘
-                                          │
-            ┌─────────────────────────────┼─────────────────────────────┐
-            ▼                             ▼                             ▼
-    [Port: Ingestion]            [Port: Retrieval]             [Port: Synthesizer]
-            │                             │                             │
-            ▼                             ▼                             ▼
-   (Adapter: MarkItDown         (Adapter: Hybrid BM25         (Adapter: Closed-Domain
-    In-Process Converter)        + Vector + FlashRank)         Citation Generator)
-```
-
-### Components
-
-* **Ingestion (`app/adapters/markitdown_adapter.py`)**: Uses Microsoft MarkItDown to convert PDF, DOCX, PPTX, XLSX, images, and text into clean, structured Markdown.
-* **Positional Chunker (`app/adapters/positional_chunker.py`)**: Segments Markdown on heading hierarchies (`#`, `##`, `###`) and paragraphs while calculating precise character offsets for UI grounding.
-* **Storage & Hybrid Search (`app/adapters/sqlite_store.py`)**: SQLite-backed metadata storage with FTS5 lexical matching (BM25) and dense embeddings.
-* **Re-Ranking (`app/adapters/reranker.py`)**: Ultra-lightweight local FlashRank (ONNX) running on CPU to prune retrieval noise before prompt synthesis.
-* **API Layer (`app/api/`)**: FastAPI endpoints with SSE (Server-Sent Events) streaming.
-* **Frontend (`frontend/`)**: Vite + React + Tailwind CSS dual-pane interface.
+1. **Síntesis en Dominio Cerrado (Zero-Hallucination Grounding)**: El modelo responde estrictamente dentro de los límites del material documental activo. Si una respuesta no cuenta con respaldo explícito en las fuentes, el sistema declara la ausencia de evidencia en lugar de generar inferencias especulativas.
+2. **Segmentación Posicional y Citas Determinísticas**: Cada fragmento indexado preserva sus coordenadas exactas (`start_char`, `end_char`), página y jerarquía de títulos. Al interactuar con citas numéricas (`[^1]`, `[^2]`), la interfaz resalta el fragmento verbatim en el documento original.
+3. **Control Granular de Fuentes (Source-Gated Context)**: Activación y desactivación individual de fuentes para delimitar con exactitud qué documentos participan en cada consulta.
+4. **Espacio Analítico Sincronizado**: Visor lateral multimodal que vincula el diálogo con el texto íntegro de las fuentes, notas estructuradas, líneas de tiempo, grafos de conocimiento y herramientas de taxonomía.
+5. **Auditoría de Factualidad NLI**: Evaluación sistemática de inferencia de lenguaje natural sobre las respuestas para certificar su consistencia lógica frente a las premisas textuales.
 
 ---
 
-## 🚀 Quick Start
+## Arquitectura del Sistema: Puertos y Adaptadores (Hexagonal)
 
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
+El núcleo de negocio y las entidades de dominio operan de manera desacoplada de los adaptadores de infraestructura y persistencia:
 
-### 1. Backend Setup
+![Arquitectura Hexagonal](docs/img/architecture.svg)
+
+> Puede visualizar o exportar este diagrama en alta resolución abriendo directamente [docs/architecture.html](docs/architecture.html).
+
+### Componentes Principales
+
+- **Ingesta (`app/adapters/markitdown_adapter.py`)**: Conversión estructurada de PDF, DOCX, PPTX, XLSX, imágenes, transcripciones de YouTube y texto plano a formato Markdown limpio.
+- **Segmentador Posicional (`app/adapters/positional_chunker.py`)**: División determinística basada en encabezados Markdown y párrafos, calculando offsets absolutos para navegación en la interfaz.
+- **Persistencia y Búsqueda Híbrida (`app/adapters/sqlite_store.py`)**: Almacenamiento relacional en SQLite con búsqueda de texto completo FTS5 (BM25) e indexación vectorial densa.
+- **Re-clasificación Local (`app/adapters/reranker.py`)**: Modelo FlashRank (ONNX) ejecutado localmente en CPU para depurar y ordenar los fragmentos recuperados antes de la síntesis.
+- **Capa de Servicio y API (`app/api/`)**: Endpoints asíncronos en FastAPI con streaming Server-Sent Events (SSE).
+- **Interfaz de Usuario (`frontend/`)**: Aplicación React + Vite + Tailwind CSS construida bajo el sistema de diseño Paper & Ink.
+
+---
+
+## Puesta en Marcha
+
+### Requisitos Previos
+- Python 3.11 o superior.
+- Node.js 18 o superior.
+- Gestor de paquetes `pip` y `npm`.
+
+### 1. Configuración del Backend
+
 ```bash
 cd backend
 python -m venv .venv
-# On Windows:
+
+# En Windows:
 .venv\Scripts\activate
-# On Unix/macOS:
+
+# En Linux / macOS:
 source .venv/bin/activate
 
 pip install -r requirements.txt
+```
+
+Configure las variables de entorno creando un archivo `.env` en la carpeta `backend`:
+
+```env
+OPENFOLIO_DB_PATH=../openfolio.db
+GEMINI_API_KEY=su_clave_aqui
+DEFAULT_GEMINI_MODEL=gemini-3.6-flash
+```
+
+Inicie el servidor FastAPI:
+
+```bash
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 2. Frontend Setup
+### 2. Configuración del Frontend
+
+En una terminal independiente:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
+Abra su navegador en `http://localhost:5173`.
+
+### 3. Ejecución Directa mediante Scripts (Windows)
+
+El proyecto incluye scripts por lotes para iniciar el entorno en un solo paso:
+- `start.bat`: Inicializa simultáneamente el backend y el frontend.
+- `start-backend.bat`: Inicializa el entorno virtual y el servidor Uvicorn.
+- `start-frontend.bat`: Inicializa el servidor de desarrollo Vite.
+
 ---
 
-## 🧪 Testing (Strict TDD)
+## Verificación y Pruebas
 
-Run the backend test suite:
+### Suite de Pruebas del Backend
+Ejecución de la suite completa con Pytest:
 ```bash
 pytest backend/tests -v
 ```
 
+### Comprobación Estática del Frontend
+Verificación de tipos en TypeScript:
+```bash
+cd frontend
+npx tsc --noEmit
+```
+
 ---
 
-## 📄 License
+## Licencia
 
-MIT
+Este proyecto se distribuye bajo los términos de la Licencia MIT.

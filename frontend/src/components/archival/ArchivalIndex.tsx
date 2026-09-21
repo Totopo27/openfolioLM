@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   Plus,
   ChevronDown,
+  ChevronUp,
   Upload,
   Headphones,
   Globe,
@@ -113,6 +114,7 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
 
   // Drag & drop state
   const [isDragging, setIsDragging] = useState(false);
+  const [isDropzoneCollapsed, setIsDropzoneCollapsed] = useState(false);
   const dragCounterRef = useRef(0);
 
   // File input refs
@@ -632,9 +634,142 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
         )}
       </header>
 
-      {/* Catalog Table */}
+      {/* Compact Drop Area for Existing Catalog */}
+      {documents.length > 0 && (
+        <div className="border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F2F2F0] dark:bg-[#19191C] px-4 py-2 shrink-0">
+          {!isDropzoneCollapsed ? (
+            <div
+              onClick={() => fileInputDocRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+              }}
+              className={`border border-dashed transition-all px-3 py-2 flex items-center justify-between gap-3 cursor-pointer group ${
+                isDragging
+                  ? 'border-[#1A56DB] bg-[#1A56DB]/10'
+                  : 'border-[#CCCCCC] dark:border-[#333336] hover:border-[#1A1A1A] dark:hover:border-[#EDEDED] bg-[#F9F9F8] dark:bg-[#121214]'
+              }`}
+              title="Arrastrar archivos o hacer clic para abrir el explorador"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Upload
+                  className={`w-4 h-4 text-[#1A1A1A] dark:text-[#EDEDED] shrink-0 ${
+                    isDragging ? 'animate-bounce text-[#1A56DB]' : 'group-hover:scale-110 transition-transform'
+                  }`}
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+                    {isDragging ? 'Soltá los archivos para subirlos' : 'Arrastrar fuentes aquí o hacer clic para examinar'}
+                  </span>
+                  <span className="font-mono text-[10px] text-[#666666] dark:text-[#888888]">
+                    · PDF, DOCX, TXT, MD, EPUB, Audio (.mp3, .wav), ZIP
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDropzoneCollapsed(true);
+                  }}
+                  className="px-1.5 py-0.5 text-[10px] font-mono text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] hover:bg-[#EBEBE8] dark:hover:bg-[#222226] border border-transparent hover:border-[#E0E0DC] dark:hover:border-[#2A2A2E] transition-colors cursor-pointer flex items-center gap-1"
+                  title="Ocultar barra de arrastre para maximizar la tabla"
+                >
+                  <span>Ocultar</span>
+                  <ChevronUp className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-[11px] font-mono text-[#666666] dark:text-[#888888]">
+              <span className="text-[10px] uppercase text-[#888888]">Zona de arrastre oculta</span>
+              <button
+                type="button"
+                onClick={() => setIsDropzoneCollapsed(false)}
+                className="hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] hover:underline cursor-pointer flex items-center gap-1"
+                title="Mostrar zona de arrastre"
+              >
+                <span>Mostrar zona de arrastre</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Catalog Content: Empty Dropzone vs Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse font-sans text-xs" role="table">
+        {documents.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center p-6 md:p-12 text-center max-w-2xl mx-auto w-full">
+            <div
+              onClick={() => fileInputDocRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+              }}
+              className={`w-full p-8 md:p-12 border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 group ${
+                isDragging
+                  ? 'border-[#1A56DB] bg-[#1A56DB]/10 ring-2 ring-[#1A56DB]/20 scale-[1.01]'
+                  : 'border-[#CCCCCC] dark:border-[#333336] hover:border-[#1A1A1A] dark:hover:border-[#EDEDED] bg-[#F2F2F0]/50 dark:bg-[#19191C]/50'
+              }`}
+            >
+              <div className="p-3 bg-[#EBEBE8] dark:bg-[#222226] border border-[#E0E0DC] dark:border-[#2A2A2E] group-hover:scale-110 transition-transform">
+                <Upload className={`w-6 h-6 text-[#1A1A1A] dark:text-[#EDEDED] ${isDragging ? 'animate-bounce text-[#1A56DB]' : ''}`} />
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-mono text-sm font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+                  {isDragging ? 'Soltá los archivos para procesarlos' : 'Arrastrá y soltá tus fuentes aquí'}
+                </p>
+                <p className="font-mono text-xs text-[#666666] dark:text-[#888888]">
+                  o hacé clic en cualquier lugar de este cuadro para explorar tu equipo
+                </p>
+              </div>
+
+              <p className="font-sans text-[11px] text-[#888888] dark:text-[#777777] max-w-md pt-1">
+                Soporta Documentos (PDF, Word, PPTX, Excel, Markdown, TXT, EPUB), Archivos de Audio (.mp3, .wav) y Paquetes de Código (.zip).
+              </p>
+
+              {/* Quick action buttons */}
+              <div className="flex items-center gap-2 flex-wrap justify-center pt-3" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => fileInputDocRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] font-mono text-xs font-medium uppercase tracking-wide transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Examinar Archivos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUrlError('');
+                    setIsUrlModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] font-mono text-xs text-[#1A1A1A] dark:text-[#EDEDED] transition-colors cursor-pointer"
+                >
+                  <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>YouTube / DOI / Web</span>
+                </button>
+
+                {onOpenDiscovery && (
+                  <button
+                    type="button"
+                    onClick={onOpenDiscovery}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] font-mono text-xs text-[#1A1A1A] dark:text-[#EDEDED] transition-colors cursor-pointer"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Literatura Científica</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse font-sans text-xs" role="table">
           <thead>
             <tr className="border-b border-[#E0E0DC] dark:border-[#2A2A2E] font-mono text-[11px] text-[#666666] dark:text-[#888888] uppercase bg-[#F2F2F0] dark:bg-[#19191C] sticky top-0 z-10">
               {/* Checkbox / N° */}
@@ -895,6 +1030,7 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
             )}
           </tbody>
         </table>
+        )}
       </div>
 
 
