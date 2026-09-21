@@ -13,7 +13,6 @@ import {
   HighlightTarget,
   Citation,
   Project,
-  ModelEngine,
   ActiveUploadTask,
 } from './types';
 import {
@@ -29,11 +28,10 @@ import {
   fetchProjectMessages,
   clearProjectMessages,
   sendProjectGroundedChat,
-  fetchAvailableModels,
   createProjectNote,
-  pingModelEngine,
   autoclassifyAllSources,
 } from './services/api';
+import { useModelEngines } from './hooks/useModelEngines';
 const StudioNotebook = React.lazy(() => import('./components/StudioNotebook').then(m => ({ default: m.StudioNotebook })));
 const NetworkGraphViewer = React.lazy(() => import('./components/NetworkGraphViewer').then(m => ({ default: m.NetworkGraphViewer })));
 const TimelineViewer = React.lazy(() => import('./components/TimelineViewer').then(m => ({ default: m.TimelineViewer })));
@@ -106,9 +104,14 @@ export const App: React.FC = () => {
   const [highlightTarget, setHighlightTarget] = useState<HighlightTarget | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [models, setModels] = useState<ModelEngine[]>([]);
-  const [selectedEngine, setSelectedEngine] = useState<string>('gemini:gemini-2.5-flash');
-  const [isPinging, setIsPinging] = useState(false);
+  const {
+    models,
+    selectedEngine,
+    isPinging,
+    setSelectedEngine,
+    handlePingActiveModel,
+    refreshModels,
+  } = useModelEngines();
   const [uploadTasks, setUploadTasks] = useState<ActiveUploadTask[]>([]);
 
   // Studio & Tab State
@@ -218,72 +221,10 @@ export const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Initial Load: Fetch projects and models
+  // Initial Load: Fetch projects
   useEffect(() => {
     initProjects();
-    initModels();
-
-    // Periodic model health refresh every 30 seconds
-    const healthInterval = setInterval(() => {
-      initModels();
-    }, 30000);
-    return () => clearInterval(healthInterval);
   }, []);
-
-  const triggerModelPing = async (engineId: string) => {
-    if (!engineId) return;
-    try {
-      setIsPinging(true);
-      const res = await pingModelEngine(engineId);
-      setModels((prev) =>
-        prev.map((m) =>
-          m.id === engineId
-            ? {
-                ...m,
-                status: res.status as any,
-                latency_ms: res.latency_ms,
-                last_error: res.last_error,
-                is_available: res.status !== 'offline',
-              }
-            : m
-        )
-      );
-    } catch (err) {
-      console.error('Failed to ping model:', err);
-    } finally {
-      setIsPinging(false);
-    }
-  };
-
-  const initModels = async () => {
-    try {
-      const modelList = await fetchAvailableModels();
-      setModels(modelList);
-      if (modelList.length > 0) {
-        const savedEngine = localStorage.getItem('openfolio_selected_engine');
-        const matched = modelList.find((m) => m.id === savedEngine && m.is_available);
-        let activeId = '';
-        if (matched) {
-          activeId = matched.id;
-          setSelectedEngine(matched.id);
-        } else {
-          const firstAvailable = modelList.find((m) => m.is_available) || modelList[0];
-          activeId = firstAvailable.id;
-          setSelectedEngine(firstAvailable.id);
-        }
-        if (activeId) {
-          triggerModelPing(activeId);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load available models:', err);
-    }
-  };
-
-  const handlePingActiveModel = async () => {
-    if (!selectedEngine) return;
-    await triggerModelPing(selectedEngine);
-  };
 
   const initProjects = async () => {
     try {
@@ -701,7 +642,7 @@ export const App: React.FC = () => {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
-      initModels();
+      refreshModels();
     }
   };
 
@@ -1034,10 +975,7 @@ export const App: React.FC = () => {
                   <select
                     value={selectedEngine}
                     onChange={(e) => {
-                      const newEngine = e.target.value;
-                      setSelectedEngine(newEngine);
-                      localStorage.setItem('openfolio_selected_engine', newEngine);
-                      triggerModelPing(newEngine);
+                      setSelectedEngine(e.target.value);
                     }}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-xs"
                     title="Seleccionar modelo"
