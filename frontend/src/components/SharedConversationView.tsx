@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Copy,
   Check,
@@ -27,6 +27,14 @@ export const SharedConversationView: React.FC<SharedConversationViewProps> = ({
   const [error, setError] = useState<string>('');
   const [isCopied, setIsCopied] = useState(false);
 
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     async function load() {
       try {
@@ -47,7 +55,8 @@ export const SharedConversationView: React.FC<SharedConversationViewProps> = ({
     try {
       await navigator.clipboard.writeText(window.location.href);
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 3000);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = setTimeout(() => setIsCopied(false), 3000);
     } catch (err) {
       console.error(err);
     }

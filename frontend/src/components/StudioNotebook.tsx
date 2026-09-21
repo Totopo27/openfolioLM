@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BookOpen,
   Plus,
@@ -83,6 +83,14 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
 
@@ -220,7 +228,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
         if (found) {
           selectNote(found);
           setSaveSuccess(true);
-          setTimeout(() => setSaveSuccess(false), 2500);
+          if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+          feedbackTimerRef.current = setTimeout(() => setSaveSuccess(false), 2500);
           onClearTargetNote?.();
           return;
         }
@@ -305,7 +314,8 @@ export const StudioNotebook: React.FC<StudioNotebookProps> = ({
       }
       setViewMode('preview');
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
       console.error('Error saving note:', err);
     } finally {

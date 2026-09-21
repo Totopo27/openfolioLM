@@ -289,6 +289,16 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
   const [savingMsgId, setSavingMsgId] = useState<string | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
+  const highlightScrollTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const copyMsgTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (highlightScrollTimerRef.current) clearTimeout(highlightScrollTimerRef.current);
+      if (copyMsgTimerRef.current) clearTimeout(copyMsgTimerRef.current);
+    };
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
@@ -602,7 +612,8 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
       });
     }
 
-    setTimeout(() => {
+    if (highlightScrollTimerRef.current) clearTimeout(highlightScrollTimerRef.current);
+    highlightScrollTimerRef.current = setTimeout(() => {
       highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 120);
   };
@@ -796,7 +807,8 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
     try {
       await navigator.clipboard.writeText(text);
       setCopiedMsgId(msgId);
-      setTimeout(() => setCopiedMsgId(null), 2000);
+      if (copyMsgTimerRef.current) clearTimeout(copyMsgTimerRef.current);
+      copyMsgTimerRef.current = setTimeout(() => setCopiedMsgId(null), 2000);
     } catch (err) {
       console.error('Failed to copy message:', err);
     }

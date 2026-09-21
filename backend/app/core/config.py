@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     semantic_scholar_api_key: str = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
     semantic_scholar_api_url: str = os.getenv("SEMANTIC_SCHOLAR_API_URL", "https://api.semanticscholar.org/graph/v1")
 
-    # Upload size limit in MB (0 = unlimited for large books, treatises, and scans)
-    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "0"))
+    # Upload size limit in MB (0 = unlimited; default 200 MB is safe for most academic books and scans)
+    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "200"))
 
     # Audio Ingestion & Offline Speech-to-Text (sherpa-onnx)
     enable_audio_transcription: bool = os.getenv("ENABLE_AUDIO_TRANSCRIPTION", "true").lower() in ("true", "1", "yes")

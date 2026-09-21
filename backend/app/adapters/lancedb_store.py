@@ -115,18 +115,11 @@ class LanceDBVectorStore(VectorStorePort):
                 pass
 
             if existing_dim is not None and existing_dim != dim:
-                logger.warning(
-                    "LanceDB dimension mismatch: table has dim %d but active model '%s' produces %d. Recreating table.",
-                    existing_dim,
-                    self.embedding_model_name,
-                    dim
+                raise ValueError(
+                    f"Embedding dimension mismatch: existing index has dim={existing_dim} "
+                    f"but the active model '{self.embedding_model_name}' produces dim={dim}. "
+                    f"Reindex the project to rebuild the vector store with the new model."
                 )
-                try:
-                    db.drop_table("chunks")
-                except Exception as e:
-                    logger.warning("Error dropping mismatched table 'chunks': %s", e)
-                schema = self._get_schema(dim)
-                db.create_table("chunks", schema=schema, data=records)
             else:
                 existing_fields = set(tbl.schema.names)
                 if "page_number" not in existing_fields:

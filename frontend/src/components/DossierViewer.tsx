@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Loader2,
@@ -82,6 +82,14 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
   const [newConceptInputs, setNewConceptInputs] = useState<Record<number, string>>({});
 
   useEffect(() => {
@@ -148,7 +156,8 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
       setDossier(saved);
       setIsEditing(false);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       console.error('Failed to save dossier:', err);
       setError(err.message || 'Error al guardar las correcciones');

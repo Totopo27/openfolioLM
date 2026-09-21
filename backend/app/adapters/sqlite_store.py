@@ -1,9 +1,13 @@
 import sqlite3
 import json
+import logging
+import threading
 from datetime import datetime, timezone
 from typing import Optional, Any
 from app.core.models import SourceDocument, DocumentChunk, ChatMessageRecord, Citation, DocumentDossier, ProjectNote
 from app.ports.store import DocumentStorePort
+
+logger = logging.getLogger(__name__)
 
 
 class SQLiteDocumentStore(DocumentStorePort):
@@ -11,35 +15,58 @@ class SQLiteDocumentStore(DocumentStorePort):
 
     def __init__(self, db_path: str = "openfolio.db"):
         self.db_path = db_path
-        self._memory_conn: Optional[sqlite3.Connection] = None
-        self._conn: Optional[sqlite3.Connection] = None
-        if db_path == ":memory:":
-            self._memory_conn = sqlite3.connect(":memory:", check_same_thread=False)
-            self._memory_conn.row_factory = sqlite3.Row
-            self._memory_conn.execute("PRAGMA foreign_keys = ON")
+        self._is_memory = db_path == ":memory:"
+        self._local = threading.local()
+        self._all_conns: list[sqlite3.Connection] = []
+        self._conns_lock = threading.Lock()
+        # For :memory: databases, all threads must share a single connection
+        # because each connection to ":memory:" creates a separate database.
+        if self._is_memory:
+            self._shared_memory_conn = sqlite3.connect(":memory:", check_same_thread=False)
+            self._shared_memory_conn.row_factory = sqlite3.Row
+            self._memory_lock = threading.Lock()
         else:
-            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA foreign_keys = ON")
+            self._shared_memory_conn = None
+            self._memory_lock = None
         self._init_schema()
 
+    def _make_connection(self) -> sqlite3.Connection:
+        """Create a new connection with WAL mode, busy timeout, and foreign keys."""
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+        conn.execute("PRAGMA foreign_keys=ON;")
+        with self._conns_lock:
+            self._all_conns.append(conn)
+        return conn
+
     def _get_connection(self) -> sqlite3.Connection:
-        if self._memory_conn is not None:
-            return self._memory_conn
-        if self._conn is not None:
-            return self._conn
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA foreign_keys = ON")
-        return self._conn
+        if self._is_memory:
+            assert self._shared_memory_conn is not None
+            return self._shared_memory_conn
+        conn = getattr(self._local, 'conn', None)
+        if conn is not None:
+            return conn
+        conn = self._make_connection()
+        self._local.conn = conn
+        return conn
 
     def close(self) -> None:
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
-        if self._memory_conn is not None:
-            self._memory_conn.close()
-            self._memory_conn = None
+        if self._shared_memory_conn is not None:
+            self._shared_memory_conn.close()
+            self._shared_memory_conn = None
+        # Close ALL thread-local connections (not just the calling thread's)
+        with self._conns_lock:
+            for conn in self._all_conns:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            self._all_conns.clear()
+        # Clear the calling thread's reference
+        self._local.conn = None
 
     def _init_schema(self) -> None:
         with self._get_connection() as conn:
@@ -116,26 +143,19 @@ class SQLiteDocumentStore(DocumentStorePort):
             """)
 
             # Dynamic migrations for existing databases
-            try:
-                conn.execute("ALTER TABLE chunks ADD COLUMN page_number INTEGER")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE messages ADD COLUMN factual_score REAL")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE messages ADD COLUMN hallucination_risk TEXT")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE notes ADD COLUMN origin_prompt TEXT")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE notes ADD COLUMN source_message_id TEXT")
-            except Exception:
-                pass
+            migrations = [
+                "ALTER TABLE chunks ADD COLUMN page_number INTEGER",
+                "ALTER TABLE messages ADD COLUMN factual_score REAL",
+                "ALTER TABLE messages ADD COLUMN hallucination_risk TEXT",
+                "ALTER TABLE notes ADD COLUMN origin_prompt TEXT",
+                "ALTER TABLE notes ADD COLUMN source_message_id TEXT",
+            ]
+            for stmt in migrations:
+                try:
+                    conn.execute(stmt)
+                except sqlite3.OperationalError as e:
+                    if "duplicate column" not in str(e).lower():
+                        logger.warning("Schema migration failed: %s -- %s", stmt, e)
 
     def add_document(self, document: SourceDocument, chunks: list[DocumentChunk]) -> None:
         with self._get_connection() as conn:

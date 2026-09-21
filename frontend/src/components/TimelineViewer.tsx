@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   History,
   Sparkles,
@@ -80,6 +80,14 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
   const [isNarrativeOpen, setIsNarrativeOpen] = useState(true);
   const [hasCopiedNarrative, setHasCopiedNarrative] = useState(false);
 
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
   // Load timeline data
   const loadTimeline = async () => {
     if (!projectId) return;
@@ -121,7 +129,8 @@ export const TimelineViewer: React.FC<TimelineViewerProps> = ({
     if (!narrative) return;
     navigator.clipboard.writeText(narrative);
     setHasCopiedNarrative(true);
-    setTimeout(() => setHasCopiedNarrative(false), 2000);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setHasCopiedNarrative(false), 2000);
   };
 
   // Filtered eras & events

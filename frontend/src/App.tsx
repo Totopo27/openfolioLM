@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import {
   Folder,
   FolderPlus,
@@ -34,12 +34,12 @@ import {
   pingModelEngine,
   autoclassifyAllSources,
 } from './services/api';
-import { StudioNotebook } from './components/StudioNotebook';
-import { NetworkGraphViewer } from './components/NetworkGraphViewer';
-import { TimelineViewer } from './components/TimelineViewer';
-import { LiteratureDiscoveryModal } from './components/LiteratureDiscoveryModal';
-import { SharedConversationView } from './components/SharedConversationView';
-import { SystemLogsModal } from './components/SystemLogsModal';
+const StudioNotebook = React.lazy(() => import('./components/StudioNotebook').then(m => ({ default: m.StudioNotebook })));
+const NetworkGraphViewer = React.lazy(() => import('./components/NetworkGraphViewer').then(m => ({ default: m.NetworkGraphViewer })));
+const TimelineViewer = React.lazy(() => import('./components/TimelineViewer').then(m => ({ default: m.TimelineViewer })));
+const LiteratureDiscoveryModal = React.lazy(() => import('./components/LiteratureDiscoveryModal').then(m => ({ default: m.LiteratureDiscoveryModal })));
+const SharedConversationView = React.lazy(() => import('./components/SharedConversationView').then(m => ({ default: m.SharedConversationView })));
+const SystemLogsModal = React.lazy(() => import('./components/SystemLogsModal').then(m => ({ default: m.SystemLogsModal })));
 import { ArchivalIndex, ArchivalDocument } from './components/archival/ArchivalIndex';
 import {
   ArchivalSplitViewer,
@@ -854,13 +854,15 @@ export const App: React.FC = () => {
 
   if (shareId) {
     return (
-      <SharedConversationView
-        shareId={shareId}
-        onBackToWorkspace={() => {
-          window.history.replaceState({}, '', window.location.pathname);
-          setShareId(null);
-        }}
-      />
+      <Suspense fallback={null}>
+        <SharedConversationView
+          shareId={shareId}
+          onBackToWorkspace={() => {
+            window.history.replaceState({}, '', window.location.pathname);
+            setShareId(null);
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -1191,51 +1193,57 @@ export const App: React.FC = () => {
             )}
 
             {archivalTab === 'notebook' && (
-              <StudioNotebook
-                projectId={activeProject?.id || 'default'}
-                projectName={activeProject?.name || 'Investigación'}
-                onNotesCountChange={setNotesCount}
-                targetNoteId={targetNoteId}
-                onClearTargetNote={() => setTargetNoteId(null)}
-                initialNewNote={draftNote}
-                onClearInitialNote={() => setDraftNote(null)}
-                onNavigateToChat={handleNavigateToChat}
-                onNavigateToSource={handleNavigateToSourceFromNote}
-                messages={messages}
-                sources={sources}
-                onNavigateToCitation={handleCitationClick}
-              />
+              <Suspense fallback={null}>
+                <StudioNotebook
+                  projectId={activeProject?.id || 'default'}
+                  projectName={activeProject?.name || 'Investigación'}
+                  onNotesCountChange={setNotesCount}
+                  targetNoteId={targetNoteId}
+                  onClearTargetNote={() => setTargetNoteId(null)}
+                  initialNewNote={draftNote}
+                  onClearInitialNote={() => setDraftNote(null)}
+                  onNavigateToChat={handleNavigateToChat}
+                  onNavigateToSource={handleNavigateToSourceFromNote}
+                  messages={messages}
+                  sources={sources}
+                  onNavigateToCitation={handleCitationClick}
+                />
+              </Suspense>
             )}
 
             {archivalTab === 'timeline' && (
-              <TimelineViewer
-                projectId={activeProject?.id || 'default'}
-                selectedDocId={selectedDoc?.id || null}
-                selectedEngine={selectedEngine}
-                onSelectDocument={(docId) => {
-                  const doc = sources.find((s) => s.id === docId);
-                  if (doc) {
-                    setSelectedDoc(doc);
-                    setHighlightTarget(null);
-                    setArchivalTab('split');
-                  }
-                }}
-              />
+              <Suspense fallback={null}>
+                <TimelineViewer
+                  projectId={activeProject?.id || 'default'}
+                  selectedDocId={selectedDoc?.id || null}
+                  selectedEngine={selectedEngine}
+                  onSelectDocument={(docId) => {
+                    const doc = sources.find((s) => s.id === docId);
+                    if (doc) {
+                      setSelectedDoc(doc);
+                      setHighlightTarget(null);
+                      setArchivalTab('split');
+                    }
+                  }}
+                />
+              </Suspense>
             )}
 
             {archivalTab === 'network' && (
-              <NetworkGraphViewer
-                projectId={activeProject?.id || 'default'}
-                selectedDocId={selectedDoc?.id || null}
-                onSelectDocument={(docId) => {
-                  const doc = sources.find((s) => s.id === docId);
-                  if (doc) {
-                    setSelectedDoc(doc);
-                    setHighlightTarget(null);
-                    setArchivalTab('split');
-                  }
-                }}
-              />
+              <Suspense fallback={null}>
+                <NetworkGraphViewer
+                  projectId={activeProject?.id || 'default'}
+                  selectedDocId={selectedDoc?.id || null}
+                  onSelectDocument={(docId) => {
+                    const doc = sources.find((s) => s.id === docId);
+                    if (doc) {
+                      setSelectedDoc(doc);
+                      setHighlightTarget(null);
+                      setArchivalTab('split');
+                    }
+                  }}
+                />
+              </Suspense>
             )}
           </main>
 
@@ -1318,23 +1326,27 @@ export const App: React.FC = () => {
 
       {/* Literature Discovery Modal (Compendio & Modules seed search) */}
       {activeProject && (
-        <LiteratureDiscoveryModal
-          projectId={activeProject.id}
-          isOpen={isDiscoveryOpen}
-          initialQuery={discoveryInitialQuery}
-          selectedEngine={selectedEngine}
-          onClose={() => {
-            setIsDiscoveryOpen(false);
-            setDiscoveryInitialQuery(undefined);
-          }}
-          onSourcesAdded={handleSourcesAdded}
-        />
+        <Suspense fallback={null}>
+          <LiteratureDiscoveryModal
+            projectId={activeProject.id}
+            isOpen={isDiscoveryOpen}
+            initialQuery={discoveryInitialQuery}
+            selectedEngine={selectedEngine}
+            onClose={() => {
+              setIsDiscoveryOpen(false);
+              setDiscoveryInitialQuery(undefined);
+            }}
+            onSourcesAdded={handleSourcesAdded}
+          />
+        </Suspense>
       )}
       {/* Real-time System Diagnostics & Logs Modal */}
-      <SystemLogsModal
-        isOpen={isLogsModalOpen}
-        onClose={() => setIsLogsModalOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <SystemLogsModal
+          isOpen={isLogsModalOpen}
+          onClose={() => setIsLogsModalOpen(false)}
+        />
+      </Suspense>
     </div>
   );
 };

@@ -19,6 +19,13 @@ export const SystemLogsModal: React.FC<SystemLogsModalProps> = ({ isOpen, onClos
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
 
   const loadLogs = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -64,7 +71,8 @@ export const SystemLogsModal: React.FC<SystemLogsModalProps> = ({ isOpen, onClos
   const handleCopy = () => {
     navigator.clipboard.writeText(logs.join('\n'));
     setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleDownload = () => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Tags,
   FolderTree,
@@ -23,7 +23,7 @@ interface TaxonomyViewerProps {
   document: SourceDocument;
   allSources?: SourceDocument[];
   selectedEngine?: string;
-  onMetadataUpdated?: (updatedDoc: SourceDocument) => void;
+  onMetadataUpdated?: (doc: SourceDocument) => void;
 }
 
 export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
@@ -48,6 +48,14 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [aiSuccessMessage, setAiSuccessMessage] = useState('');
   const [error, setError] = useState('');
+
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
 
   // Sync state when document prop changes
   useEffect(() => {
@@ -134,7 +142,8 @@ export const TaxonomyViewer: React.FC<TaxonomyViewerProps> = ({
       if (onMetadataUpdated) {
         onMetadataUpdated(updated);
       }
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       setError(err.message || 'Error al guardar metadatos');
     } finally {

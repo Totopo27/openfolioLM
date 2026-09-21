@@ -112,6 +112,14 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
   const [isAutoclassifying, setIsAutoclassifying] = useState(false);
   const [autoclassifyFeedback, setAutoclassifyFeedback] = useState('');
 
+  const autoclassifyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (autoclassifyTimerRef.current) clearTimeout(autoclassifyTimerRef.current);
+    };
+  }, []);
+
   // Drag & drop state
   const [isDragging, setIsDragging] = useState(false);
   const [isDropzoneCollapsed, setIsDropzoneCollapsed] = useState(false);
@@ -230,10 +238,12 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
         setAutoclassifyFeedback('Autoclasificando compendio con IA...');
         await onAutoclassifyAll();
         setAutoclassifyFeedback('¡Clasificación completada!');
-        setTimeout(() => setAutoclassifyFeedback(''), 3500);
+        if (autoclassifyTimerRef.current) clearTimeout(autoclassifyTimerRef.current);
+        autoclassifyTimerRef.current = setTimeout(() => setAutoclassifyFeedback(''), 3500);
       } catch (err: any) {
         setAutoclassifyFeedback(err.message || 'Error al clasificar');
-        setTimeout(() => setAutoclassifyFeedback(''), 3500);
+        if (autoclassifyTimerRef.current) clearTimeout(autoclassifyTimerRef.current);
+        autoclassifyTimerRef.current = setTimeout(() => setAutoclassifyFeedback(''), 3500);
       } finally {
         setIsAutoclassifying(false);
       }
@@ -247,10 +257,12 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
       const res = await autoclassifyAllSources(projectId, selectedEngine);
       setAutoclassifyFeedback(`¡${res.classified_count} obras clasificadas!`);
       if (onRefreshSources) await onRefreshSources();
-      setTimeout(() => setAutoclassifyFeedback(''), 3500);
+      if (autoclassifyTimerRef.current) clearTimeout(autoclassifyTimerRef.current);
+      autoclassifyTimerRef.current = setTimeout(() => setAutoclassifyFeedback(''), 3500);
     } catch (err: any) {
       setAutoclassifyFeedback(err.message || 'Error al clasificar');
-      setTimeout(() => setAutoclassifyFeedback(''), 3500);
+      if (autoclassifyTimerRef.current) clearTimeout(autoclassifyTimerRef.current);
+      autoclassifyTimerRef.current = setTimeout(() => setAutoclassifyFeedback(''), 3500);
     } finally {
       setIsAutoclassifying(false);
     }

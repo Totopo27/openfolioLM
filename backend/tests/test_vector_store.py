@@ -125,15 +125,15 @@ def test_real_fastembed_integration(tmp_vector_dir):
     assert store.get_dimension() == 768
 
 
-def test_dimension_mismatch_auto_recreation(tmp_vector_dir):
-    """Test that LanceDB safely drops and recreates table if model dimension changes."""
+def test_dimension_mismatch_rejects_write(tmp_vector_dir):
+    """Test that LanceDB rejects writes when embedding dimensions change instead of silently dropping data."""
     # Step 1: Create table with 4-dimensional mock model
     store_4d = LanceDBVectorStore(db_dir=tmp_vector_dir, embedding_model=MockEmbeddingModel(dim=4))
     c1 = _make_chunk("doc1#c0", "doc1", "Python code")
     store_4d.add_chunks([c1])
     assert store_4d.check_dimension_match() is True
 
-    # Step 2: Now create store with 6-dimensional mock model
+    # Step 2: Attempt to add with 6-dimensional model -- must reject, not drop
     class Mock6D:
         def embed(self, texts):
             for _ in texts:
@@ -141,12 +141,14 @@ def test_dimension_mismatch_auto_recreation(tmp_vector_dir):
 
     store_6d = LanceDBVectorStore(db_dir=tmp_vector_dir, embedding_model=Mock6D())
     c2 = _make_chunk("doc2#c0", "doc2", "Rust code")
-    # This must not throw an Arrow dimension mismatch error; it must recreate table cleanly
-    store_6d.add_chunks([c2])
+    import pytest
+    with pytest.raises(ValueError, match="dimension mismatch"):
+        store_6d.add_chunks([c2])
 
-    results = store_6d.search_vectors("Rust", active_source_ids=["doc2"])
+    # Original doc1 vectors must still exist (no silent data loss)
+    results = store_4d.search_vectors("Python", active_source_ids=["doc1"])
     assert len(results) == 1
-    assert results[0][0].id == "doc2#c0"
+    assert results[0][0].id == "doc1#c0"
 
 
 def test_rebuild_table_with_chunks(tmp_vector_dir):

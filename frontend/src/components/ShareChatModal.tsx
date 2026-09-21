@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Copy,
@@ -31,13 +31,24 @@ export const ShareChatModal: React.FC<ShareChatModalProps> = ({
   const [isCopiedUrl, setIsCopiedUrl] = useState(false);
   const [isCopiedMd, setIsCopiedMd] = useState(false);
 
+  const urlTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mdTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (urlTimerRef.current) clearTimeout(urlTimerRef.current);
+      if (mdTimerRef.current) clearTimeout(mdTimerRef.current);
+    };
+  }, []);
+
   if (!isOpen) return null;
 
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setIsCopiedUrl(true);
-      setTimeout(() => setIsCopiedUrl(false), 3000);
+      if (urlTimerRef.current) clearTimeout(urlTimerRef.current);
+      urlTimerRef.current = setTimeout(() => setIsCopiedUrl(false), 3000);
     } catch (err) {
       console.error('Failed to copy share url:', err);
     }
@@ -87,7 +98,8 @@ export const ShareChatModal: React.FC<ShareChatModalProps> = ({
     try {
       await navigator.clipboard.writeText(md);
       setIsCopiedMd(true);
-      setTimeout(() => setIsCopiedMd(false), 3000);
+      if (mdTimerRef.current) clearTimeout(mdTimerRef.current);
+      mdTimerRef.current = setTimeout(() => setIsCopiedMd(false), 3000);
     } catch (err) {
       console.error('Failed to copy markdown:', err);
     }
