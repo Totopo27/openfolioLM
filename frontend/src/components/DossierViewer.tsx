@@ -161,7 +161,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 bg-[#F9F9F8] dark:bg-[#121214] text-[#666666] dark:text-[#888888] font-mono select-none">
         <Loader2 className="w-6 h-6 animate-spin text-[#1A1A1A] dark:text-[#EDEDED] mb-3" />
-        <p className="text-xs uppercase tracking-wider">Cargando guía de estudio estructurada...</p>
+        <p className="text-xs uppercase tracking-wider">Cargando reporte estructurado...</p>
       </div>
     );
   }
@@ -173,7 +173,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
           <BookOpen className="w-8 h-8 stroke-[1.5]" />
         </div>
         <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
-          Estructura & Guía de Estudio de la Obra
+          Estructura & Reporte de la Obra
         </h3>
         <p className="text-xs text-[#666666] dark:text-[#888888] mt-2 leading-relaxed">
           Generá automáticamente un dossier conceptual estructurado para libros, textos y papers:
@@ -200,7 +200,7 @@ export const DossierViewer: React.FC<DossierViewerProps> = ({
           ) : (
             <>
               <GraduationCap className="w-3.5 h-3.5" />
-              <span>Generar Guía de Estudio</span>
+              <span>Generar Reporte</span>
             </>
           )}
         </button>

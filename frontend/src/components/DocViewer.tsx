@@ -386,7 +386,7 @@ const DocViewerComponent: React.FC<DocViewerProps> = ({
             </button>
             <button
               onClick={() => handleTabSelect('dossier')}
-              title="Estructura, Resumen y Guía de Estudio"
+              title="Estructura, Resumen y Reporte"
               className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                 activeTab === 'dossier'
                   ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-sm'
@@ -394,11 +394,11 @@ const DocViewerComponent: React.FC<DocViewerProps> = ({
               }`}
             >
               <GraduationCap className="w-3.5 h-3.5 text-amber-300" />
-              <span>Guía de Estudio</span>
+              <span>Reporte</span>
             </button>
             <button
               onClick={() => handleTabSelect('taxonomy')}
-              title="Categorías, Etiquetas, Época y Metadatos"
+              title="Categorización y Metadatos"
               className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                 activeTab === 'taxonomy'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm'
@@ -406,7 +406,7 @@ const DocViewerComponent: React.FC<DocViewerProps> = ({
               }`}
             >
               <Tags className="w-3.5 h-3.5 text-teal-300" />
-              <span>Categorías & Tags</span>
+              <span>Categorización</span>
             </button>
           </div>
 

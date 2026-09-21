@@ -848,7 +848,7 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
                           <span>Lectura</span>
                         </button>
 
-                        {/* Guía de Estudio */}
+                        {/* Reporte */}
                         <button
                           type="button"
                           onClick={() => {
@@ -856,13 +856,13 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
                             else onSelectDocument(doc, 'dossier');
                           }}
                           className="p-1 px-1.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[10px] font-mono text-[#1A1A1A] dark:text-[#EDEDED] inline-flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Ver estructura y guía de estudio (Dossier)"
+                          title="Ver reporte y estructura (Dossier)"
                         >
                           <GraduationCap className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span>Guía</span>
+                          <span>Reporte</span>
                         </button>
 
-                        {/* Categorías y Tags */}
+                        {/* Categorización */}
                         <button
                           type="button"
                           onClick={() => {
@@ -870,10 +870,10 @@ export const ArchivalIndex: React.FC<ArchivalIndexProps> = ({
                             else onSelectDocument(doc, 'taxonomy');
                           }}
                           className="p-1 px-1.5 bg-[#EBEBE8] hover:bg-[#E0E0DC] dark:bg-[#1E1E22] dark:hover:bg-[#2A2A2E] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[10px] font-mono text-[#1A1A1A] dark:text-[#EDEDED] inline-flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Gestionar taxonomía y etiquetas"
+                          title="Gestionar categorización y taxonomía"
                         >
                           <Tags className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-                          <span>Tags</span>
+                          <span>Categorización</span>
                         </button>
 
                         {/* Borrar */}

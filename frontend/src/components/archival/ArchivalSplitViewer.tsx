@@ -889,7 +889,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
               }`}
             >
               <GraduationCap className="w-3 h-3 text-amber-500" />
-              <span>Guía de Estudio</span>
+              <span>Reporte</span>
             </button>
             <button
               type="button"
@@ -901,7 +901,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
               }`}
             >
               <Tags className="w-3 h-3 text-teal-500" />
-              <span>Categorías & Tags</span>
+              <span>Categorización</span>
             </button>
           </div>
 
@@ -1314,7 +1314,7 @@ export const ArchivalSplitViewer: React.FC<ArchivalSplitViewerProps> = ({
                   <div className="p-2.5 bg-[#F2F2F0] dark:bg-[#141416] border-b border-[#E0E0DC] dark:border-[#2A2A2E] flex items-center justify-between">
                     <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider">
                       <Layers className="w-3.5 h-3.5 text-[#1A56DB] dark:text-[#60A5FA]" />
-                      <span>Fuentes para Grounding RAG</span>
+                      <span>Fuentes</span>
                     </div>
                     <span className="text-[10px] font-mono px-1.5 py-0.2 bg-[#EBEBE8] dark:bg-[#222226] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888] tabular-nums">
                       {activeCount} / {allSources.length} activas
