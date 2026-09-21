@@ -255,7 +255,8 @@ export async function sendProjectGroundedChat(
   projectId: string,
   query: string,
   activeSourceIds: string[],
-  provider?: string
+  provider?: string,
+  signal?: AbortSignal
 ): Promise<GroundedResponse> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/chat`, {
     method: 'POST',
@@ -267,6 +268,7 @@ export async function sendProjectGroundedChat(
       strict_grounding: true,
       provider: provider || undefined,
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -316,7 +318,8 @@ export async function fetchProjectSourceDossier(
 export async function generateProjectSourceDossier(
   projectId: string,
   sourceId: string,
-  provider?: string
+  provider?: string,
+  signal?: AbortSignal
 ): Promise<DocumentDossier> {
   const url = provider
     ? `${API_BASE}/projects/${projectId}/sources/${sourceId}/analyze?provider=${encodeURIComponent(provider)}`
@@ -324,6 +327,7 @@ export async function generateProjectSourceDossier(
 
   const res = await fetch(url, {
     method: 'POST',
+    signal,
   });
 
   if (!res.ok) {
@@ -470,7 +474,8 @@ export async function fetchProjectTimeline(projectId: string): Promise<ProjectTi
 
 export async function generateTimelineNarrative(
   projectId: string,
-  provider?: string
+  provider?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const url = provider
     ? `${API_BASE}/projects/${projectId}/timeline/narrative?provider=${encodeURIComponent(provider)}`
@@ -478,6 +483,7 @@ export async function generateTimelineNarrative(
 
   const res = await fetch(url, {
     method: 'POST',
+    signal,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to synthesize timeline narrative' }));
@@ -515,13 +521,14 @@ export async function updateSourceMetadata(
 export async function autoclassifySource(
   projectId: string,
   sourceId: string,
-  provider?: string
+  provider?: string,
+  signal?: AbortSignal
 ): Promise<TaxonomyClassificationResult> {
   const url = provider
     ? `${API_BASE}/projects/${projectId}/sources/${sourceId}/autoclassify?provider=${encodeURIComponent(provider)}`
     : `${API_BASE}/projects/${projectId}/sources/${sourceId}/autoclassify`;
 
-  const res = await fetch(url, { method: 'POST' });
+  const res = await fetch(url, { method: 'POST', signal });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to autoclassify source' }));
     throw new Error(err.detail || 'Failed to autoclassify source');
