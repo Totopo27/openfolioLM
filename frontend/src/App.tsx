@@ -1,18 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  BookOpen,
-  Layers,
   Folder,
   FolderPlus,
   Trash2,
   ChevronDown,
-  Plus,
   X,
-  MessageSquare,
-  Share2,
-  History,
   Activity,
-  Terminal,
 } from 'lucide-react';
 import {
   SourceDocument,
@@ -23,7 +16,6 @@ import {
   ModelEngine,
   ActiveUploadTask,
 } from './types';
-import { CircularProgressRing } from './components/CircularProgressRing';
 import {
   fetchProjects,
   createProject,
@@ -42,15 +34,11 @@ import {
   pingModelEngine,
   autoclassifyAllSources,
 } from './services/api';
-import { DocViewer } from './components/DocViewer';
-import { SourceManager } from './components/SourceManager';
-import { ChatPanel } from './components/ChatPanel';
 import { StudioNotebook } from './components/StudioNotebook';
 import { NetworkGraphViewer } from './components/NetworkGraphViewer';
 import { TimelineViewer } from './components/TimelineViewer';
 import { LiteratureDiscoveryModal } from './components/LiteratureDiscoveryModal';
 import { SharedConversationView } from './components/SharedConversationView';
-import { ResizableSplitter } from './components/ResizableSplitter';
 import { SystemLogsModal } from './components/SystemLogsModal';
 import { ArchivalIndex, ArchivalDocument } from './components/archival/ArchivalIndex';
 import {
@@ -98,20 +86,9 @@ export const App: React.FC = () => {
     return new URLSearchParams(window.location.search).get('share');
   });
 
-  // UI Mode: 'archival' (Paper & Ink Minimalist) vs 'classic' (Legacy)
-  const [uiMode, setUiMode] = useState<'archival' | 'classic'>(() => {
-    const saved = localStorage.getItem('openfolio_ui_mode');
-    return saved === 'classic' || saved === 'archival' ? saved : 'archival';
-  });
-
   // Archival Navigation Tab
   const [archivalTab, setArchivalTab] = useState<'index' | 'split' | 'notebook' | 'network' | 'timeline'>('index');
   const archivalFileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleToggleUiMode = (mode: 'archival' | 'classic') => {
-    setUiMode(mode);
-    localStorage.setItem('openfolio_ui_mode', mode);
-  };
 
   // Project State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -136,23 +113,6 @@ export const App: React.FC = () => {
 
   // Studio & Tab State
   const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier' | 'taxonomy'>('reading');
-  const [rightPaneMode, setRightPaneMode] = useState<'sources' | 'chat' | 'notebook' | 'network' | 'timeline'>('chat');
-  const [splitRatio, setSplitRatio] = useState<number>(() => {
-    const saved = localStorage.getItem('openfolio_split_ratio');
-    if (saved) {
-      const parsed = parseFloat(saved);
-      if (!isNaN(parsed) && parsed >= 15 && parsed <= 85) return parsed;
-    }
-    const legacy = localStorage.getItem('openfolio_split_layout');
-    return legacy === 'chat_focused' ? 35 : 50;
-  });
-
-  const mainContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleSplitRatioChange = (ratio: number) => {
-    setSplitRatio(ratio);
-    localStorage.setItem('openfolio_split_ratio', ratio.toString());
-  };
   const [notesCount, setNotesCount] = useState<number>(0);
   const [draftNote, setDraftNote] = useState<{
     title: string;
@@ -182,7 +142,7 @@ export const App: React.FC = () => {
       });
       setNotesCount((prev) => prev + 1);
       setTargetNoteId(created.id);
-      setRightPaneMode('notebook');
+      setArchivalTab('notebook');
     } catch (err: any) {
       console.error('Error saving note to notebook:', err);
       alert(`Error al guardar en el cuaderno: ${err.message}`);
@@ -191,7 +151,6 @@ export const App: React.FC = () => {
 
   const handleNavigateToChat = (msgId?: string) => {
     setArchivalTab('split');
-    setRightPaneMode('chat');
     if (!selectedDoc && sources.length > 0) {
       setSelectedDoc(sources[0]);
     }
@@ -235,7 +194,6 @@ export const App: React.FC = () => {
     }
     setArchivalTab('split');
     setDocViewerTab('reading');
-    setRightPaneMode('chat');
   };
 
   // Literature Discovery Modal
@@ -660,15 +618,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleToggleBatchActive = (ids: string[], activate: boolean) => {
-    setActiveSourceIds((prev) => {
-      if (activate) {
-        return Array.from(new Set([...prev, ...ids]));
-      }
-      return prev.filter((id) => !ids.includes(id));
-    });
-  };
-
   const handleMetadataUpdated = (updatedDoc: SourceDocument) => {
     setSources((prev) => prev.map((s) => (s.id === updatedDoc.id ? updatedDoc : s)));
     if (selectedDoc?.id === updatedDoc.id) {
@@ -697,7 +646,6 @@ export const App: React.FC = () => {
     }
     setArchivalTab('split');
     setDocViewerTab('reading');
-    setRightPaneMode('chat');
 
     setHighlightTarget({
       source_id: citation.source_id,
@@ -917,16 +865,8 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div
-      className={
-        uiMode === 'archival'
-          ? 'h-full flex flex-col bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] font-sans antialiased'
-          : 'h-full flex flex-col bg-slate-950 text-slate-100'
-      }
-    >
-      {uiMode === 'archival' ? (
-        <>
-          {/* Archival Brutalist Top Header */}
+    <div className="h-full flex flex-col bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] font-sans antialiased">
+      {/* Archival Brutalist Top Header */}
           <header className="h-12 border-b border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#F9F9F8] dark:bg-[#121214] px-4 flex items-center justify-between shrink-0 select-none text-xs">
             {/* Left: Brand & Project Selector */}
             <div className="flex items-center gap-3">
@@ -1146,24 +1086,6 @@ export const App: React.FC = () => {
               >
                 Logs
               </button>
-
-              {/* UI Mode Toggle (Minimalista vs Clásico) */}
-              <div className="flex items-center border border-[#E0E0DC] dark:border-[#2A2A2E] bg-[#EBEBE8] dark:bg-[#1E1E22] text-[10px] font-mono">
-                <button
-                  type="button"
-                  onClick={() => handleToggleUiMode('archival')}
-                  className="px-2 py-0.5 bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] font-bold transition-colors"
-                >
-                  MINIMALISTA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleUiMode('classic')}
-                  className="px-2 py-0.5 border-l border-[#E0E0DC] dark:border-[#2A2A2E] text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] transition-colors"
-                >
-                  CLÁSICO
-                </button>
-              </div>
             </div>
           </header>
 
@@ -1316,525 +1238,6 @@ export const App: React.FC = () => {
               />
             )}
           </main>
-        </>
-      ) : (
-        <>
-          {/* Top Navbar */}
-      <header className="relative z-40 h-14 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-indigo-600 rounded-lg shadow-md shadow-indigo-900/40 text-white">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                OpenFolioLM
-              </h1>
-            </div>
-          </div>
-
-          {/* Project Switcher Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 text-xs text-slate-200 transition-all cursor-pointer font-medium"
-              title="Cambiar proyecto o crear uno nuevo"
-            >
-              <Folder className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="max-w-[160px] truncate font-semibold">
-                {activeProject ? activeProject.name : 'Seleccionar Proyecto'}
-              </span>
-              {activeProject && (
-                <span className="text-[10px] text-slate-400 font-mono bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-700/50">
-                  {sources.length} {sources.length === 1 ? 'doc' : 'docs'}
-                </span>
-              )}
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            {isProjectDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-80 bg-slate-900 border border-slate-700/90 rounded-xl shadow-2xl py-2 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Proyectos ({projects.length})</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProjectDropdownOpen(false);
-                      setIsCreateModalOpen(true);
-                    }}
-                    className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs font-semibold cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Nuevo
-                  </button>
-                </div>
-
-                <div className="max-h-60 overflow-y-auto divide-y divide-slate-800/60 my-1">
-                  {projects.map((proj) => {
-                    const isSelected = activeProject?.id === proj.id;
-                    return (
-                      <div
-                        key={proj.id}
-                        onClick={() => handleSelectProject(proj)}
-                        className={`px-3 py-2.5 flex items-center justify-between hover:bg-slate-800/80 cursor-pointer transition-colors group ${
-                          isSelected ? 'bg-indigo-600/15 border-l-2 border-indigo-500' : ''
-                        }`}
-                      >
-                        <div className="min-w-0 pr-2">
-                          <p className={`text-xs font-medium truncate ${isSelected ? 'text-indigo-300 font-semibold' : 'text-slate-200'}`}>
-                            {proj.name}
-                          </p>
-                          <p className="text-[10px] text-slate-400 truncate">
-                            {proj.doc_count} {proj.doc_count === 1 ? 'fuente' : 'fuentes'} · {proj.message_count} {proj.message_count === 1 ? 'mensaje' : 'mensajes'}
-                          </p>
-                        </div>
-                        {projects.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteProject(e, proj.id)}
-                            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 rounded transition-opacity"
-                            title="Eliminar proyecto"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-2 px-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsProjectDropdownOpen(false);
-                      setIsCreateModalOpen(true);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all shadow-sm cursor-pointer"
-                  >
-                    <FolderPlus className="w-4 h-4" />
-                    Crear Nuevo Proyecto
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Dynamic Engine Switcher & Health Monitor */}
-        <div className="flex items-center gap-3 text-xs text-slate-400 font-medium">
-          <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80">
-            <span className="text-[11px] text-slate-400 font-mono">Modelo:</span>
-            <select
-              value={selectedEngine}
-              onChange={(e) => {
-                const newEngine = e.target.value;
-                setSelectedEngine(newEngine);
-                localStorage.setItem('openfolio_selected_engine', newEngine);
-                triggerModelPing(newEngine);
-              }}
-              className="bg-transparent text-xs text-indigo-300 font-medium focus:outline-none cursor-pointer max-w-[200px] truncate"
-            >
-              {models.length === 0 ? (
-                <option value="gemini:gemini-3.6-flash" className="bg-slate-900 text-slate-200">
-                  Cargando modelos...
-                </option>
-              ) : (
-                models.map((m) => (
-                  <option
-                    key={m.id}
-                    value={m.id}
-                    disabled={!m.is_available}
-                    className="bg-slate-900 text-slate-200"
-                  >
-                    {m.provider === 'gemini' ? '⚡ ' : '🔒 '}
-                    {m.name} {!m.is_available ? '(Offline)' : ''}
-                  </option>
-                ))
-              )}
-            </select>
-
-            {/* Active Model Health / Demand Status Badge */}
-            {activeModel && (
-              <div
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono border transition-all ${
-                  isPinging
-                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
-                    : activeModel.status === 'high_demand'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
-                    : activeModel.status === 'offline'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    : activeModel.status === 'healthy'
-                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                    : 'bg-slate-700/40 text-slate-400 border-slate-600/40'
-                }`}
-                title={
-                  isPinging
-                    ? 'Comprobando respuesta y latencia con el proveedor...'
-                    : activeModel.status === 'high_demand'
-                    ? `Picos de alta demanda en Google Cloud (${activeModel.last_error || 'HTTP 503'}). Reintentos con backoff y fallback activos.`
-                    : activeModel.status === 'offline'
-                    ? `Modelo no disponible: ${activeModel.last_error || 'Sin conexión'}`
-                    : activeModel.status === 'healthy'
-                    ? `Modelo operativo y disponible${activeModel.latency_ms ? ` · Latencia: ${activeModel.latency_ms}ms` : ''}`
-                    : 'Estado pendiente de comprobación'
-                }
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isPinging
-                      ? 'bg-blue-400 animate-ping'
-                      : activeModel.status === 'high_demand'
-                      ? 'bg-amber-400'
-                      : activeModel.status === 'offline'
-                      ? 'bg-rose-400'
-                      : activeModel.status === 'healthy'
-                      ? 'bg-emerald-400'
-                      : 'bg-slate-500'
-                  }`}
-                />
-                <span>
-                  {isPinging
-                    ? 'Comprobando...'
-                    : activeModel.status === 'high_demand'
-                    ? 'Alta Demanda'
-                    : activeModel.status === 'offline'
-                    ? 'Offline'
-                    : activeModel.status === 'healthy'
-                    ? activeModel.latency_ms
-                      ? `${activeModel.latency_ms}ms · Operativo`
-                      : 'Operativo'
-                    : 'Sin verificar'}
-                </span>
-              </div>
-            )}
-
-            {/* Ping button to check latency/demand on demand */}
-            <button
-              type="button"
-              onClick={handlePingActiveModel}
-              disabled={isPinging || !selectedEngine}
-              className="text-slate-400 hover:text-indigo-300 transition-colors p-0.5 cursor-pointer disabled:opacity-40 ml-0.5"
-              title="Comprobar demanda y latencia en tiempo real (Ping)"
-            >
-              <Activity className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin text-indigo-400' : ''}`} />
-            </button>
-          </div>
-
-          {/* Server Logs Console Button */}
-          <button
-            type="button"
-            onClick={() => setIsLogsModalOpen(true)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 transition-all text-xs font-medium cursor-pointer shadow-sm shrink-0"
-            title="Abrir consola de logs en tiempo real del servidor (openfolio.log)"
-          >
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">Logs</span>
-          </button>
-
-          {/* UI Mode Switcher */}
-          <div className="flex items-center border border-slate-700/80 rounded-lg p-0.5 bg-slate-950 font-mono text-[10px]">
-            <button
-              type="button"
-              onClick={() => handleToggleUiMode('archival')}
-              className="px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition"
-              title="Cambiar a la interfaz minimalista Paper & Ink"
-            >
-              MINIMALISTA
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleUiMode('classic')}
-              className="px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold shadow-sm transition"
-              title="Interfaz clásica"
-            >
-              CLÁSICO
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Dual-Pane Split Layout */}
-      <div ref={mainContainerRef} className="flex-1 flex overflow-hidden relative">
-        {/* Left Pane: Synchronized Document Viewer & Dossier */}
-        <div
-          style={{ width: `${splitRatio}%` }}
-          className="h-full shrink-0 overflow-hidden"
-        >
-          <DocViewer
-            document={selectedDoc}
-            highlightTarget={highlightTarget}
-            onClearHighlight={() => setHighlightTarget(null)}
-            projectId={activeProject?.id}
-            selectedEngine={selectedEngine}
-            allSources={sources}
-            activeTab={docViewerTab}
-            onTabChange={setDocViewerTab}
-            onExploreTopic={handleOpenDiscovery}
-            onMetadataUpdated={handleMetadataUpdated}
-          />
-        </div>
-
-        {/* Resizable Draggable Splitter with col-resize */}
-        <ResizableSplitter
-          splitPercent={splitRatio}
-          onSplitChange={handleSplitRatioChange}
-          onReset={() => handleSplitRatioChange(50)}
-          containerRef={mainContainerRef}
-        />
-
-        {/* Right Pane: Multi-lane Studio (Chat & Grounding vs Cuaderno de Síntesis vs Bibliografía) */}
-        <div
-          style={{ width: `${100 - splitRatio}%` }}
-          className="h-full flex flex-col bg-slate-950 overflow-hidden shrink-0"
-        >
-          {/* Lane Switcher Navigation */}
-          <div className="flex items-center justify-between px-4 py-2 bg-slate-900/60 border-b border-slate-800 shrink-0 gap-2">
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 overflow-x-auto scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setRightPaneMode('sources')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
-                  rightPaneMode === 'sources'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Ver compendio completo de bibliografía y fuentes"
-              >
-                <Layers className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Bibliografía</span>
-                <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800 text-slate-300 font-mono">
-                  {sources.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRightPaneMode('chat')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
-                  rightPaneMode === 'chat'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Chat de Evidencia</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRightPaneMode('notebook')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
-                  rightPaneMode === 'notebook'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5 text-amber-300" />
-                <span>Cuaderno de Síntesis</span>
-                {notesCount > 0 && (
-                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-indigo-900 text-indigo-300 font-mono">
-                    {notesCount}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setRightPaneMode('network')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
-                  rightPaneMode === 'network'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Share2 className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Red Semántica</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRightPaneMode('timeline')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer whitespace-nowrap ${
-                  rightPaneMode === 'timeline'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <History className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Cronología</span>
-              </button>
-            </div>
-
-            {/* Background uploads indicator badge */}
-            {uploadTasks.length > 0 && (
-              <div
-                onClick={() => setRightPaneMode('sources')}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-950/90 border border-indigo-500/40 text-[10px] text-indigo-200 shadow-md cursor-pointer hover:bg-indigo-900/90 transition animate-in fade-in shrink-0"
-                title="Hacé clic para ver el estado de las fuentes en la bibliografía"
-              >
-                <CircularProgressRing
-                  progress={uploadTasks[0].progress}
-                  stage={uploadTasks[0].stage}
-                  size="xs"
-                />
-                <span className="truncate max-w-[120px] sm:max-w-[200px] font-medium font-mono">
-                  {uploadTasks[0].stage === 'done'
-                    ? `¡Listo! ${uploadTasks[0].name}`
-                    : `${uploadTasks[0].progress}% ${uploadTasks[0].name}`}
-                </span>
-                {uploadTasks.length > 1 && (
-                  <span className="text-indigo-400 text-[9px] font-mono">
-                    +{uploadTasks.length - 1}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Split Layout Presets */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 shrink-0">
-              <button
-                type="button"
-                onClick={() => handleSplitRatioChange(50)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded transition cursor-pointer ${
-                  Math.abs(splitRatio - 50) < 2
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Distribución Equilibrada: 50% Visor / 50% Estudio (Doble clic en el divisor también centra)"
-              >
-                50:50
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSplitRatioChange(30)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded transition cursor-pointer ${
-                  Math.abs(splitRatio - 30) < 4
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Foco Chat: 30% Visor / 70% Chat y Estudio"
-              >
-                Foco Chat
-              </button>
-            </div>
-          </div>
-
-          {/* Persistent SourceManager Panel */}
-          <div className={`h-full flex-1 overflow-hidden ${rightPaneMode === 'sources' ? 'flex flex-col' : 'hidden'}`}>
-            <SourceManager
-              projectId={activeProject?.id}
-              sources={sources}
-              activeSourceIds={activeSourceIds}
-              selectedDocId={selectedDoc?.id || null}
-              onToggleActive={handleToggleActive}
-              onToggleAll={handleToggleAll}
-              onToggleBatchActive={handleToggleBatchActive}
-              onSelectDoc={(doc) => {
-                setSelectedDoc(doc);
-                setHighlightTarget(null);
-                setDocViewerTab('reading');
-              }}
-              onOpenDossier={(doc) => {
-                setSelectedDoc(doc);
-                setDocViewerTab('dossier');
-              }}
-              onOpenTaxonomy={(doc) => {
-                setSelectedDoc(doc);
-                setDocViewerTab('taxonomy');
-              }}
-              onUpload={handleUpload}
-              onIngestUrl={handleIngestUrl}
-              onSourcesAdded={handleSourcesAdded}
-              onOpenDiscovery={() => handleOpenDiscovery()}
-              onDelete={handleDeleteSource}
-              onRefreshSources={handleRefreshSources}
-              selectedEngine={selectedEngine}
-              isFullView={true}
-              onNavigateToChat={() => setRightPaneMode('chat')}
-              uploadTasks={uploadTasks}
-              onDismissUploadTask={handleDismissUploadTask}
-              onOpenLogs={() => setIsLogsModalOpen(true)}
-            />
-          </div>
-
-          {/* Persistent Chat Panel */}
-          <div className={`h-full flex-1 overflow-hidden ${rightPaneMode === 'chat' ? 'flex flex-col' : 'hidden'}`}>
-            <ChatPanel
-              projectId={activeProject?.id}
-              projectName={activeProject?.name}
-              messages={messages}
-              isLoading={isLoading}
-              activeSourceCount={activeSourceIds.length}
-              totalSourcesCount={sources.length}
-              onOpenBibliography={() => setRightPaneMode('sources')}
-              onSendMessage={handleSendMessage}
-              onCitationClick={handleCitationClick}
-              onClearChat={handleClearChat}
-              onSaveToNotebook={handleSaveToNotebook}
-              targetMessageId={targetMessageId}
-              onClearTargetMessage={() => setTargetMessageId(null)}
-              onMessagesImported={(newMsgs) => {
-                setMessages((prev) => [...prev, ...newMsgs]);
-                if (activeProject) {
-                  setProjects((prev) =>
-                    prev.map((p) =>
-                      p.id === activeProject.id
-                        ? { ...p, message_count: (p.message_count || 0) + newMsgs.length }
-                        : p
-                    )
-                  );
-                }
-              }}
-            />
-          </div>
-
-          {rightPaneMode === 'notebook' && (
-            <StudioNotebook
-              projectId={activeProject?.id || 'default'}
-              projectName={activeProject?.name || 'Investigación'}
-              onNotesCountChange={setNotesCount}
-              targetNoteId={targetNoteId}
-              onClearTargetNote={() => setTargetNoteId(null)}
-              initialNewNote={draftNote}
-              onClearInitialNote={() => setDraftNote(null)}
-              onNavigateToChat={handleNavigateToChat}
-              onNavigateToSource={handleNavigateToSourceFromNote}
-              messages={messages}
-              sources={sources}
-              onNavigateToCitation={handleCitationClick}
-            />
-          )}
-
-          {rightPaneMode === 'network' && (
-            <NetworkGraphViewer
-              projectId={activeProject?.id || 'default'}
-              selectedDocId={selectedDoc?.id || null}
-              onSelectDocument={(docId) => {
-                const doc = sources.find((s) => s.id === docId);
-                if (doc) {
-                  setSelectedDoc(doc);
-                  setHighlightTarget(null);
-                }
-              }}
-            />
-          )}
-
-          {rightPaneMode === 'timeline' && (
-            <TimelineViewer
-              projectId={activeProject?.id || 'default'}
-              selectedDocId={selectedDoc?.id || null}
-              selectedEngine={selectedEngine}
-              onSelectDocument={(docId) => {
-                const doc = sources.find((s) => s.id === docId);
-                if (doc) {
-                  setSelectedDoc(doc);
-                  setHighlightTarget(null);
-                }
-              }}
-            />
-          )}
-        </div>
-      </div>
-        </>
-      )}
 
       {/* Hidden File Input for Archival Add Document */}
       <input

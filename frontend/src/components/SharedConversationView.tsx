@@ -68,100 +68,104 @@ export const SharedConversationView: React.FC<SharedConversationViewProps> = ({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
-        <p className="text-sm font-medium">Cargando conversación de investigación...</p>
+      <div className="min-h-screen bg-[#F9F9F8] dark:bg-[#121214] flex flex-col items-center justify-center text-[#666666] dark:text-[#888888] font-mono gap-3 select-none">
+        <Loader2 className="w-6 h-6 animate-spin text-[#1A1A1A] dark:text-[#EDEDED]" />
+        <p className="text-xs uppercase tracking-wider">Cargando conversación de investigación...</p>
       </div>
     );
   }
 
   if (error || !snapshot) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center text-slate-400">
-        <div className="p-4 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 mb-3">
-          <AlertCircle className="w-8 h-8" />
+      <div className="min-h-screen bg-[#F9F9F8] dark:bg-[#121214] flex flex-col items-center justify-center p-6 text-center text-[#666666] dark:text-[#888888] font-mono">
+        <div className="p-3 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-3">
+          <AlertCircle className="w-6 h-6" />
         </div>
-        <h2 className="text-lg font-semibold text-slate-200">Conversación no encontrada</h2>
-        <p className="text-sm text-slate-400 max-w-md mt-1 mb-6">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-[#1A1A1A] dark:text-[#EDEDED]">
+          Conversación no encontrada
+        </h2>
+        <p className="text-xs text-[#666666] dark:text-[#888888] max-w-md mt-1 mb-6 font-sans">
           {error || 'El enlace de la conversación es inválido o fue eliminado.'}
         </p>
         <button
           type="button"
           onClick={onBackToWorkspace}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-md transition cursor-pointer"
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono font-medium tracking-wide uppercase bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" /> Volver a OpenFolioLM
+          <ArrowLeft className="w-3.5 h-3.5" /> Volver a OpenFolioLM
         </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#F9F9F8] dark:bg-[#121214] text-[#1A1A1A] dark:text-[#EDEDED] font-sans antialiased flex flex-col">
       {/* Top Bar Header */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-6 py-3.5 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-[#F9F9F8] dark:bg-[#121214] border-b border-[#E0E0DC] dark:border-[#2A2A2E] px-6 py-2.5 flex items-center justify-between gap-4 select-none">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onBackToWorkspace}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] text-xs font-mono border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
             title="Abrir espacio de trabajo de OpenFolioLM"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Espacio de Trabajo</span>
           </button>
 
-          <div className="h-4 w-px bg-slate-700" />
+          <span className="text-[#E0E0DC] dark:text-[#2A2A2E]">|</span>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white tracking-tight">OpenFolioLM</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-medium">
-                Grounded Chat Snapshot
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold font-mono text-[#1A1A1A] dark:text-[#EDEDED] uppercase tracking-wider">
+              OpenFolioLM
+            </span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 bg-[#EBEBE8] dark:bg-[#222226] text-[#1A56DB] dark:text-[#60A5FA] border border-[#1A56DB]/30">
+              Chat Compartido
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 font-mono text-xs">
           <button
             type="button"
             onClick={handleCopyLink}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#EBEBE8] dark:bg-[#1E1E22] hover:bg-[#E0E0DC] dark:hover:bg-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED] border border-[#E0E0DC] dark:border-[#2A2A2E] transition-colors cursor-pointer"
             title="Copiar enlace de esta conversación"
           >
-            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{isCopied ? '¡Enlace Copiado!' : 'Copiar Enlace'}</span>
+            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{isCopied ? '¡Copiado!' : 'Copiar Enlace'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleDownloadJson}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1 font-medium tracking-wide uppercase bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] border border-[#1A1A1A] dark:border-[#EDEDED] transition-colors cursor-pointer"
             title="Descargar conversación en formato JSON para importar en OpenFolioLM"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Descargar (.json)</span>
+            <span>Descargar JSON</span>
           </button>
         </div>
       </header>
 
       {/* Main Conversation Content Container */}
-      <main className="flex-1 max-w-3xl w-full mx-auto p-6 md:p-10 space-y-8">
+      <main className="flex-1 max-w-3xl w-full mx-auto p-6 md:p-8 space-y-6">
         {/* Document Meta Banner */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
-          <div className="flex items-center gap-2 text-xs text-indigo-400 font-medium">
-            <BookOpen className="w-4 h-4" />
+        <div className="p-4 bg-[#F2F2F0] dark:bg-[#19191C] border border-[#E0E0DC] dark:border-[#2A2A2E] space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-mono text-[#1A56DB] dark:text-[#60A5FA]">
+            <BookOpen className="w-3.5 h-3.5" />
             <span>Proyecto: {snapshot.project_name}</span>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-100">{snapshot.title}</h1>
-          <p className="text-xs text-slate-400">
-            Publicado el {new Date(snapshot.created_at).toLocaleDateString()} &bull; {snapshot.messages.length} mensajes en total
+          <h1 className="text-lg md:text-xl font-bold font-sans text-[#1A1A1A] dark:text-[#EDEDED]">
+            {snapshot.title}
+          </h1>
+          <p className="text-[11px] font-mono text-[#666666] dark:text-[#888888]">
+            Publicado el {new Date(snapshot.created_at).toLocaleDateString()} &bull; {snapshot.messages.length} mensajes
           </p>
         </div>
 
         {/* Message Stream */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {snapshot.messages.map((m: ChatMessage, idx: number) => {
             const isUser = m.sender === 'user';
             return (
@@ -170,35 +174,35 @@ export const SharedConversationView: React.FC<SharedConversationViewProps> = ({
                 className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-[90%] rounded-2xl p-5 space-y-3 leading-relaxed text-sm ${
+                  className={`max-w-[90%] p-4 space-y-2.5 leading-relaxed text-xs border ${
                     isUser
-                      ? 'bg-indigo-600 text-white shadow-lg'
-                      : 'bg-slate-900 border border-slate-800/90 text-slate-200'
+                      ? 'bg-[#1A1A1A] text-[#F9F9F8] dark:bg-[#EDEDED] dark:text-[#121214] border-[#1A1A1A] dark:border-[#EDEDED]'
+                      : 'bg-[#F2F2F0] dark:bg-[#19191C] border-[#E0E0DC] dark:border-[#2A2A2E] text-[#1A1A1A] dark:text-[#EDEDED]'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{m.text}</p>
+                  <p className="whitespace-pre-wrap font-sans">{m.text}</p>
 
                   {/* Assistant Citations */}
                   {!isUser && m.citations && m.citations.length > 0 && (
-                    <div className="border-t border-slate-800/80 pt-3 space-y-2 text-xs">
-                      <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" /> Fuentes de Evidencia Consultadas
+                    <div className="border-t border-[#E0E0DC] dark:border-[#2A2A2E] pt-2.5 space-y-1.5 font-mono text-xs">
+                      <div className="font-semibold text-[#1A56DB] dark:text-[#60A5FA] flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                        <Sparkles className="w-3 h-3" /> Fuentes Consultadas
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         {m.citations.map((c: Citation) => (
                           <div
                             key={c.index}
-                            className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300 space-y-1"
+                            className="p-2 bg-[#EBEBE8] dark:bg-[#222226] border border-[#E0E0DC] dark:border-[#2A2A2E] text-[10px] space-y-0.5"
                           >
-                            <div className="font-semibold text-indigo-400 flex items-center justify-between">
+                            <div className="font-bold text-[#1A1A1A] dark:text-[#EDEDED] flex items-center justify-between">
                               <span>[{c.index}] {c.source_filename || 'Documento'}</span>
                               {c.page_number && (
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300">
+                                <span className="px-1 py-0.2 bg-[#E0E0DC] dark:bg-[#2A2A2E] text-[#666666] dark:text-[#888888]">
                                   Pág. {c.page_number}
                                 </span>
                               )}
                             </div>
-                            <p className="italic text-slate-400">"{c.quote_snippet}"</p>
+                            <p className="italic text-[#666666] dark:text-[#888888] font-sans text-[11px]">"{c.quote_snippet}"</p>
                           </div>
                         ))}
                       </div>
@@ -207,9 +211,9 @@ export const SharedConversationView: React.FC<SharedConversationViewProps> = ({
 
                   {/* Factuality indicator if present */}
                   {!isUser && m.factual_score !== undefined && m.factual_score !== null && (
-                    <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    <div className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5">
                       <ShieldCheck className="w-3 h-3" />
-                      <span>Factualidad comprobada por NLI: {Math.round(m.factual_score * 100)}%</span>
+                      <span>Factualidad NLI: {Math.round(m.factual_score * 100)}%</span>
                     </div>
                   )}
                 </div>
