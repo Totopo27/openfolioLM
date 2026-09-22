@@ -13,16 +13,13 @@ import {
   HighlightTarget,
   Citation,
   Project,
-  ActiveUploadTask,
 } from './types';
 import {
   fetchProjects,
   createProject,
   deleteProject,
   fetchProjectSources,
-  uploadProjectSourceBackground,
   fetchProjectTasks,
-  dismissProjectTask,
   ingestProjectUrl,
   deleteProjectSource,
   fetchProjectMessages,
@@ -32,6 +29,7 @@ import {
   autoclassifyAllSources,
 } from './services/api';
 import { useModelEngines } from './hooks/useModelEngines';
+import { useUploadTasks } from './hooks/useUploadTasks';
 const StudioNotebook = React.lazy(() => import('./components/StudioNotebook').then(m => ({ default: m.StudioNotebook })));
 const NetworkGraphViewer = React.lazy(() => import('./components/NetworkGraphViewer').then(m => ({ default: m.NetworkGraphViewer })));
 const TimelineViewer = React.lazy(() => import('./components/TimelineViewer').then(m => ({ default: m.TimelineViewer })));
@@ -112,7 +110,23 @@ export const App: React.FC = () => {
     handlePingActiveModel,
     refreshModels,
   } = useModelEngines();
-  const [uploadTasks, setUploadTasks] = useState<ActiveUploadTask[]>([]);
+  const {
+    uploadTasks,
+    handleUpload,
+    handleDismissUploadTask,
+    initTasks: initUploadTasks,
+  } = useUploadTasks({
+    projectId: activeProject?.id,
+    selectedEngine,
+    onTasksCompleted: async (projId: string) => {
+      const freshDocs = await fetchProjectSources(projId);
+      setSources(freshDocs);
+      setActiveSourceIds(freshDocs.map((d) => d.id));
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projId ? { ...p, doc_count: freshDocs.length } : p))
+      );
+    },
+  });
 
   // Studio & Tab State
   const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier' | 'taxonomy'>('reading');
@@ -275,22 +289,7 @@ export const App: React.FC = () => {
     // Fetch active or recently completed background tasks for this project
     try {
       const backendTasks = await fetchProjectTasks(project.id);
-      const activeOrRecent = backendTasks.filter(
-        (t) => t.stage !== 'done' || (t.completed_at && Date.now() - t.completed_at * 1000 < 10000)
-      );
-      setUploadTasks(
-        activeOrRecent.map((t) => ({
-          id: t.id,
-          name: t.filename,
-          size: t.file_size,
-          progress: t.progress,
-          stage: t.stage,
-          statusText: t.status_text,
-          error: t.error || undefined,
-          document_id: t.document_id,
-          startedAt: Math.round(t.created_at * 1000),
-        }))
-      );
+      initUploadTasks(backendTasks);
     } catch (err) {
       console.error(`Failed to load tasks for project ${project.id}:`, err);
     }
@@ -339,177 +338,6 @@ export const App: React.FC = () => {
     } catch (err: any) {
       alert(`Error deleting project: ${err.message}`);
     }
-  };
-
-  // Polling loop for active background ingestion tasks with adaptive intervals
-  useEffect(() => {
-    if (!activeProject) return;
-
-    let isMounted = true;
-    let timerId: ReturnType<typeof setTimeout>;
-
-    const poll = async () => {
-      try {
-        const backendTasks = await fetchProjectTasks(activeProject.id);
-        if (!isMounted) return;
-
-        let hasNewCompleted = false;
-
-        setUploadTasks((prev) => {
-          let hasChanges = false;
-          const updated = [...prev];
-
-          for (const bt of backendTasks) {
-            const existingIdx = updated.findIndex((t) => t.id === bt.id);
-            const mappedTask: ActiveUploadTask = {
-              id: bt.id,
-              name: bt.filename,
-              size: bt.file_size,
-              progress: bt.progress,
-              stage: bt.stage,
-              statusText: bt.status_text,
-              error: bt.error || undefined,
-              document_id: bt.document_id,
-              startedAt: Math.round(bt.created_at * 1000),
-            };
-
-            if (existingIdx >= 0) {
-              const prevTask = updated[existingIdx];
-              if (prevTask.stage !== 'done' && bt.stage === 'done') {
-                hasNewCompleted = true;
-              }
-              if (
-                prevTask.progress !== bt.progress ||
-                prevTask.stage !== bt.stage ||
-                prevTask.statusText !== bt.status_text ||
-                prevTask.error !== (bt.error || undefined)
-              ) {
-                hasChanges = true;
-                updated[existingIdx] = {
-                  ...prevTask,
-                  ...mappedTask,
-                };
-              }
-            } else {
-              if (bt.stage !== 'done' || (bt.completed_at && Date.now() - bt.completed_at * 1000 < 8000)) {
-                hasChanges = true;
-                updated.push(mappedTask);
-              }
-            }
-          }
-
-          // If nothing changed, return prev reference so React skips re-render
-          if (!hasChanges) {
-            return prev;
-          }
-          return updated;
-        });
-
-        if (hasNewCompleted) {
-          const freshDocs = await fetchProjectSources(activeProject.id);
-          setSources(freshDocs);
-          setActiveSourceIds(freshDocs.map((d) => d.id));
-          setProjects((prev) =>
-            prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: freshDocs.length } : p))
-          );
-        }
-
-        // Adaptive interval: 2.5s if active tasks, 15s when idle
-        const hasActiveTasks = backendTasks.some(
-          (t) => t.stage !== 'done' && t.stage !== 'error'
-        );
-        const nextInterval = hasActiveTasks ? 2500 : 15000;
-        if (isMounted) {
-          timerId = setTimeout(poll, nextInterval);
-        }
-      } catch (err) {
-        if (isMounted) {
-          timerId = setTimeout(poll, 15000);
-        }
-      }
-    };
-
-    poll();
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timerId);
-    };
-  }, [activeProject?.id]);
-
-  const handleUpload = async (file: File) => {
-    if (!activeProject) return;
-    const tempTaskId = `task_temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const newTask: ActiveUploadTask = {
-      id: tempTaskId,
-      name: file.name,
-      size: file.size,
-      progress: 5,
-      stage: 'uploading',
-      statusText: 'Iniciando transferencia...',
-      startedAt: Date.now(),
-    };
-
-    setUploadTasks((prev) => [newTask, ...prev]);
-
-    try {
-      const backendTask = await uploadProjectSourceBackground(
-        activeProject.id,
-        file,
-        (percent, loaded, total) => {
-          const loadedMb = (loaded / (1024 * 1024)).toFixed(1);
-          const totalMb = (total / (1024 * 1024)).toFixed(1);
-          setUploadTasks((prev) =>
-            prev.map((t) =>
-              t.id === tempTaskId
-                ? {
-                    ...t,
-                    progress: Math.min(100, Math.max(1, percent)),
-                    statusText: `Transfiriendo archivo: ${loadedMb} / ${totalMb} MB (${percent}%)`,
-                  }
-                : t
-            )
-          );
-        },
-        selectedEngine
-      );
-
-      // Successfully enqueued on server: update task with backend id and status
-      setUploadTasks((prev) =>
-        prev.map((t) =>
-          t.id === tempTaskId
-            ? {
-                ...t,
-                id: backendTask.id,
-                progress: backendTask.progress,
-                stage: backendTask.stage,
-                statusText: backendTask.status_text,
-                error: backendTask.error || undefined,
-              }
-            : t
-        )
-      );
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      setUploadTasks((prev) =>
-        prev.map((t) =>
-          t.id === tempTaskId
-            ? { ...t, stage: 'error', error: err.message || 'Error al subir el archivo' }
-            : t
-        )
-      );
-    }
-  };
-
-  const handleDismissUploadTask = async (taskId: string) => {
-    if (activeProject && !taskId.startsWith('task_temp_')) {
-      try {
-        await dismissProjectTask(activeProject.id, taskId);
-      } catch (err) {
-        console.error('Error dismissing task from backend:', err);
-      }
-    }
-    setUploadTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 
   const handleIngestUrl = async (url: string, title?: string) => {
