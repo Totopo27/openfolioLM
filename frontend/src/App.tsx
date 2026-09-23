@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import {
   Folder,
-  FolderPlus,
   Trash2,
   ChevronDown,
-  X,
   Activity,
 } from 'lucide-react';
 import {
@@ -15,7 +13,6 @@ import {
 } from './types';
 import {
   fetchProjects,
-  createProject,
   deleteProject,
   fetchProjectSources,
   fetchProjectTasks,
@@ -36,6 +33,7 @@ const LiteratureDiscoveryModal = React.lazy(() => import('./components/Literatur
 const SharedConversationView = React.lazy(() => import('./components/SharedConversationView').then(m => ({ default: m.SharedConversationView })));
 const SystemLogsModal = React.lazy(() => import('./components/SystemLogsModal').then(m => ({ default: m.SystemLogsModal })));
 import { ArchivalIndex, ArchivalDocument } from './components/archival/ArchivalIndex';
+import { CreateProjectModal } from './components/CreateProjectModal';
 import {
   ArchivalSplitViewer,
 } from './components/archival/ArchivalSplitViewer';
@@ -56,9 +54,6 @@ export const App: React.FC = () => {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDesc, setNewProjectDesc] = useState('');
-  const [isSubmittingProject, setIsSubmittingProject] = useState(false);
 
   // Document & Chat State
   const [sources, setSources] = useState<SourceDocument[]>([]);
@@ -283,25 +278,6 @@ export const App: React.FC = () => {
       initUploadTasks(backendTasks);
     } catch (err) {
       console.error(`Failed to load tasks for project ${project.id}:`, err);
-    }
-  };
-
-  const handleCreateProjectSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProjectName.trim() || isSubmittingProject) return;
-
-    setIsSubmittingProject(true);
-    try {
-      const created = await createProject(newProjectName.trim(), newProjectDesc.trim());
-      setProjects((prev) => [created, ...prev]);
-      setNewProjectName('');
-      setNewProjectDesc('');
-      setIsCreateModalOpen(false);
-      await handleSelectProject(created);
-    } catch (err: any) {
-      alert(`Error creating project: ${err.message}`);
-    } finally {
-      setIsSubmittingProject(false);
     }
   };
 
@@ -856,70 +832,14 @@ export const App: React.FC = () => {
 
       {/* Create Project Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
-          <div className="bg-[#F9F9F8] dark:bg-[#121214] border border-[#E0E0DC] dark:border-[#2A2A2E] shadow-2xl w-full max-w-md p-5 space-y-4 font-sans">
-            <div className="flex items-center justify-between border-b border-[#E0E0DC] dark:border-[#2A2A2E] pb-3">
-              <div className="flex items-center gap-2 text-[#1A1A1A] dark:text-[#EDEDED] font-semibold text-xs font-mono uppercase tracking-wider">
-                <FolderPlus className="w-4 h-4 text-[#1A56DB] dark:text-[#60A5FA]" />
-                <span>Nuevo Proyecto de Investigación</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-[#666666] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateProjectSubmit} className="space-y-3 font-mono text-xs">
-              <div>
-                <label className="block text-[11px] font-bold text-[#666666] dark:text-[#888888] uppercase mb-1">
-                  Nombre del Proyecto <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  placeholder="Ej: Análisis Económico 2026, Novela Edipo..."
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  className="w-full bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-3 py-2 text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED] font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-[#666666] dark:text-[#888888] uppercase mb-1">
-                  Descripción (opcional)
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Objetivo o notas sobre los documentos a investigar..."
-                  value={newProjectDesc}
-                  onChange={(e) => setNewProjectDesc(e.target.value)}
-                  className="w-full bg-[#EBEBE8] dark:bg-[#1E1E22] border border-[#E0E0DC] dark:border-[#2A2A2E] px-3 py-2 text-xs text-[#1A1A1A] dark:text-[#EDEDED] placeholder-[#999999] dark:placeholder-[#555555] focus:outline-none focus:border-[#1A1A1A] dark:focus:border-[#EDEDED] font-sans resize-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E0E0DC] dark:border-[#2A2A2E]">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-3 py-1.5 border border-[#E0E0DC] dark:border-[#2A2A2E] text-xs font-mono text-[#666666] dark:text-[#888888] hover:text-[#1A1A1A] dark:hover:text-[#EDEDED] cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newProjectName.trim() || isSubmittingProject}
-                  className="px-4 py-1.5 bg-[#1A1A1A] hover:bg-[#333333] dark:bg-[#EDEDED] dark:hover:bg-[#FFFFFF] text-[#F9F9F8] dark:text-[#121214] text-xs font-mono font-medium tracking-wide uppercase transition-colors disabled:opacity-40 cursor-pointer"
-                >
-                  {isSubmittingProject ? 'Creando...' : 'Crear Proyecto'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreateProjectModal
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={async (created) => {
+            setProjects((prev) => [created, ...prev]);
+            setIsCreateModalOpen(false);
+            await handleSelectProject(created);
+          }}
+        />
       )}
 
       {/* Literature Discovery Modal (Compendio & Modules seed search) */}
