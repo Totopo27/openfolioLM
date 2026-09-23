@@ -54,8 +54,11 @@ class HybridDocumentIngester(IngestionPort):
         current_url = url
         with httpx.Client(timeout=30.0, follow_redirects=False, headers=headers) as client:
             for redirect_count in range(self._markitdown.MAX_REDIRECTS + 1):
-                self._markitdown._validate_public_url(current_url)
-                with client.stream("GET", current_url) as response:
+                parsed, pinned_ip = self._markitdown._validate_public_url(current_url)
+                pinned_url, extra_headers = self._markitdown._pin_url_to_ip(
+                    current_url, parsed, pinned_ip
+                )
+                with client.stream("GET", pinned_url, headers=extra_headers) as response:
                     if response.status_code in self._markitdown.REDIRECT_STATUS_CODES:
                         location = response.headers.get("location")
                         if not location:
@@ -66,7 +69,6 @@ class HybridDocumentIngester(IngestionPort):
                                 request=response.request,
                             )
                         current_url = urljoin(str(response.url), location)
-                        self._markitdown._validate_public_url(current_url)
                         continue
 
                     response.raise_for_status()

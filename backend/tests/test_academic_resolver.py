@@ -176,7 +176,8 @@ def test_hybrid_ingester_oa_routes_to_docling():
     mock_stream.__enter__.return_value = mock_pdf_resp
 
     with (
-        patch.object(MarkItDownAdapter, "_validate_public_url"),
+        patch.object(MarkItDownAdapter, "_validate_public_url", return_value=(MagicMock(), "1.2.3.4")),
+        patch.object(MarkItDownAdapter, "_pin_url_to_ip", return_value=("https://1.2.3.4/file", {"Host": "example.com"})),
         patch("httpx.Client.stream", return_value=mock_stream),
     ):
         doc = ingester.ingest_url("10.1371/journal.pone.0246282")
@@ -211,9 +212,11 @@ def test_hybrid_ingester_validates_academic_pdf_redirects():
     def validate(url):
         if url.startswith("http://127.0.0.1"):
             raise UnsafeURLError("private target")
+        return (MagicMock(), "1.2.3.4")
 
     with (
         patch.object(MarkItDownAdapter, "_validate_public_url", side_effect=validate),
+        patch.object(MarkItDownAdapter, "_pin_url_to_ip", return_value=("https://1.2.3.4/paper.pdf", {"Host": "example.com"})),
         patch("httpx.Client.stream", return_value=mock_stream),
         pytest.raises(UnsafeURLError),
     ):
@@ -232,7 +235,8 @@ def test_hybrid_ingester_limits_streamed_academic_pdf(monkeypatch):
     monkeypatch.setattr("app.adapters.hybrid_ingester.MAX_ACADEMIC_PDF_BYTES", 4)
 
     with (
-        patch.object(MarkItDownAdapter, "_validate_public_url"),
+        patch.object(MarkItDownAdapter, "_validate_public_url", return_value=(MagicMock(), "1.2.3.4")),
+        patch.object(MarkItDownAdapter, "_pin_url_to_ip", return_value=("https://1.2.3.4/paper.pdf", {"Host": "example.com"})),
         patch("httpx.Client.stream", return_value=mock_stream),
         pytest.raises(ValueError, match="exceeds the allowed size"),
     ):

@@ -3,6 +3,7 @@ import re
 import json
 import logging
 import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,30 @@ from app.adapters.lancedb_store import LanceDBVectorStore
 from app.adapters.academic_resolver import normalize_doi
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_json_write(path: str, data: Any, **dump_kwargs: Any) -> None:
+    """Write JSON to *path* crash-safely via write-to-tmp + fsync + rename.
+
+    The temp file is created in the same directory as *path* so the
+    rename is always same-filesystem and therefore atomic on POSIX.
+    On Windows, ``os.replace`` is used which is also atomic.
+    """
+    target_dir = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=target_dir, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, **dump_kwargs)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        # Clean up the temp file on any failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 from app.adapters.task_manager import IngestionTaskManager
 
 STOPWORDS = {
@@ -107,8 +132,7 @@ class ProjectManager:
             "created_at": now.isoformat()
         }
 
-        with open(self._get_meta_path(project_id), "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
+        _atomic_json_write(self._get_meta_path(project_id), meta, indent=2)
 
         # Initialize isolated SQLite database
         self.get_store(project_id)
@@ -236,8 +260,7 @@ class ProjectManager:
             "description": "Espacio de trabajo inicial",
             "created_at": now.isoformat()
         }
-        with open(self._get_meta_path(default_id), "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
+        _atomic_json_write(self._get_meta_path(default_id), meta, indent=2)
 
         return self.get_project(default_id)
 
@@ -332,8 +355,7 @@ class ProjectManager:
 
         # 1. Save in standalone file for high-speed public access
         file_path = os.path.join(self._get_shared_dir(), f"{share_id}.json")
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, indent=2, ensure_ascii=False)
+        _atomic_json_write(file_path, snapshot, indent=2, ensure_ascii=False)
 
         # 2. Also persist in project's SQLite store
         try:

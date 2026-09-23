@@ -88,6 +88,38 @@ def create_app(
         allow_headers=["Accept", "Content-Type"],
     )
 
+    # Loopback guard: reject non-local requests unless explicitly opted in.
+    # Protects against accidental exposure via --host 0.0.0.0, port
+    # forwarding, reverse proxies, or container networking.
+    allow_remote = os.getenv("OPENFOLIO_ALLOW_REMOTE", "").strip().lower() in ("1", "true", "yes")
+    if allow_remote:
+        logger.warning(
+            "OPENFOLIO_ALLOW_REMOTE is set -- accepting requests from any IP. "
+            "This disables the loopback-only safety net. "
+            "Make sure you have authentication or a firewall in place."
+        )
+
+    @app.middleware("http")
+    async def loopback_guard(request: Request, call_next):
+        if not allow_remote:
+            client_host = request.client.host if request.client else None
+            if client_host not in ("127.0.0.1", "::1", "testclient", None):
+                logger.warning(
+                    "Rejected request from non-loopback address %s. "
+                    "Set OPENFOLIO_ALLOW_REMOTE=1 to allow remote access.",
+                    client_host,
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": (
+                            "OpenFolioLM is configured for local-only access. "
+                            "Set OPENFOLIO_ALLOW_REMOTE=1 to allow remote connections."
+                        )
+                    },
+                )
+        return await call_next(request)
+
     @app.exception_handler(InvalidProjectIdError)
     async def invalid_project_id_handler(
         _request: Request,

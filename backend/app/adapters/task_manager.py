@@ -102,6 +102,28 @@ class IngestionTaskManager:
             return True
         return False
 
+    def cancel_project_tasks(self, project_id: str) -> int:
+        """Mark all in-flight tasks for a project as cancelled.
+
+        Returns the count of tasks that were cancelled.  Workers check
+        their task stage before writing results, so this prevents
+        orphaned writes to a deleted project.
+        """
+        cancelled = 0
+        for task in self._tasks.values():
+            if task.project_id == project_id and task.stage not in ("done", "error"):
+                task.stage = "error"
+                task.error = "Project deleted while task was in progress"
+                task.status_text = "Cancelado: proyecto eliminado"
+                task.completed_at = time.time()
+                cancelled += 1
+        if cancelled:
+            logger.info(
+                "Cancelled %d in-flight task(s) for deleted project %s",
+                cancelled, project_id,
+            )
+        return cancelled
+
     def submit_ingestion(
         self,
         task_id: str,
@@ -122,6 +144,12 @@ class IngestionTaskManager:
             try:
                 progress_reporter(10, "extracting", f"Iniciando extracción de '{task.filename}'...")
                 doc = ingest_fn(progress_reporter)
+                # Guard: if the task was cancelled (e.g. project deleted
+                # while ingestion was running), skip the success path to
+                # avoid writing to a torn-down store.
+                if task.stage == "error":
+                    logger.info("Task %s was cancelled mid-flight, discarding result", task_id)
+                    return
                 self.update_task(
                     task_id,
                     progress=100,

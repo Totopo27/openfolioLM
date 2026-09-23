@@ -238,6 +238,8 @@ def create_projects_router(
 
     @router.delete("/{project_id}")
     async def delete_project(project_id: str):
+        # Cancel in-flight ingestion tasks before tearing down stores
+        project_manager.task_manager.cancel_project_tasks(project_id)
         success = project_manager.delete_project(project_id)
         if not success:
             raise HTTPException(status_code=404, detail="Project not found")

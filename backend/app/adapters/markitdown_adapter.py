@@ -156,8 +156,13 @@ class MarkItDownAdapter(IngestionPort):
         return False
 
     @classmethod
-    def _validate_public_url(cls, url: str) -> ParseResult:
-        """Validate the scheme and every resolved address before a request."""
+    def _validate_public_url(cls, url: str) -> tuple[ParseResult, str]:
+        """Validate the scheme and every resolved address before a request.
+
+        Returns the parsed URL and the first global IP address, so the
+        caller can connect directly to that IP and avoid DNS rebinding
+        (TOCTOU between validation and connection).
+        """
         try:
             parsed = urlparse(url)
             port = parsed.port
@@ -184,6 +189,7 @@ class MarkItDownAdapter(IngestionPort):
         if not addresses:
             raise UnsafeURLError("URL hostname did not resolve to an address")
 
+        first_global_ip: str | None = None
         for _family, _socktype, _proto, _canonname, sockaddr in addresses:
             raw_address = sockaddr[0].split("%", 1)[0]
             try:
@@ -192,8 +198,13 @@ class MarkItDownAdapter(IngestionPort):
                 raise UnsafeURLError("URL resolved to an invalid address") from exc
             if not resolved_ip.is_global:
                 raise UnsafeURLError("URL resolves to a non-public network address")
+            if first_global_ip is None:
+                first_global_ip = raw_address
 
-        return parsed
+        if first_global_ip is None:
+            raise UnsafeURLError("URL hostname did not resolve to a global address")
+
+        return parsed, first_global_ip
 
     @classmethod
     def _read_limited_body(cls, response: httpx.Response) -> bytes:
@@ -213,17 +224,48 @@ class MarkItDownAdapter(IngestionPort):
             body.extend(chunk)
         return bytes(body)
 
+    @staticmethod
+    def _pin_url_to_ip(url: str, parsed: ParseResult, pinned_ip: str) -> tuple[str, dict[str, str]]:
+        """Rewrite a URL to connect to a specific IP, returning extra headers.
+
+        Replaces the hostname in the URL with the pinned IP so httpx
+        connects directly to it (no second DNS lookup).  The original
+        hostname is forwarded via the Host header for virtual-hosting
+        and TLS SNI.
+        """
+        hostname = parsed.hostname or ""
+        # IPv6 addresses must be bracketed inside URLs
+        ip_for_url = f"[{pinned_ip}]" if ":" in pinned_ip else pinned_ip
+        pinned_url = url.replace(hostname, ip_for_url, 1)
+        port_suffix = f":{parsed.port}" if parsed.port else ""
+        extra_headers = {"Host": f"{hostname}{port_suffix}"}
+        return pinned_url, extra_headers
+
     def _fetch_public_html(
         self,
         url: str,
         headers: dict[str, str],
     ) -> tuple[bytes, str, int]:
-        """Fetch a URL while validating each redirect and bounding the body."""
+        """Fetch a URL while validating each redirect and bounding the body.
+
+        Connections are pinned to the validated IP to prevent DNS
+        rebinding attacks (TOCTOU between resolve and connect).
+        """
         current_url = url
-        with httpx.Client(timeout=15.0, follow_redirects=False) as client:
+        with httpx.Client(
+            timeout=15.0,
+            follow_redirects=False,
+            verify=True,
+        ) as client:
             for redirect_count in range(self.MAX_REDIRECTS + 1):
-                self._validate_public_url(current_url)
-                with client.stream("GET", current_url, headers=headers) as response:
+                parsed, pinned_ip = self._validate_public_url(current_url)
+                pinned_url, extra_headers = self._pin_url_to_ip(
+                    current_url, parsed, pinned_ip
+                )
+                merged_headers = {**headers, **extra_headers}
+                with client.stream(
+                    "GET", pinned_url, headers=merged_headers
+                ) as response:
                     if response.status_code in self.REDIRECT_STATUS_CODES:
                         location = response.headers.get("location")
                         if not location:
@@ -234,7 +276,10 @@ class MarkItDownAdapter(IngestionPort):
                                 request=response.request,
                             )
                         current_url = urljoin(str(response.url), location)
-                        self._validate_public_url(current_url)
+                        # Re-resolve the redirect target with the
+                        # original hostname (not the pinned IP) so it
+                        # gets its own DNS validation on the next
+                        # iteration.
                         continue
 
                     if response.status_code in self.STEALTH_FALLBACK_STATUS_CODES:
@@ -264,7 +309,7 @@ class MarkItDownAdapter(IngestionPort):
         use_stealth: bool = False
         final_url = url
 
-        self._validate_public_url(url)
+        self._validate_public_url(url)  # early reject before any work
 
         # Tier 1: Fast-path via direct HTTP request
         try:
@@ -297,7 +342,7 @@ class MarkItDownAdapter(IngestionPort):
                 )
             try:
                 rendered = self._stealth_scraper.extract_rendered_html(url)
-                self._validate_public_url(rendered.final_url)
+                self._validate_public_url(rendered.final_url)  # reject internal redirects
                 html_content = rendered.html.encode("utf-8")
                 if len(html_content) > self.MAX_WEB_CONTENT_BYTES:
                     raise ValueError("Rendered response exceeds the allowed size")
