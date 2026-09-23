@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import {
   SourceDocument,
-  ChatMessage,
   HighlightTarget,
   Citation,
   Project,
@@ -23,13 +22,12 @@ import {
   ingestProjectUrl,
   deleteProjectSource,
   fetchProjectMessages,
-  clearProjectMessages,
-  sendProjectGroundedChat,
   createProjectNote,
   autoclassifyAllSources,
 } from './services/api';
 import { useModelEngines } from './hooks/useModelEngines';
 import { useUploadTasks } from './hooks/useUploadTasks';
+import { useChatManager } from './hooks/useChatManager';
 const StudioNotebook = React.lazy(() => import('./components/StudioNotebook').then(m => ({ default: m.StudioNotebook })));
 const NetworkGraphViewer = React.lazy(() => import('./components/NetworkGraphViewer').then(m => ({ default: m.NetworkGraphViewer })));
 const TimelineViewer = React.lazy(() => import('./components/TimelineViewer').then(m => ({ default: m.TimelineViewer })));
@@ -40,7 +38,6 @@ import { ArchivalIndex, ArchivalDocument } from './components/archival/ArchivalI
 import {
   ArchivalSplitViewer,
   DocumentSourceChunk,
-  GroundedChatMessage,
 } from './components/archival/ArchivalSplitViewer';
 
 export const formatShortModelName = (name: string): string => {
@@ -100,8 +97,6 @@ export const App: React.FC = () => {
   const [activeSourceIds, setActiveSourceIds] = useState<string[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<SourceDocument | null>(null);
   const [highlightTarget, setHighlightTarget] = useState<HighlightTarget | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const {
     models,
     selectedEngine,
@@ -127,6 +122,35 @@ export const App: React.FC = () => {
       );
     },
   });
+  const {
+    messages,
+    setMessages,
+    isLoading,
+    targetMessageId,
+    setTargetMessageId,
+    groundedMessages,
+    handleSendMessage,
+    handleClearChat,
+  } = useChatManager({
+    projectId: activeProject?.id,
+    activeSourceIds,
+    selectedEngine,
+    onMessageCountChanged: (delta: number) => {
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === activeProject?.id ? { ...p, message_count: p.message_count + delta } : p
+        )
+      );
+    },
+    onChatCleared: () => {
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === activeProject?.id ? { ...p, message_count: 0 } : p
+        )
+      );
+    },
+    onAfterSend: refreshModels,
+  });
 
   // Studio & Tab State
   const [docViewerTab, setDocViewerTab] = useState<'reading' | 'dossier' | 'taxonomy'>('reading');
@@ -137,7 +161,6 @@ export const App: React.FC = () => {
     source_citation_ids?: string[];
   } | null>(null);
   const [targetNoteId, setTargetNoteId] = useState<string | null>(null);
-  const [targetMessageId, setTargetMessageId] = useState<string | null>(null);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState<boolean>(false);
 
   const handleSaveToNotebook = async (
@@ -425,70 +448,6 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleSendMessage = async (query: string) => {
-    if (!activeProject) return;
-
-    const userMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      sender: 'user',
-      text: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setIsLoading(true);
-
-    try {
-      const res = await sendProjectGroundedChat(activeProject.id, query, activeSourceIds, selectedEngine);
-
-      const assistantMsg: ChatMessage = {
-        id: `msg_${Date.now() + 1}`,
-        sender: 'assistant',
-        text: res.answer,
-        citations: res.citations,
-        evidence_found: res.evidence_found,
-        active_sources_consulted: res.active_sources_consulted,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-
-      // Update message count in active project
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === activeProject.id ? { ...p, message_count: p.message_count + 2 } : p
-        )
-      );
-    } catch (err: any) {
-      const errorMsg: ChatMessage = {
-        id: `msg_${Date.now() + 1}`,
-        sender: 'assistant',
-        text: `Error processing query: ${err.message}`,
-        evidence_found: false,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setIsLoading(false);
-      refreshModels();
-    }
-  };
-
-  const handleClearChat = async () => {
-    if (!activeProject) return;
-    if (!confirm('¿Deseas vaciar el historial de conversación de este proyecto?')) return;
-
-    try {
-      await clearProjectMessages(activeProject.id);
-      setMessages([]);
-      setProjects((prev) =>
-        prev.map((p) => (p.id === activeProject.id ? { ...p, message_count: 0 } : p))
-      );
-    } catch (err: any) {
-      alert(`Error clearing chat: ${err.message}`);
-    }
-  };
-
   const handleSourcesAdded = (newDocs: SourceDocument[]) => {
     setSources((prev) => [...newDocs, ...prev]);
     setActiveSourceIds((prev) => [...prev, ...newDocs.map((d) => d.id)]);
@@ -573,26 +532,6 @@ export const App: React.FC = () => {
       };
     });
   }, [selectedDoc]);
-
-  const groundedMessages: GroundedChatMessage[] = useMemo(() => {
-    return messages.map((m) => ({
-      id: m.id,
-      sender: m.sender,
-      text: m.text,
-      factualScore: m.factual_score ?? (m.evidence_found ? 0.98 : undefined),
-      timestamp: m.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      citations: m.citations?.map((c) => ({
-        index: c.index,
-        chunkId: c.chunk_id,
-        sourceFilename: c.source_filename,
-        pageNumber: c.page_number,
-        snippet: c.quote_snippet,
-        sourceId: c.source_id,
-        startChar: c.start_char,
-        endChar: c.end_char,
-      })),
-    }));
-  }, [messages]);
 
   const selectedDocAuthors = useMemo(() => {
     if (!selectedDoc?.metadata) return ['Autor no especificado'];
