@@ -1,3 +1,4 @@
+import asyncio
 import os
 import logging
 import re
@@ -470,9 +471,13 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail="Source document not found in project")
 
         chunks = store.get_document_chunks(source_id)
-        dossier = active_analyzer.analyze_document(doc, chunks, provider=provider)
-        store.save_dossier(dossier)
-        return dossier
+
+        def _analyze_and_save():
+            dossier = active_analyzer.analyze_document(doc, chunks, provider=provider)
+            store.save_dossier(dossier)
+            return dossier
+
+        return await asyncio.to_thread(_analyze_and_save)
 
     @router.get("/{project_id}/sources/{source_id}/dossier", response_model=DocumentDossier)
     async def get_project_source_dossier(project_id: str, source_id: str):
@@ -702,82 +707,88 @@ def create_projects_router(
         store = project_manager.get_store(project_id)
         vector_store = project_manager.get_vector_store(project_id)
 
-        # 1. Save user question to persistent SQLite
-        user_msg = ChatMessageRecord(
-            id=f"msg_{uuid.uuid4().hex[:12]}",
-            conversation_id="default",
-            sender="user",
-            text=query.query
-        )
-        store.save_message(user_msg)
+        # Offload the entire sync-heavy RAG pipeline (retrieval,
+        # reranking, LLM synthesis, NLI audit, persistence) to a
+        # worker thread so the event loop stays responsive.
+        def _run_chat_pipeline():
+            # 1. Save user question
+            user_msg = ChatMessageRecord(
+                id=f"msg_{uuid.uuid4().hex[:12]}",
+                conversation_id="default",
+                sender="user",
+                text=query.query
+            )
+            store.save_message(user_msg)
 
-        # 2. Hybrid Retrieval: FTS5 Lexical + LanceDB Dense Vectors + RRF Fusion
-        candidate_pool_size = max(15, query.top_k * 3)
-        fts_candidates = store.search_chunks(
-            query=query.query,
-            active_source_ids=query.active_source_ids,
-            top_k=candidate_pool_size
-        )
-
-        try:
-            vector_results = vector_store.search_vectors(
+            # 2. Hybrid Retrieval: FTS5 Lexical + LanceDB Dense Vectors + RRF Fusion
+            candidate_pool_size = max(15, query.top_k * 3)
+            fts_candidates = store.search_chunks(
                 query=query.query,
                 active_source_ids=query.active_source_ids,
                 top_k=candidate_pool_size
             )
-            vector_candidates = [c for c, _dist in vector_results]
-        except Exception:
-            vector_candidates = []
 
-        candidate_chunks = reciprocal_rank_fusion(
-            fts_candidates,
-            vector_candidates,
-            k=60,
-            top_k=candidate_pool_size
-        )
+            try:
+                vector_results = vector_store.search_vectors(
+                    query=query.query,
+                    active_source_ids=query.active_source_ids,
+                    top_k=candidate_pool_size
+                )
+                vector_candidates = [c for c, _dist in vector_results]
+            except Exception:
+                vector_candidates = []
 
-        # 3. Neural Cross-Encoder Reranking
-        chunks = active_reranker.rerank(
-            query=query.query,
-            chunks=candidate_chunks,
-            top_k=query.top_k
-        )
+            candidate_chunks = reciprocal_rank_fusion(
+                fts_candidates,
+                vector_candidates,
+                k=60,
+                top_k=candidate_pool_size
+            )
 
-        sources_map = {}
-        for chunk in chunks:
-            if chunk.source_id not in sources_map:
-                d = store.get_document(chunk.source_id)
-                if d:
-                    sources_map[chunk.source_id] = d
+            # 3. Neural Cross-Encoder Reranking
+            chunks = active_reranker.rerank(
+                query=query.query,
+                chunks=candidate_chunks,
+                top_k=query.top_k
+            )
 
-        # 3. Grounded synthesis
-        response = synthesizer.synthesize(
-            query=query,
-            chunks=chunks,
-            sources_map=sources_map
-        )
+            sources_map = {}
+            for chunk in chunks:
+                if chunk.source_id not in sources_map:
+                    d = store.get_document(chunk.source_id)
+                    if d:
+                        sources_map[chunk.source_id] = d
 
-        # 4. Factual Audit & Hallucination Guardrail
-        if active_fact_checker and chunks and response.evidence_found and response.answer:
-            audit = active_fact_checker.audit(premise_chunks=chunks, hypothesis_text=response.answer)
-            response.factual_score = audit.factual_score
-            response.hallucination_risk = audit.hallucination_risk
+            # 4. Grounded synthesis
+            response = synthesizer.synthesize(
+                query=query,
+                chunks=chunks,
+                sources_map=sources_map
+            )
 
-        # 5. Save assistant response with verifiable citations and factual audit to persistent SQLite
-        assistant_msg = ChatMessageRecord(
-            id=f"msg_{uuid.uuid4().hex[:12]}",
-            conversation_id="default",
-            sender="assistant",
-            text=response.answer,
-            citations=response.citations,
-            evidence_found=response.evidence_found,
-            active_sources_consulted=response.active_sources_consulted,
-            factual_score=response.factual_score,
-            hallucination_risk=response.hallucination_risk,
-        )
-        store.save_message(assistant_msg)
+            # 5. Factual Audit & Hallucination Guardrail
+            if active_fact_checker and chunks and response.evidence_found and response.answer:
+                audit = active_fact_checker.audit(premise_chunks=chunks, hypothesis_text=response.answer)
+                response.factual_score = audit.factual_score
+                response.hallucination_risk = audit.hallucination_risk
 
-        return response
+            # 6. Save assistant response
+            assistant_msg = ChatMessageRecord(
+                id=f"msg_{uuid.uuid4().hex[:12]}",
+                conversation_id="default",
+                sender="assistant",
+                text=response.answer,
+                citations=response.citations,
+                evidence_found=response.evidence_found,
+                active_sources_consulted=response.active_sources_consulted,
+                factual_score=response.factual_score,
+                hallucination_risk=response.hallucination_risk,
+            )
+            store.save_message(assistant_msg)
+
+            return response
+
+        return await asyncio.to_thread(_run_chat_pipeline)
 
     @router.post("/{project_id}/reindex")
     async def reindex_project(project_id: str):
@@ -785,7 +796,9 @@ def create_projects_router(
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        reindexed_count = project_manager.reindex_project_vectors(project_id)
+        reindexed_count = await asyncio.to_thread(
+            project_manager.reindex_project_vectors, project_id
+        )
         return {
             "status": "success",
             "project_id": project_id,
@@ -844,7 +857,8 @@ def create_projects_router(
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        papers = active_academic_resolver.search_literature(
+        papers = await asyncio.to_thread(
+            active_academic_resolver.search_literature,
             query=query,
             limit=limit,
             min_year=min_year,
