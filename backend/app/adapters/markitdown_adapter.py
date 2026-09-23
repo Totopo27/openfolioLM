@@ -9,6 +9,8 @@ import uuid
 from typing import Any, Optional
 from urllib.parse import ParseResult, urljoin, urlparse
 
+import httpcore
+from httpcore._backends.sync import SyncBackend
 import httpx
 from markitdown import MarkItDown
 
@@ -20,6 +22,26 @@ logger = logging.getLogger(__name__)
 
 class UnsafeURLError(ValueError):
     """Raised when a URL can reach a non-public network resource."""
+
+
+class _PinnedIPNetworkBackend(SyncBackend):
+    def __init__(self, pinned_ip: str):
+        super().__init__()
+        self._pinned_ip = pinned_ip
+
+    def connect_tcp(self, host: str, port: int, *args: Any, **kwargs: Any) -> Any:
+        # Connect socket directly to the pre-validated public IP to eliminate TOCTOU / DNS rebinding,
+        # while preserving original host for TLS SNI and certificate validation.
+        return super().connect_tcp(self._pinned_ip, port, *args, **kwargs)
+
+
+class _PinnedIPTransport(httpx.HTTPTransport):
+    def __init__(self, pinned_ip: str, **kwargs: Any):
+        super().__init__(**kwargs)
+        self._pool = httpcore.ConnectionPool(
+            ssl_context=self._pool._ssl_context,
+            network_backend=_PinnedIPNetworkBackend(pinned_ip),
+        )
 
 
 class MarkItDownAdapter(IngestionPort):
@@ -225,16 +247,14 @@ class MarkItDownAdapter(IngestionPort):
         return bytes(body)
 
     @staticmethod
-    def _pin_url_to_ip(url: str, parsed: ParseResult, pinned_ip: str) -> tuple[str, dict[str, str]]:
-        """Rewrite a URL to connect to a specific IP, returning extra headers.
+    def _create_pinned_transport(pinned_ip: str, **kwargs: Any) -> httpx.HTTPTransport:
+        """Create an HTTPTransport that connects directly to the pinned IP while preserving TLS SNI."""
+        return _PinnedIPTransport(pinned_ip, **kwargs)
 
-        Replaces the hostname in the URL with the pinned IP so httpx
-        connects directly to it (no second DNS lookup).  The original
-        hostname is forwarded via the Host header for virtual-hosting
-        and TLS SNI.
-        """
+    @staticmethod
+    def _pin_url_to_ip(url: str, parsed: ParseResult, pinned_ip: str) -> tuple[str, dict[str, str]]:
+        """Rewrite a URL to connect to a specific IP, returning extra headers."""
         hostname = parsed.hostname or ""
-        # IPv6 addresses must be bracketed inside URLs
         ip_for_url = f"[{pinned_ip}]" if ":" in pinned_ip else pinned_ip
         pinned_url = url.replace(hostname, ip_for_url, 1)
         port_suffix = f":{parsed.port}" if parsed.port else ""
@@ -249,22 +269,21 @@ class MarkItDownAdapter(IngestionPort):
         """Fetch a URL while validating each redirect and bounding the body.
 
         Connections are pinned to the validated IP to prevent DNS
-        rebinding attacks (TOCTOU between resolve and connect).
+        rebinding attacks (TOCTOU between resolve and connect) without
+        breaking TLS SNI or certificate validation.
         """
         current_url = url
-        with httpx.Client(
-            timeout=15.0,
-            follow_redirects=False,
-            verify=True,
-        ) as client:
-            for redirect_count in range(self.MAX_REDIRECTS + 1):
-                parsed, pinned_ip = self._validate_public_url(current_url)
-                pinned_url, extra_headers = self._pin_url_to_ip(
-                    current_url, parsed, pinned_ip
-                )
-                merged_headers = {**headers, **extra_headers}
+        for redirect_count in range(self.MAX_REDIRECTS + 1):
+            parsed, pinned_ip = self._validate_public_url(current_url)
+            transport = self._create_pinned_transport(pinned_ip)
+            with httpx.Client(
+                timeout=15.0,
+                follow_redirects=False,
+                verify=True,
+                transport=transport,
+            ) as client:
                 with client.stream(
-                    "GET", pinned_url, headers=merged_headers
+                    "GET", current_url, headers=headers
                 ) as response:
                     if response.status_code in self.REDIRECT_STATUS_CODES:
                         location = response.headers.get("location")
@@ -276,10 +295,6 @@ class MarkItDownAdapter(IngestionPort):
                                 request=response.request,
                             )
                         current_url = urljoin(str(response.url), location)
-                        # Re-resolve the redirect target with the
-                        # original hostname (not the pinned IP) so it
-                        # gets its own DNS validation on the next
-                        # iteration.
                         continue
 
                     if response.status_code in self.STEALTH_FALLBACK_STATUS_CODES:
@@ -356,8 +371,10 @@ class MarkItDownAdapter(IngestionPort):
         default_filename = extracted_title or (parsed_url.netloc + parsed_url.path).strip("/") or "web_document"
         final_filename = (title_override or default_filename).strip()
 
-        # Convert HTML stream to Markdown
-        result = self._md.convert_stream(io.BytesIO(html_content), file_extension=".html")
+        # Detect PDF vs HTML payload
+        is_pdf_payload = html_content.startswith(b"%PDF") or parsed_url.path.lower().endswith(".pdf")
+        file_ext = ".pdf" if is_pdf_payload else ".html"
+        result = self._md.convert_stream(io.BytesIO(html_content), file_extension=file_ext)
         markdown_text = result.text_content or ""
 
         # Prepend clean Title and Source URL header

@@ -5,7 +5,7 @@ import os
 import tempfile
 import uuid
 from typing import Any, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import httpx
 
 from app.core.config import settings
@@ -52,13 +52,16 @@ class HybridDocumentIngester(IngestionPort):
     def _download_public_pdf(self, url: str, headers: dict[str, str]) -> bytes:
         """Download a public PDF with validated redirects and a strict size cap."""
         current_url = url
-        with httpx.Client(timeout=30.0, follow_redirects=False, headers=headers) as client:
-            for redirect_count in range(self._markitdown.MAX_REDIRECTS + 1):
-                parsed, pinned_ip = self._markitdown._validate_public_url(current_url)
-                pinned_url, extra_headers = self._markitdown._pin_url_to_ip(
-                    current_url, parsed, pinned_ip
-                )
-                with client.stream("GET", pinned_url, headers=extra_headers) as response:
+        for redirect_count in range(self._markitdown.MAX_REDIRECTS + 1):
+            parsed, pinned_ip = self._markitdown._validate_public_url(current_url)
+            transport = self._markitdown._create_pinned_transport(pinned_ip)
+            with httpx.Client(
+                timeout=30.0,
+                follow_redirects=False,
+                headers=headers,
+                transport=transport,
+            ) as client:
+                with client.stream("GET", current_url) as response:
                     if response.status_code in self._markitdown.REDIRECT_STATUS_CODES:
                         location = response.headers.get("location")
                         if not location:
@@ -222,5 +225,46 @@ class HybridDocumentIngester(IngestionPort):
                 logger.error(f"YouTube ingestion failed for '{url}': {yt_err}")
                 raise yt_err
 
-        # Tier 3: Standard Web Ingestion via MarkItDown
+        # Tier 3: Direct PDF URL detection (e.g. arXiv, scientific repositories)
+        clean_url_path = urlparse(url).path.lower()
+        is_pdf_url = clean_url_path.endswith(".pdf") or "/pdf/" in clean_url_path
+        if is_pdf_url:
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                }
+                pdf_bytes = self._download_public_pdf(url, headers)
+                if pdf_bytes.startswith(b"%PDF"):
+                    parsed_p = urlparse(url)
+                    base_name = os.path.basename(parsed_p.path).replace(".pdf", "") or "documento_remoto"
+                    filename = f"{title_override or base_name}.pdf"
+                    temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+                    temp_path = temp_file.name
+                    try:
+                        temp_file.write(pdf_bytes)
+                        temp_file.flush()
+                        temp_file.close()
+
+                        doc = self.convert(
+                            file_path=temp_path,
+                            filename=filename,
+                            source_id=doc_id,
+                            vision_transcriber=vision_transcriber,
+                        )
+                        doc.metadata["source_url"] = url
+                        return doc
+                    finally:
+                        if os.path.exists(temp_path):
+                            try:
+                                os.remove(temp_path)
+                            except Exception:
+                                pass
+            except Exception as direct_pdf_err:
+                logger.warning(
+                    "Direct PDF ingestion failed for '%s': %s. Falling back to MarkItDown.",
+                    url,
+                    direct_pdf_err,
+                )
+
+        # Tier 4: Standard Web Ingestion via MarkItDown
         return self._markitdown.ingest_url(url, source_id=source_id, title_override=title_override)

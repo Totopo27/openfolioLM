@@ -132,10 +132,27 @@ class PageAwarePDFExtractor:
             for physical_num, page in enumerate(pages_to_process, start=1):
                 page_im = None
                 try:
-                    txt = page.extract_text(layout=False) or ""
+                    # x_tolerance=1.5 ensures two-column papers (ACM, IEEE, arXiv) don't collapse word spaces
+                    txt = page.extract_text(layout=False, x_tolerance=1.5) or ""
+                    if not txt.strip():
+                        try:
+                            import pypdf
+                            pypdf_reader = pypdf.PdfReader(file_path)
+                            if physical_num - 1 < len(pypdf_reader.pages):
+                                txt = pypdf_reader.pages[physical_num - 1].extract_text() or ""
+                        except Exception:
+                            pass
                 except Exception as e:
                     logger.warning("Error extracting text on physical page %d: %s", physical_num, e)
-                    txt = ""
+                    try:
+                        import pypdf
+                        pypdf_reader = pypdf.PdfReader(file_path)
+                        if physical_num - 1 < len(pypdf_reader.pages):
+                            txt = pypdf_reader.pages[physical_num - 1].extract_text() or ""
+                        else:
+                            txt = ""
+                    except Exception:
+                        txt = ""
 
                 # Extract and format tables if enabled
                 tables_md_parts: list[str] = []

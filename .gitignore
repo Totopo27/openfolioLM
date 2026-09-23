@@ -55,3 +55,4 @@ storage/
 Thumbs.db
 *.swp
 *~
+.atl/

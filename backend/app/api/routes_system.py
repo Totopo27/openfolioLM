@@ -185,16 +185,21 @@ def create_system_router(
                     display = f"Ollama: {model_name}"
                     if param_size:
                         display += f" ({param_size})"
+                    # Since Ollama daemon responded with the model list, the model is installed and usable
+                    is_avail = True if rec.status != "offline" else False
+                    # If it was offline only due to cold-start timeout, allow selection
+                    if not is_avail and rec.last_error and "Timeout" in rec.last_error:
+                        is_avail = True
                     engines.append(
                         ModelEngine(
                             id=f"ollama:{model_name}",
                             provider="ollama",
                             model=model_name,
                             name=display,
-                            is_available=(rec.status != "offline"),
-                            status=rec.status,
+                            is_available=is_avail,
+                            status="healthy" if is_avail and rec.status in ("unknown", "offline") else rec.status,
                             latency_ms=rec.latency_ms,
-                            last_error=rec.last_error,
+                            last_error=rec.last_error if not is_avail else None,
                         )
                     )
         except Exception:

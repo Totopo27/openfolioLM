@@ -84,7 +84,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=_get_cors_origins(),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Accept", "Content-Type"],
     )
 
@@ -246,7 +246,7 @@ def create_app(
 app = create_app()
 
 API_LOOPBACK_HOST = "127.0.0.1"
-API_DEFAULT_PORT = 8000
+API_DEFAULT_PORT = 8001
 
 
 def run_api() -> None:

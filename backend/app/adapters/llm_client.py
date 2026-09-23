@@ -140,8 +140,9 @@ class OpenAICompatibleLLMClient:
             "temperature": 0.0,
         }
         t0 = time.perf_counter()
+        ping_timeout = 45.0 if self.provider_name == "ollama" else 8.0
         try:
-            with httpx.Client(timeout=6.0) as client:
+            with httpx.Client(timeout=ping_timeout) as client:
                 resp = client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
                 latency_ms = int((time.perf_counter() - t0) * 1000)
                 if resp.status_code == 200:
@@ -157,7 +158,9 @@ class OpenAICompatibleLLMClient:
                 )
                 return self.health_registry.get_status(target_model)
         except httpx.TimeoutException:
-            self.health_registry.record_offline(target_model, self.provider_name, "Timeout: sin respuesta en 6s")
+            self.health_registry.record_offline(
+                target_model, self.provider_name, f"Timeout: sin respuesta en {int(ping_timeout)}s"
+            )
             return self.health_registry.get_status(target_model)
         except Exception as e:
             self.health_registry.record_offline(target_model, self.provider_name, str(e))

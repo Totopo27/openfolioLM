@@ -32,6 +32,12 @@ def setup_logging() -> str:
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
 
+    # Also attach file handler to uvicorn loggers so access and error logs appear in openfolio.log
+    for uvicorn_logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        u_log = logging.getLogger(uvicorn_logger_name)
+        if not any(isinstance(h, RotatingFileHandler) for h in u_log.handlers):
+            u_log.addHandler(file_handler)
+
     # Check if a StreamHandler is registered
     has_stream_handler = any(
         isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler)

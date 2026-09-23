@@ -4,6 +4,7 @@ import logging
 import re
 import shutil
 import uuid
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import Any, Optional, Union
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
@@ -389,16 +390,26 @@ def create_projects_router(
         project_manager.task_manager.dismiss_task(task_id)
         return {"status": "dismissed", "id": task_id}
 
-    @router.post("/{project_id}/sources/url", response_model=SourceDocument)
-    async def ingest_project_url(project_id: str, data: URLIngestRequest):
+    @router.post("/{project_id}/sources/url", response_model=Optional[SourceDocument])
+    async def ingest_project_url(
+        project_id: str,
+        data: URLIngestRequest,
+        background: bool = Query(default=False),
+    ):
         proj = project_manager.get_project(project_id)
         if not proj:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        try:
+        def _do_ingest(progress_reporter=None):
+            def report(pct: int, stg: str, msg: str):
+                if progress_reporter:
+                    progress_reporter(pct, stg, msg)
+
+            report(10, "extracting", f"Iniciando descarga y análisis de '{data.url}'...")
             store = project_manager.get_store(project_id)
             vector_store = project_manager.get_vector_store(project_id)
             dynamic_vt = _resolve_vision_transcriber(data.engine)
+            report(25, "extracting", "Descargando recurso y extrayendo contenido...")
             try:
                 doc = ingester.ingest_url(url=data.url, title_override=data.title, vision_transcriber=dynamic_vt)
             except TypeError:
@@ -415,13 +426,34 @@ def create_projects_router(
                 and existing_doc.id != doc.id
                 and existing_doc.char_count >= doc.char_count
             ):
+                report(100, "done", "Documento existente encontrado.")
                 return existing_doc
 
+            report(60, "extracting", f"Generando fragmentos semánticos ({doc.char_count} caracteres)...")
             chunks = chunker.chunk(doc)
+            report(75, "embedding", f"Generando vectores semánticos ({len(chunks)} fragmentos)...")
             _persist_document_with_rollback(store, vector_store, doc, chunks)
             if existing_doc and existing_doc.id != doc.id:
                 _delete_indexed_document(store, vector_store, existing_doc.id)
+            report(100, "done", "Indexación completada con éxito.")
             return doc
+
+        if background:
+            parsed_u = urlparse(data.url)
+            display_name = data.title or os.path.basename(parsed_u.path) or parsed_u.netloc or data.url
+            task = project_manager.task_manager.create_task(
+                project_id=project_id,
+                filename=display_name,
+                file_size=0,
+            )
+            project_manager.task_manager.submit_ingestion(
+                task_id=task.id,
+                ingest_fn=_do_ingest,
+            )
+            return JSONResponse(status_code=202, content=task.to_dict())
+
+        try:
+            return await asyncio.to_thread(_do_ingest)
         except ValueError:
             raise HTTPException(status_code=400, detail="The URL or document data is invalid")
         except Exception:
@@ -536,26 +568,28 @@ def create_projects_router(
 
         chunks = store.get_document_chunks(source_id)
 
-        # Retrieve existing project categories to foster taxonomic alignment
-        taxonomy = store.get_project_taxonomy()
-        existing_categories = [c["name"] for c in taxonomy.get("categories", [])]
+        def _do_autoclassify():
+            taxonomy = store.get_project_taxonomy()
+            existing_categories = [c["name"] for c in taxonomy.get("categories", [])]
 
-        result = active_analyzer.classify_document_taxonomy(
-            document=doc,
-            chunks=chunks,
-            existing_categories=existing_categories,
-            provider=provider
-        )
+            result = active_analyzer.classify_document_taxonomy(
+                document=doc,
+                chunks=chunks,
+                existing_categories=existing_categories,
+                provider=provider
+            )
 
-        # Persist extracted category and tags into the document
-        store.update_document_metadata(source_id, {
-            "category": result.category,
-            "tags": result.tags,
-            "author": result.author,
-            "year_or_era": result.year_or_era,
-            "summary": result.thematic_summary,
-        })
-        return result
+            # Persist extracted category and tags into the document
+            store.update_document_metadata(source_id, {
+                "category": result.category,
+                "tags": result.tags,
+                "author": result.author,
+                "year_or_era": result.year_or_era,
+                "summary": result.thematic_summary,
+            })
+            return result
+
+        return await asyncio.to_thread(_do_autoclassify)
 
     @router.post("/{project_id}/sources/autoclassify-all")
     async def autoclassify_all_project_sources(project_id: str, provider: Optional[str] = None):
@@ -564,31 +598,35 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail="Project not found")
 
         store = project_manager.get_store(project_id)
-        docs = store.list_documents()
-        results = []
 
-        for doc in docs:
-            chunks = store.get_document_chunks(doc.id)
-            taxonomy = store.get_project_taxonomy()
-            existing_categories = [c["name"] for c in taxonomy.get("categories", [])]
+        def _do_autoclassify_all():
+            docs = store.list_documents()
+            results = []
 
-            res = active_analyzer.classify_document_taxonomy(
-                document=doc,
-                chunks=chunks,
-                existing_categories=existing_categories,
-                provider=provider
-            )
+            for doc in docs:
+                chunks = store.get_document_chunks(doc.id)
+                taxonomy = store.get_project_taxonomy()
+                existing_categories = [c["name"] for c in taxonomy.get("categories", [])]
 
-            store.update_document_metadata(doc.id, {
-                "category": res.category,
-                "tags": res.tags,
-                "author": res.author,
-                "year_or_era": res.year_or_era,
-                "summary": res.thematic_summary,
-            })
-            results.append({"source_id": doc.id, "filename": doc.filename, "classification": res})
+                res = active_analyzer.classify_document_taxonomy(
+                    document=doc,
+                    chunks=chunks,
+                    existing_categories=existing_categories,
+                    provider=provider
+                )
 
-        return {"classified_count": len(results), "results": results}
+                store.update_document_metadata(doc.id, {
+                    "category": res.category,
+                    "tags": res.tags,
+                    "author": res.author,
+                    "year_or_era": res.year_or_era,
+                    "summary": res.thematic_summary,
+                })
+                results.append({"source_id": doc.id, "filename": doc.filename, "classification": res})
+
+            return {"classified_count": len(results), "results": results}
+
+        return await asyncio.to_thread(_do_autoclassify_all)
 
     @router.get("/{project_id}/taxonomy", response_model=ProjectTaxonomySummary)
     async def get_project_taxonomy_summary(project_id: str):
@@ -873,45 +911,48 @@ def create_projects_router(
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        store = project_manager.get_store(project_id)
-        vector_store = project_manager.get_vector_store(project_id)
-        ingested_docs = []
-        dynamic_vt = _resolve_vision_transcriber(payload.engine)
+        def _do_batch_ingest():
+            store = project_manager.get_store(project_id)
+            vector_store = project_manager.get_vector_store(project_id)
+            ingested_docs = []
+            dynamic_vt = _resolve_vision_transcriber(payload.engine)
 
-        for doi in payload.dois:
-            try:
+            for doi in payload.dois:
                 try:
-                    doc = ingester.ingest_url(url=doi, vision_transcriber=dynamic_vt)
-                except TypeError:
-                    doc = ingester.ingest_url(url=doi)
+                    try:
+                        doc = ingester.ingest_url(url=doi, vision_transcriber=dynamic_vt)
+                    except TypeError:
+                        doc = ingester.ingest_url(url=doi)
 
-                # Deduplication check
-                existing_doc = project_manager.find_duplicate_document(
-                    project_id=project_id,
-                    doi=doc.metadata.get("doi") if doc.metadata else None,
-                    title=doc.filename
-                )
-                if (
-                    existing_doc
-                    and existing_doc.id != doc.id
-                    and existing_doc.char_count >= doc.char_count
-                ):
-                    ingested_docs.append(existing_doc)
-                    continue
+                    # Deduplication check
+                    existing_doc = project_manager.find_duplicate_document(
+                        project_id=project_id,
+                        doi=doc.metadata.get("doi") if doc.metadata else None,
+                        title=doc.filename
+                    )
+                    if (
+                        existing_doc
+                        and existing_doc.id != doc.id
+                        and existing_doc.char_count >= doc.char_count
+                    ):
+                        ingested_docs.append(existing_doc)
+                        continue
 
-                chunks = chunker.chunk(doc)
-                _persist_document_with_rollback(store, vector_store, doc, chunks)
-                if existing_doc and existing_doc.id != doc.id:
-                    _delete_indexed_document(store, vector_store, existing_doc.id)
-                ingested_docs.append(doc)
-            except Exception:
-                # Continue ingesting other papers even if one fails
-                logger.exception(
-                    "Failed to ingest discovery result for project %s",
-                    project_id,
-                )
+                    chunks = chunker.chunk(doc)
+                    _persist_document_with_rollback(store, vector_store, doc, chunks)
+                    if existing_doc and existing_doc.id != doc.id:
+                        _delete_indexed_document(store, vector_store, existing_doc.id)
+                    ingested_docs.append(doc)
+                except Exception:
+                    # Continue ingesting other papers even if one fails
+                    logger.exception(
+                        "Failed to ingest discovery result for project %s",
+                        project_id,
+                    )
 
-        return ingested_docs
+            return ingested_docs
+
+        return await asyncio.to_thread(_do_batch_ingest)
 
     # --- Studio Notebook Endpoints ---
 
@@ -1043,9 +1084,10 @@ def create_projects_router(
         project = project_manager.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-        return active_network_builder.build_project_network(
+        return await asyncio.to_thread(
+            active_network_builder.build_project_network,
             project_id=project_id,
-            min_similarity=min_similarity
+            min_similarity=min_similarity,
         )
 
     # --- Chronology & Timeline of Ideas ---
@@ -1055,7 +1097,10 @@ def create_projects_router(
         project = project_manager.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-        return active_timeline_builder.build_timeline(project_id=project_id)
+        return await asyncio.to_thread(
+            active_timeline_builder.build_timeline,
+            project_id=project_id,
+        )
 
     @router.post("/{project_id}/timeline/narrative")
     async def generate_timeline_narrative(
