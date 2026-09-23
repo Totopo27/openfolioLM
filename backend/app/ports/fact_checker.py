@@ -13,7 +13,9 @@ class FactAuditResult:
     contradiction_prob: Optional[float]
     neutral_prob: Optional[float]
     claims_audited: int
-    audit_status: Literal["verified", "not_applicable", "unavailable"] = "verified"
+    audit_status: Literal[
+        "verified", "completed", "partial", "not_applicable", "unavailable", "inference_failed"
+    ] = "verified"
 
 
 class FactCheckerPort(Protocol):

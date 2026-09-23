@@ -118,53 +118,72 @@ class NLIFactChecker(FactCheckerPort):
                 audit_status="unavailable",
             )
 
-        # Build aggregated premise text from top chunks (budgeted to ~1500 chars)
-        premise_snippets = []
-        char_count = 0
+        # Build per-chunk premise texts (trim each to a budget that fits
+        # the 512-token window alongside the claim).
+        MAX_PREMISE_CHARS = 1200
+        premise_texts = []
         for chunk in premise_chunks:
-            if char_count + len(chunk.content) > 1800:
-                budget = max(0, 1800 - char_count)
-                if budget > 200:
-                    premise_snippets.append(chunk.content[:budget])
-                break
-            premise_snippets.append(chunk.content)
-            char_count += len(chunk.content)
-        premise_text = " ".join(premise_snippets)
+            text = chunk.content.strip()
+            if text:
+                premise_texts.append(text[:MAX_PREMISE_CHARS])
 
         entailment_probs = []
         contradiction_probs = []
         neutral_probs = []
 
-        # Evaluate claims (limit to at most 6 representative claims to balance speed)
-        audited_claims = claims[:6]
+        # Evaluate claims (limit to a representative sample to balance speed)
+        audited_claims = claims[:12]
+        failed_claims = 0
 
         for claim in audited_claims:
             try:
-                encoded = self._tokenizer.encode(premise_text, claim)
-                input_ids = np.array([encoded.ids], dtype=np.int64)
-                attention_mask = np.array([encoded.attention_mask], dtype=np.int64)
+                # For each claim, find the best entailment across all chunks
+                best_entailment = 0.0
+                best_neutral = 1.0
+                worst_contradiction = 0.0
 
-                inputs = {
-                    "input_ids": input_ids,
-                    "attention_mask": attention_mask
-                }
-                outputs = self._session.run(None, inputs)
-                logits = outputs[0][0]
+                for premise_text in premise_texts:
+                    encoded = self._tokenizer.encode(premise_text, claim)
+                    input_ids = np.array([encoded.ids], dtype=np.int64)
+                    attention_mask = np.array([encoded.attention_mask], dtype=np.int64)
 
-                # Softmax normalization
-                exp = np.exp(logits - np.max(logits))
-                probs = exp / np.sum(exp)
+                    inputs = {
+                        "input_ids": input_ids,
+                        "attention_mask": attention_mask
+                    }
+                    outputs = self._session.run(None, inputs)
+                    logits = outputs[0][0]
 
-                # mDeBERTa-v3 xnli: 0: entailment, 1: neutral, 2: contradiction
-                entailment_probs.append(float(probs[0]))
-                neutral_probs.append(float(probs[1]))
-                contradiction_probs.append(float(probs[2]))
+                    # Softmax normalization
+                    exp = np.exp(logits - np.max(logits))
+                    probs = exp / np.sum(exp)
+
+                    # mDeBERTa-v3 xnli: 0: entailment, 1: neutral, 2: contradiction
+                    if probs[0] > best_entailment:
+                        best_entailment = float(probs[0])
+                        best_neutral = float(probs[1])
+                    if probs[2] > worst_contradiction:
+                        worst_contradiction = float(probs[2])
+
+                entailment_probs.append(best_entailment)
+                neutral_probs.append(best_neutral)
+                contradiction_probs.append(worst_contradiction)
             except Exception as e:
                 logger.warning("Error evaluating claim in NLI fact-checker: %s", e)
-                # Fallback for individual claim
-                entailment_probs.append(0.70)
-                neutral_probs.append(0.20)
-                contradiction_probs.append(0.10)
+                # Skip this claim rather than fabricating scores
+                failed_claims += 1
+
+        if not entailment_probs:
+            # All claims failed inference -- report degraded, not fabricated
+            return FactAuditResult(
+                factual_score=None,
+                hallucination_risk=None,
+                entailment_prob=None,
+                contradiction_prob=None,
+                neutral_prob=None,
+                claims_audited=0,
+                audit_status="inference_failed",
+            )
 
         avg_entailment = float(np.mean(entailment_probs))
         avg_neutral = float(np.mean(neutral_probs))
@@ -184,11 +203,15 @@ class NLIFactChecker(FactCheckerPort):
         else:
             hallucination_risk = "low"
 
+        successfully_audited = len(audited_claims) - failed_claims
+        status = "partial" if failed_claims > 0 else "completed"
+
         return FactAuditResult(
             factual_score=factual_score,
             hallucination_risk=hallucination_risk,
             entailment_prob=round(avg_entailment, 3),
             contradiction_prob=round(avg_contradiction, 3),
             neutral_prob=round(avg_neutral, 3),
-            claims_audited=len(audited_claims)
+            claims_audited=successfully_audited,
+            audit_status=status,
         )

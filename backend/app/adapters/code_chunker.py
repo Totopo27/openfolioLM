@@ -149,15 +149,18 @@ class SemanticCodeChunker(ChunkerPort):
 
             # If symbol block is within limit
             if len(symbol_raw) <= max_chars:
+                stripped = symbol_raw.strip()
+                # Adjust offsets to match stripped content
+                lstrip_delta = len(symbol_raw) - len(symbol_raw.lstrip())
                 chunks.append(
                     DocumentChunk(
                         id=f"{source_id}_chunk_{curr_idx}",
                         source_id=source_id,
-                        content=symbol_raw.strip(),
+                        content=stripped,
                         heading_hierarchy=[file_path, symbol_name],
-                        start_char=block_start,
-                        end_char=block_end,
-                        token_estimate=max(1, len(symbol_raw) // 4)
+                        start_char=block_start + lstrip_delta,
+                        end_char=block_start + lstrip_delta + len(stripped),
+                        token_estimate=max(1, len(stripped) // 4)
                     )
                 )
                 curr_idx += 1
@@ -198,17 +201,19 @@ class SemanticCodeChunker(ChunkerPort):
         for line in lines:
             if curr_len + len(line) > max_chars and curr_lines:
                 chunk_str = "".join(curr_lines)
-                start_c = base_offset + part_offset
-                end_c = start_c + len(chunk_str)
+                stripped = chunk_str.strip()
+                lstrip_delta = len(chunk_str) - len(chunk_str.lstrip())
+                start_c = base_offset + part_offset + lstrip_delta
+                end_c = start_c + len(stripped)
                 sub_chunks.append(
                     DocumentChunk(
                         id=f"{source_id}_chunk_{idx}",
                         source_id=source_id,
-                        content=chunk_str.strip(),
+                        content=stripped,
                         heading_hierarchy=[file_path, f"{symbol_name} (parte {part_num})"],
                         start_char=start_c,
                         end_char=end_c,
-                        token_estimate=max(1, len(chunk_str) // 4)
+                        token_estimate=max(1, len(stripped) // 4)
                     )
                 )
                 idx += 1
@@ -222,17 +227,19 @@ class SemanticCodeChunker(ChunkerPort):
 
         if curr_lines:
             chunk_str = "".join(curr_lines)
-            start_c = base_offset + part_offset
-            end_c = start_c + len(chunk_str)
+            stripped = chunk_str.strip()
+            lstrip_delta = len(chunk_str) - len(chunk_str.lstrip())
+            start_c = base_offset + part_offset + lstrip_delta
+            end_c = start_c + len(stripped)
             sub_chunks.append(
                 DocumentChunk(
                     id=f"{source_id}_chunk_{idx}",
                     source_id=source_id,
-                    content=chunk_str.strip(),
+                    content=stripped,
                     heading_hierarchy=[file_path, f"{symbol_name} (parte {part_num})"],
                     start_char=start_c,
                     end_char=end_c,
-                    token_estimate=max(1, len(chunk_str) // 4)
+                    token_estimate=max(1, len(stripped) // 4)
                 )
             )
 
