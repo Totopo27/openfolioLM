@@ -16,7 +16,6 @@ import {
   deleteProject,
   fetchProjectSources,
   fetchProjectTasks,
-  ingestProjectUrl,
   deleteProjectSource,
   fetchProjectMessages,
   createProjectNote,
@@ -48,6 +47,7 @@ export const App: React.FC = () => {
   // Archival Navigation Tab
   const [archivalTab, setArchivalTab] = useState<'index' | 'split' | 'notebook' | 'network' | 'timeline'>('index');
   const archivalFileInputRef = useRef<HTMLInputElement>(null);
+  const activeProjectIdRef = useRef<string | null>(null);
 
   // Project State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -71,6 +71,7 @@ export const App: React.FC = () => {
   const {
     uploadTasks,
     handleUpload,
+    handleIngestUrl: handleIngestUrlBackground,
     handleDismissUploadTask,
     initTasks: initUploadTasks,
   } = useUploadTasks({
@@ -243,6 +244,7 @@ export const App: React.FC = () => {
   };
 
   const handleSelectProject = async (project: Project) => {
+    activeProjectIdRef.current = project.id;
     setActiveProject(project);
     localStorage.setItem('openfolio_active_project_id', project.id);
     setIsProjectDropdownOpen(false);
@@ -250,34 +252,39 @@ export const App: React.FC = () => {
     setDocViewerTab('reading');
     setDraftNote(null);
 
-    // Fetch sources for this project
-    try {
-      const docs = await fetchProjectSources(project.id);
+    // Fetch sources, messages, and tasks in parallel, guarded against race conditions
+    const [sourcesResult, messagesResult, tasksResult] = await Promise.allSettled([
+      fetchProjectSources(project.id),
+      fetchProjectMessages(project.id),
+      fetchProjectTasks(project.id),
+    ]);
+
+    // Discard stale response if user switched to another project during fetch
+    if (activeProjectIdRef.current !== project.id) return;
+
+    if (sourcesResult.status === 'fulfilled') {
+      const docs = sourcesResult.value;
       setSources(docs);
       setActiveSourceIds(docs.map((d) => d.id));
       setSelectedDoc(docs.length > 0 ? docs[0] : null);
-    } catch (err) {
-      console.error(`Failed to load sources for project ${project.id}:`, err);
+    } else {
+      console.error(`Failed to load sources for project ${project.id}:`, sourcesResult.reason);
       setSources([]);
       setActiveSourceIds([]);
       setSelectedDoc(null);
     }
 
-    // Fetch persistent chat messages for this project
-    try {
-      const msgs = await fetchProjectMessages(project.id);
-      setMessages(msgs);
-    } catch (err) {
-      console.error(`Failed to load messages for project ${project.id}:`, err);
+    if (messagesResult.status === 'fulfilled') {
+      setMessages(messagesResult.value);
+    } else {
+      console.error(`Failed to load messages for project ${project.id}:`, messagesResult.reason);
       setMessages([]);
     }
 
-    // Fetch active or recently completed background tasks for this project
-    try {
-      const backendTasks = await fetchProjectTasks(project.id);
-      initUploadTasks(backendTasks);
-    } catch (err) {
-      console.error(`Failed to load tasks for project ${project.id}:`, err);
+    if (tasksResult.status === 'fulfilled') {
+      initUploadTasks(tasksResult.value);
+    } else {
+      console.error(`Failed to load tasks for project ${project.id}:`, tasksResult.reason);
     }
   };
 
@@ -309,15 +316,7 @@ export const App: React.FC = () => {
 
   const handleIngestUrl = async (url: string, title?: string) => {
     if (!activeProject) return;
-    const newDoc = await ingestProjectUrl(activeProject.id, url, title);
-    setSources((prev) => [newDoc, ...prev]);
-    setActiveSourceIds((prev) => [...prev, newDoc.id]);
-    setSelectedDoc(newDoc);
-
-    // Refresh project metadata count
-    setProjects((prev) =>
-      prev.map((p) => (p.id === activeProject.id ? { ...p, doc_count: p.doc_count + 1 } : p))
-    );
+    await handleIngestUrlBackground(url, title);
   };
 
   const handleDeleteSource = async (id: string) => {

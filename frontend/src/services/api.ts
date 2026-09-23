@@ -202,9 +202,11 @@ export async function ingestProjectUrl(
   projectId: string,
   url: string,
   title?: string,
-  engine?: string
-): Promise<SourceDocument> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/url`, {
+  engine?: string,
+  background: boolean = false
+): Promise<SourceDocument | BackendIngestionTask> {
+  const queryParam = background ? '?background=true' : '';
+  const res = await fetch(`${API_BASE}/projects/${projectId}/sources/url${queryParam}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, title: title || undefined, engine: engine || undefined }),

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage } from '../types';
 import { GroundedChatMessage } from '../components/archival/ArchivalSplitViewer';
 import {
@@ -26,9 +26,34 @@ export function useChatManager({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [targetMessageId, setTargetMessageId] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cancel any pending chat request if project changes or on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, [projectId]);
+
+  const handleCancelMessage = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  }, []);
 
   const handleSendMessage = useCallback(async (query: string) => {
     if (!projectId) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -41,7 +66,13 @@ export function useChatManager({
     setIsLoading(true);
 
     try {
-      const res = await sendProjectGroundedChat(projectId, query, activeSourceIds, selectedEngine);
+      const res = await sendProjectGroundedChat(
+        projectId,
+        query,
+        activeSourceIds,
+        selectedEngine,
+        controller.signal
+      );
 
       const assistantMsg: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
@@ -56,6 +87,9 @@ export function useChatManager({
       setMessages((prev) => [...prev, assistantMsg]);
       onMessageCountChanged?.(2);
     } catch (err: any) {
+      if (err.name === 'AbortError' || controller.signal.aborted) {
+        return;
+      }
       const errorMsg: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
         sender: 'assistant',
@@ -65,8 +99,11 @@ export function useChatManager({
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
-      setIsLoading(false);
-      onAfterSend?.();
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+        setIsLoading(false);
+        onAfterSend?.();
+      }
     }
   }, [projectId, activeSourceIds, selectedEngine, onMessageCountChanged, onAfterSend]);
 
@@ -112,5 +149,6 @@ export function useChatManager({
     groundedMessages,
     handleSendMessage,
     handleClearChat,
+    handleCancelMessage,
   };
 }

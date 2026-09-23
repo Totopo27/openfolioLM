@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ActiveUploadTask, BackendIngestionTask } from '../types';
 import {
   uploadProjectSourceBackground,
+  ingestProjectUrl,
   fetchProjectTasks,
   dismissProjectTask,
 } from '../services/api';
@@ -174,6 +175,51 @@ export function useUploadTasks({
     }
   }, [projectId, selectedEngine]);
 
+  const handleIngestUrl = useCallback(async (url: string, title?: string) => {
+    if (!projectId) return;
+    const tempTaskId = `task_url_${Date.now()}`;
+    const newTask: ActiveUploadTask = {
+      id: tempTaskId,
+      name: title || url,
+      size: 0,
+      progress: 10,
+      stage: 'extracting',
+      statusText: 'Iniciando descarga y análisis...',
+      startedAt: Date.now(),
+    };
+
+    setUploadTasks((prev) => [newTask, ...prev]);
+
+    try {
+      const result = await ingestProjectUrl(projectId, url, title, selectedEngine, true);
+      if ('stage' in result) {
+        setUploadTasks((prev) =>
+          prev.map((t) =>
+            t.id === tempTaskId
+              ? {
+                  ...t,
+                  id: result.id,
+                  progress: result.progress,
+                  stage: result.stage,
+                  statusText: result.status_text,
+                  error: result.error || undefined,
+                }
+              : t
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error('URL ingestion error:', err);
+      setUploadTasks((prev) =>
+        prev.map((t) =>
+          t.id === tempTaskId
+            ? { ...t, stage: 'error', error: err.message || 'Error al procesar la fuente remota' }
+            : t
+        )
+      );
+    }
+  }, [projectId, selectedEngine]);
+
   const handleDismissUploadTask = useCallback(async (taskId: string) => {
     if (projectId && !taskId.startsWith('task_temp_')) {
       try {
@@ -210,6 +256,7 @@ export function useUploadTasks({
   return {
     uploadTasks,
     handleUpload,
+    handleIngestUrl,
     handleDismissUploadTask,
     initTasks,
     clearTasks,
